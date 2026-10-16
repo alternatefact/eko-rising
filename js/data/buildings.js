@@ -4,6 +4,14 @@
 //   shore   dry footprint touching lagoon, river or sea
 //   rock / iron / palm   needs that resource within `near` tiles
 // Job types drive the worker state machines in sim/citizens.js.
+//
+// Homes and local production use natural materials gathered nearby (wood,
+// stone). Anything grander needs money as well, which comes from taxes, trade
+// with other kingdoms and selling to the ships at the port.
+//
+// `upgrades` lists the levels a building can grow through, each with its own
+// age, cost and effect: a hut becomes a mud-brick house, then a zinc-roof
+// bungalow, then a storey building.
 
 export const CATEGORIES = [
   { id: 'housing', name: 'Homes', icon: '🛖' },
@@ -17,8 +25,11 @@ export const BUILDINGS = {
   compound: {
     name: "Founder's Compound", yo: 'Ilé Baálé', cat: 'town', era: 0, w: 3, h: 3,
     cost: {}, hp: 1200, housing: 4, storage: { food: 60, goods: 60 }, influence: 9,
-    unique: true, buildable: false, trains: ['scout', 'spearman'], tower: { range: 5.5, dmg: 5, cd: 1.5 },
-    desc: 'Where it all began. Stores a little of everything, houses your family, and trains scouts and spearmen. Your family shoots at raiders from the walls. If it falls, your story ends.',
+    unique: true, buildable: false, trains: ['scout'], hires: true, tower: { range: 5.5, dmg: 5, cd: 1.5 },
+    upgrades: [
+      { name: 'Extended Compound', era: 1, cost: { wood: 30, stone: 10, cowries: 20 }, housing: 8, storage: 1.6, desc: 'More rooms around a second courtyard.' },
+    ],
+    desc: 'Where it all began. Stores a little of everything, houses your family and trains scouts. Hire fighters here for money. Your family shoots at raiders from the walls. If it falls, your story ends.',
   },
   campfire: {
     name: 'Strangers’ Campfire', yo: 'Iná Àlejò', cat: 'town', era: 0, w: 2, h: 2,
@@ -28,13 +39,32 @@ export const BUILDINGS = {
   hut: {
     name: 'Hut', yo: 'Ahéré', cat: 'housing', era: 0, w: 2, h: 2,
     cost: { wood: 10 }, hp: 90, housing: 4, place: 'land',
-    desc: 'A mud-walled hut with a thatch roof. Four strangers can move in and start working.',
+    upgrades: [
+      { name: 'Mud-brick House', yo: 'Ilé Amọ̀', era: 1, cost: { wood: 8, stone: 6, cowries: 10 }, housing: 6, desc: 'Square laterite walls and a thatched gable roof.' },
+      { name: 'Zinc-roof Bungalow', yo: 'Ilé Páànù', era: 3, cost: { stone: 15, iron: 4, cowries: 40 }, housing: 9, desc: 'Plastered walls and a shining corrugated-zinc roof.' },
+      { name: 'Storey Building', yo: 'Ilé Alájà', era: 4, cost: { stone: 30, iron: 10, cowries: 120 }, housing: 14, desc: 'A modern two-storey block with balconies.' },
+    ],
+    desc: 'A mud-walled hut with a thatch roof, built from what the land gives. Four strangers can move in and start working. Upgrade it as your town grows.',
   },
   farm: {
     name: 'Yam Farm', yo: 'Oko Iṣu', cat: 'food', era: 0, w: 3, h: 3,
     cost: { wood: 6 }, hp: 60, workers: 1, place: 'fertile', flat: true,
     job: { type: 'farm', grow: 38, yield: 12, product: 'yam' },
-    desc: 'Mounds of yam. Grows fastest in the rainy season, slowest in the Harmattan. Needs fertile land.',
+    upgrades: [{ name: 'Great Yam Farm', era: 1, cost: { wood: 10, cowries: 10 }, yield: 1.5, desc: 'Taller heaps and a yam barn.' }],
+    desc: 'Yams grown the Nigerian way, on big heaps of earth with stakes for the vines. Fastest in the rainy season, slowest in the Harmattan.',
+  },
+  cassava: {
+    name: 'Cassava Farm', yo: 'Oko Ẹ̀gẹ́', cat: 'food', era: 1, w: 3, h: 3, requires: 'cassava',
+    cost: { wood: 6 }, hp: 60, workers: 1, place: 'fertile', flat: true,
+    job: { type: 'farm', grow: 46, yield: 16, product: 'cassava' },
+    upgrades: [{ name: 'Great Cassava Farm', era: 2, cost: { wood: 10, cowries: 15 }, yield: 1.5, desc: 'Longer ridges, more stems.' }],
+    desc: 'Cassava stems planted on long ridges. Hardy in any season. Raw cassava must be processed into garri at a Garri House.',
+  },
+  garri: {
+    name: 'Garri House', yo: 'Ilé Gààrí', cat: 'food', era: 1, w: 2, h: 2, requires: 'cassava',
+    cost: { wood: 15, stone: 4 }, hp: 90, workers: 2, place: 'land',
+    job: { type: 'craft', inputs: { cassava: 4 }, work: 9, yield: 4, product: 'garri' },
+    desc: 'Women peel, grate, press and fry cassava into garri — food that keeps for months and sells well to ships and kingdoms.',
   },
   woodcutter: {
     name: "Woodcutter's Camp", yo: 'Agégi', cat: 'industry', era: 0, w: 2, h: 2,
@@ -57,12 +87,14 @@ export const BUILDINGS = {
   storehouse: {
     name: 'Storehouse', yo: 'Abà', cat: 'industry', era: 0, w: 2, h: 2,
     cost: { wood: 15 }, hp: 120, storage: { goods: 150 }, place: 'land',
-    desc: 'Holds wood, stone, iron, palm oil and weapons. Workers carry goods to the nearest one.',
+    upgrades: [{ name: 'Stone Warehouse', era: 2, cost: { stone: 15, cowries: 20 }, storage: 2, desc: 'Twice the room.' }],
+    desc: 'Holds wood, stone, cassava, palm oil, iron and imports. Workers carry goods to the nearest one.',
   },
   granary: {
     name: 'Granary', yo: 'Àká', cat: 'food', era: 0, w: 2, h: 2,
     cost: { wood: 15 }, hp: 120, storage: { food: 150 }, place: 'land',
-    desc: 'Raised barns that keep yam, fish and meat. Food is carried to the nearest one.',
+    upgrades: [{ name: 'Great Granary', era: 2, cost: { stone: 15, cowries: 20 }, storage: 2, desc: 'Twice the room.' }],
+    desc: 'Raised barns that keep yam, garri, fish and meat. Food is carried to the nearest one.',
   },
   palisade: {
     name: 'Palisade Wall', yo: 'Odi Igi', cat: 'military', era: 0, w: 1, h: 1,
@@ -73,6 +105,13 @@ export const BUILDINGS = {
     name: 'Gate', yo: 'Ẹnu Odi', cat: 'military', era: 0, w: 1, h: 1,
     cost: { wood: 6 }, hp: 260, place: 'land', gate: true,
     desc: 'Your people pass, enemies must break it down.',
+  },
+  warcamp: {
+    name: 'Training Ground', yo: 'Pápá Ogun', cat: 'military', era: 0, w: 3, h: 3,
+    cost: { wood: 30, cowries: 50 }, hp: 260, place: 'land', influence: 5, army: 10,
+    trains: ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'],
+    upgrades: [{ name: 'Barracks', era: 2, cost: { stone: 30, cowries: 80 }, army: 10, desc: 'Room for ten more soldiers.' }],
+    desc: 'Train your own people as fighters — cheaper than hiring, but every recruit costs money for arms and drill. Recruits come from strangers at the fire, then idle residents. +10 army size.',
   },
   well: {
     name: 'Well', yo: 'Kànga', cat: 'town', era: 1, w: 1, h: 1,
@@ -87,8 +126,12 @@ export const BUILDINGS = {
   },
   market: {
     name: 'Market', yo: 'Ọjà', cat: 'town', era: 1, w: 3, h: 3,
-    cost: { wood: 30 }, hp: 140, place: 'land', happiness: 4, unique: true,
-    desc: 'Buy and sell goods for cowries. Busy markets lift spirits: +4 happiness.',
+    cost: { wood: 30, cowries: 30 }, hp: 140, place: 'land', happiness: 4, unique: true,
+    upgrades: [
+      { name: 'Great Market', yo: 'Ọjà Ńlá', era: 3, cost: { stone: 40, cowries: 150 }, happiness: 4, price: 1.15, desc: 'Traders from every town. Better prices.' },
+      { name: 'Shopping Plaza', era: 4, cost: { stone: 60, iron: 20, cowries: 300 }, happiness: 4, price: 1.15, desc: 'Shops, banks and buses.' },
+    ],
+    desc: 'Sell your goods for money and buy what you lack. Busy markets lift spirits: +4 happiness.',
   },
   quarry: {
     name: 'Stone Quarry', yo: 'Ibi Òkúta', cat: 'industry', era: 1, w: 2, h: 2,
@@ -96,51 +139,41 @@ export const BUILDINGS = {
     job: { type: 'gather', source: 'rock', radius: 7, work: 9, yield: 4, process: 2, product: 'stone' },
     desc: 'Cuts stone from rocky hills. Must be built near rocks.',
   },
+  palmpress: {
+    name: 'Palm Oil Mill', yo: 'Ibi Epo', cat: 'industry', era: 1, w: 2, h: 2,
+    cost: { wood: 20, stone: 5 }, hp: 100, workers: 2, place: 'palm', near: 8,
+    job: { type: 'gather', source: 'palm', radius: 10, work: 6, yield: 4, process: 4, product: 'palmoil' },
+    desc: 'A local palm oil making area: palm fruit is pounded in pits and boiled into red oil, the great trade good of the coast. Needs palm trees nearby.',
+  },
   watchtower: {
     name: 'Watchtower', yo: 'Ilé Ìṣọ́', cat: 'military', era: 1, w: 2, h: 2,
-    cost: { wood: 25, stone: 6 }, hp: 260, place: 'land', influence: 5, vision: 9,
+    cost: { wood: 25, stone: 6, cowries: 15 }, hp: 260, place: 'land', influence: 5, vision: 9,
     tower: { range: 7, dmg: 7, cd: 1.4 },
     desc: 'Lookouts with bows shoot raiders in range and see far.',
   },
-  warcamp: {
-    name: 'War Camp', yo: 'Àgọ́ Ogun', cat: 'military', era: 1, w: 3, h: 3,
-    cost: { wood: 40, cowries: 20 }, hp: 260, place: 'land', influence: 5, army: 10,
-    trains: ['scout', 'spearman', 'archer', 'swordsman', 'musketeer'],
-    desc: 'Arms your people. Recruits come from strangers at the fire first, then from idle residents. +10 army size.',
-  },
   palace: {
     name: 'Ààfin (Palace)', yo: 'Ààfin', cat: 'town', era: 1, w: 4, h: 4,
-    cost: { wood: 140, stone: 50, cowries: 100 }, hp: 900, housing: 6,
-    storage: { food: 100, goods: 100 }, influence: 15, place: 'land', unique: true, happiness: 4,
+    cost: { wood: 140, stone: 50, cowries: 150 }, hp: 900, housing: 6,
+    storage: { food: 100, goods: 100 }, influence: 15, place: 'land', unique: true, happiness: 4, hires: true,
     tower: { range: 7, dmg: 9, cd: 1.5 },
-    desc: 'Seat of your rule. Turns your compound into a Town: strangers now gather in the town square. Required for the Town era.',
-  },
-  house: {
-    name: 'Family House', yo: 'Ilé', cat: 'housing', era: 2, w: 2, h: 2,
-    cost: { wood: 18, stone: 10 }, hp: 180, housing: 8, place: 'land',
-    desc: 'A larger rectangular house with a courtyard. Eight people can live here.',
-  },
-  palmpress: {
-    name: 'Palm Oil Press', yo: 'Ibi Epo', cat: 'industry', era: 2, w: 2, h: 2,
-    cost: { wood: 25, stone: 5 }, hp: 100, workers: 2, place: 'palm', near: 8,
-    job: { type: 'gather', source: 'palm', radius: 10, work: 6, yield: 4, process: 4, product: 'palmoil' },
-    desc: 'Harvests palm fruit and presses red oil, the great trade good of the coast. Needs palm trees nearby.',
+    upgrades: [{ name: 'Government House', era: 4, cost: { stone: 100, iron: 30, cowries: 500 }, happiness: 6, housing: 12, desc: 'The seat of a modern state.' }],
+    desc: 'Seat of your rule. Turns your compound into a Town: strangers now gather in the town square. Hire fighters here. Required for the Town age.',
   },
   ironmine: {
     name: 'Iron Mine', yo: 'Ibi Irin', cat: 'industry', era: 2, w: 2, h: 2,
-    cost: { wood: 30, stone: 10 }, hp: 140, workers: 2, place: 'iron', near: 4,
+    cost: { wood: 30, stone: 10, cowries: 30 }, hp: 140, workers: 2, place: 'iron', near: 4,
     job: { type: 'gather', source: 'iron', radius: 6, work: 11, yield: 3, process: 3, product: 'iron' },
     desc: 'Digs iron ore. Only where scouts have found iron.',
   },
   blacksmith: {
     name: 'Blacksmith', yo: 'Alágbẹ̀dẹ', cat: 'industry', era: 2, w: 2, h: 2,
-    cost: { wood: 30, stone: 15 }, hp: 140, workers: 1, place: 'land',
+    cost: { wood: 30, stone: 15, cowries: 40 }, hp: 140, workers: 1, place: 'land',
     job: { type: 'craft', inputs: { iron: 2, wood: 1 }, work: 12, yield: 1, product: 'weapons' },
-    desc: 'Ogun’s craft: forges iron and wood into weapons for swordsmen and musketeers.',
+    desc: 'Ogun’s craft: forges iron and wood into weapons for swordsmen and horsemen.',
   },
   canoeyard: {
     name: 'Canoe Yard', yo: 'Ibi Ọkọ̀', cat: 'industry', era: 2, w: 2, h: 2,
-    cost: { wood: 45 }, hp: 120, place: 'shore', unique: true,
+    cost: { wood: 45, cowries: 40 }, hp: 120, place: 'shore', unique: true,
     desc: 'Dugout canoes. Your people and soldiers can now cross the lagoon and rivers.',
   },
   stonewall: {
@@ -148,27 +181,73 @@ export const BUILDINGS = {
     cost: { stone: 3 }, hp: 520, place: 'land', wall: true, line: true,
     desc: 'Laterite and stone. Much tougher than a palisade.',
   },
-  tradingpost: {
-    name: 'Trading Post', yo: 'Ilé Ọjà Òyìnbó', cat: 'town', era: 2, w: 3, h: 3,
-    cost: { wood: 40, stone: 30 }, hp: 260, place: 'shore', unique: true, requires: 'europeanTrade',
-    desc: 'Where European ships trade. Palm oil sells for more, and iron and weapons can be bought. Unlocks musketeers.',
+  port: {
+    name: 'Port', yo: 'Èbúté', cat: 'town', era: 2, w: 3, h: 3,
+    cost: { wood: 40, stone: 30, cowries: 100 }, hp: 260, place: 'shore', unique: true, requires: 'europeanTrade',
+    desc: 'Merchant ships dock here every few days. Sell palm oil, garri and fish for money; buy muskets, cannon, salt, cloth, horses, iron tools and fishing nets.',
   },
   fort: {
     name: 'Coastal Fort', yo: 'Ilé Olódi', cat: 'military', era: 3, w: 3, h: 3,
-    cost: { stone: 80, iron: 20, cowries: 60 }, hp: 900, place: 'land', influence: 6, vision: 10,
+    cost: { stone: 80, cannon: 2, cowries: 120 }, hp: 900, place: 'land', influence: 6, vision: 10,
     tower: { range: 9, dmg: 26, cd: 3.2, cannon: true },
-    desc: 'Stone bastions with cannon. Shatters raiding parties.',
+    desc: 'Stone bastions with imported cannon. Shatters raiding parties.',
   },
   school: {
     name: 'School', yo: 'Ilé Ìwé', cat: 'town', era: 3, w: 3, h: 2,
-    cost: { wood: 40, stone: 40, cowries: 80 }, hp: 200, place: 'land', happiness: 6, unique: true,
+    cost: { wood: 40, stone: 40, cowries: 150 }, hp: 200, place: 'land', happiness: 6, unique: true,
     desc: 'Learning for every child. +6 happiness and strangers arrive faster.',
   },
   assembly: {
     name: 'House of Assembly', yo: 'Ilé Aṣòfin', cat: 'town', era: 3, w: 3, h: 3,
-    cost: { wood: 80, stone: 120, cowries: 300 }, hp: 900, place: 'land', unique: true, happiness: 4,
+    cost: { wood: 80, stone: 120, cowries: 400 }, hp: 900, place: 'land', unique: true, happiness: 4,
     desc: 'Where all the peoples you have united speak as one. Required to proclaim The New Nigeria.',
+  },
+  hospital: {
+    name: 'Hospital', yo: 'Ilé Ìwòsàn', cat: 'town', era: 4, w: 3, h: 3,
+    cost: { stone: 80, iron: 20, cowries: 300 }, hp: 400, place: 'land', happiness: 6, unique: true,
+    desc: 'Doctors and nurses. +6 happiness, strangers arrive faster, and soldiers nearby heal.',
+  },
+  factory: {
+    name: 'Factory', yo: 'Ilé Iṣẹ́', cat: 'industry', era: 4, w: 3, h: 3,
+    cost: { stone: 60, iron: 30, cowries: 250 }, hp: 400, workers: 4, place: 'land',
+    job: { type: 'craft', inputs: { cassava: 6, palmoil: 2 }, work: 10, yield: 10, product: 'garri', cash: 25 },
+    desc: 'Machines process cassava into packaged garri and export palm products: food for the city and money for every batch.',
+  },
+  bank: {
+    name: 'Bank', yo: 'Ilé Ìfowópamọ́', cat: 'town', era: 4, w: 2, h: 2,
+    cost: { stone: 50, iron: 10, cowries: 400 }, hp: 300, place: 'land', unique: true,
+    desc: 'Money makes money: your treasury earns 1% interest a day (up to 60 a day).',
   },
 };
 
 export const STORAGE_FOR = { food: ['granary', 'compound', 'palace'], goods: ['storehouse', 'compound', 'palace'] };
+
+// What a building can do at its current level: base values with every
+// upgrade it has taken applied on top.
+export function stat(b, key) {
+  const def = BUILDINGS[b.type];
+  let v = def[key];
+  const ups = def.upgrades || [];
+  for (let k = 0; k < (b.level || 1) - 1 && k < ups.length; k++) {
+    const u = ups[k];
+    if (key === 'housing' && u.housing) v = u.housing;
+    if (key === 'happiness' && u.happiness) v = (v || 0) + u.happiness;
+    if (key === 'army' && u.army) v = (v || 0) + u.army;
+    if (key === 'storage' && u.storage) v = { food: (v.food || 0) * u.storage, goods: (v.goods || 0) * u.storage };
+    if (key === 'yield' && u.yield) v = (v || 1) * u.yield;
+    if (key === 'price' && u.price) v = (v || 1) * u.price;
+  }
+  if ((key === 'yield' || key === 'price') && v === undefined) return 1;
+  return v;
+}
+
+export function levelName(b) {
+  const def = BUILDINGS[b.type];
+  const lvl = b.level || 1;
+  return lvl > 1 && def.upgrades?.[lvl - 2] ? def.upgrades[lvl - 2].name : def.name;
+}
+
+export function nextUpgrade(b) {
+  const def = BUILDINGS[b.type];
+  return def.upgrades?.[(b.level || 1) - 1] || null;
+}

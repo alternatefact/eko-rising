@@ -5,7 +5,7 @@ import { ERAS } from '../data/eras.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { notify } from './entities.js';
 import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStranger } from './economy.js';
-import { diplomacy, giftCost, unified, majors, STRENGTH, initFaction } from './factions.js';
+import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction } from './factions.js';
 import { sendShip, launchWarBand, armyPower, declareWar } from './military.js';
 import { findLanding } from './world.js';
 import { DAY } from './economy.js';
@@ -108,13 +108,21 @@ function meetEvent(st, f) {
     title: `You meet the ${f.name}`,
     art: 'meet',
     color: f.color,
-    text: () => `${f.desc}\n\nStrength: ${'★'.repeat(f.strength)}${'☆'.repeat(5 - f.strength)} ${STRENGTH[f.strength]}. ${temper}`,
+    text: () => `${f.leader ? `${f.leader} receives your messengers.\n\n` : ''}${f.desc}\n\nStrength: ${'★'.repeat(f.strength)}${'☆'.repeat(5 - f.strength)} ${STRENGTH[f.strength]}. ${temper}`,
     choices: [
       {
         label: `Send gifts (🐚 ${gift})`,
         hint: 'Relations improve. Enough goodwill and they may ally with you.',
         can: (s) => s.res.cowries >= gift,
         apply: (s) => diplomacy(s, f.id, 'gift'),
+      },
+      {
+        label: 'Propose a trade agreement',
+        hint: 'Once you have a Market: their caravans bring a little money every day, and they will buy what they lack.',
+        apply: (s) => {
+          if (f.relation < 10) f.relation += f.temperament === 'friendly' ? 10 : 4;
+          diplomacy(s, f.id, 'trade');
+        },
       },
       {
         label: 'Greet them as kin',
@@ -145,6 +153,10 @@ export function eraRequirements(st) {
   if (req.building) out.push({ text: `Build the ${BUILDINGS[req.building].name}`, met: hasBuilding(st, req.building) });
   for (const b of req.buildings || []) out.push({ text: `Build a ${BUILDINGS[b].name}`, met: hasBuilding(st, b) });
   if (req.flag === 'metEuropeans') out.push({ text: 'Make contact with the ships from across the sea', met: !!st.flags.metEuropeans });
+  if (req.subdued) {
+    const n = subdued(st).length;
+    out.push({ text: `Subdue ${req.subdued} kingdom${req.subdued > 1 ? 's' : ''} — conquer them or make them pay tribute`, met: n >= req.subdued, have: n });
+  }
   out.push({ text: 'Pay the cost', met: canAfford(st, next.cost || {}), cost: next.cost });
   return { next, reqs: out };
 }
@@ -156,6 +168,10 @@ export function advanceEra(st) {
   st.era++;
   st.time.year = Math.max(st.time.year, r.next.year);
   st.flags[`era${st.era}Day`] = st.time.day;
+  if (st.era >= 2 && !st.flags.cassava) {
+    st.flags.cassava = true;
+    notify(st, '🌿 Cassava cuttings have spread along the coast. You can now plant Cassava Farms and build Garri Houses.', 'good');
+  }
   st.dirty.territory = true;
   addMood(st, `A new age: ${r.next.name}`, 8, 4);
   notify(st, `🌅 ${st.name} enters the ${r.next.name} era (${r.next.yo}). ${r.next.blurb}`, 'good');
@@ -168,7 +184,7 @@ export function proclaimRequirements(st) {
   const all = majors(st);
   const u = unified(st);
   return [
-    { text: 'Reach the Port City era', met: st.era >= 3 },
+    { text: 'Reach the Metropolis age', met: st.era >= 4 },
     { text: `Unite every major people of ${st.region.name} (${u.length}/${all.length}) — by alliance, tribute or conquest`, met: u.length >= all.length },
     { text: 'Settle the question of the Europeans', met: !!st.flags.foreignResolved },
     { text: 'Build the House of Assembly', met: hasBuilding(st, 'assembly') },

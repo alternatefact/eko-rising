@@ -2,11 +2,13 @@
 
 import { UNITS, unitPower } from '../data/units.js';
 import { BUILDINGS } from '../data/buildings.js';
+import { ERAS } from '../data/eras.js';
+import { merchantArrives } from './trade.js';
 import { createUnit, notify, notifyOnce, removeUnit, removeBuilding, removeCitizen } from './entities.js';
 import { goTo, stepMove } from './move.js';
 import { findPath } from '../world/path.js';
 import { distToRect, findLanding } from './world.js';
-import { spend, canAfford, armySize, armyCap, addMood } from './economy.js';
+import { spend, canAfford, armySize, armyCap, addMood, DAY } from './economy.js';
 
 // --- Who fights whom -----------------------------------------------------------
 
@@ -345,13 +347,16 @@ export function updateTowers(st, dt) {
 export function canTrain(st, b, type) {
   const def = UNITS[type];
   if (!BUILDINGS[b.type].trains?.includes(type)) return { ok: false, reason: 'Not trained here.' };
-  if ((def.era || 0) > st.era) return { ok: false, reason: `Needs the ${['Farmstead', 'Compound', 'Town', 'Port City'][def.era]} era.` };
+  if ((def.era || 0) > st.era) return { ok: false, reason: `Needs the ${ERAS[def.era].name} age.` };
   if (def.requires && !st.buildings.some((x) => x.type === def.requires && x.built >= 1 && !x.dead)) {
     return { ok: false, reason: `Needs a ${BUILDINGS[def.requires].name}.` };
   }
   const queued = st.buildings.reduce((n, x) => n + x.queue.length, 0);
-  if (armySize(st) + queued >= armyCap(st)) return { ok: false, reason: 'Army is at its limit. Build a war camp.' };
-  if (!canAfford(st, def.cost)) return { ok: false, reason: 'Not enough resources.' };
+  if (armySize(st) + queued >= armyCap(st)) return { ok: false, reason: 'Army is at its limit. Build or upgrade a Training Ground.' };
+  if (!canAfford(st, def.cost)) {
+    const short = Object.entries(def.cost).filter(([k, v]) => (k === 'food' ? false : st.res[k] < v)).map(([k]) => (k === 'cowries' ? 'money' : k));
+    return { ok: false, reason: short.length ? `Not enough ${short.join(' and ')}.` : 'Not enough food.' };
+  }
   return { ok: true };
 }
 
@@ -454,7 +459,9 @@ export function sendShip(st, power, purpose, payload = {}) {
   const nx = home ? home.x : st.start.x;
   const ny = home ? home.y : st.start.y;
   const prefer = payload.prefer || 'south';
-  const landing = findLanding(st, nx, ny, payload.minDist ?? 12, prefer);
+  const landing = payload.near
+    ? findLanding(st, payload.near.x, payload.near.y, 0, null)
+    : findLanding(st, nx, ny, payload.minDist ?? 12, prefer);
   if (landing < 0) return null;
   const lx = landing % st.W;
   const ly = Math.floor(landing / st.W);
@@ -551,6 +558,9 @@ function arrive(st, s) {
   if (s.purpose === 'envoy') {
     st.eventQueue.push({ id: s.payload.event });
     s.timer = 30;
+  } else if (s.purpose === 'merchant') {
+    merchantArrives(st, s.power);
+    s.timer = DAY * 3;
   } else if (s.purpose === 'landing') {
     if (s.payload.bombard) bombard(st, s, s.payload.bombard);
     launchWarBand(st, s.power, land, s.payload.troops, { onDefeat: s.payload.onDefeat, label: s.payload.label });

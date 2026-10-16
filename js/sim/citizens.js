@@ -3,7 +3,7 @@
 // to work. Each job is a little loop: walk out, gather, bring it back, carry
 // it to the nearest store.
 
-import { BUILDINGS, STORAGE_FOR } from '../data/buildings.js';
+import { BUILDINGS, STORAGE_FOR, stat } from '../data/buildings.js';
 import { RESOURCES, FOOD } from '../data/resources.js';
 import { F, T, WALK, isWater } from '../world/terrain.js';
 import { findNear, adjacentToWater } from './world.js';
@@ -32,7 +32,7 @@ export function houseStrangers(st) {
   if (!waiting.length) return;
   for (const b of st.buildings) {
     if (b.owner !== 'player' || b.built < 1 || b.dead) continue;
-    const cap = BUILDINGS[b.type].housing || 0;
+    const cap = BUILDINGS[b.type].housing ? stat(b, 'housing') : 0;
     if (b.residents.length >= cap || !waiting.length) continue;
     // Nearest waiting stranger takes the bed.
     const p = at(b);
@@ -193,7 +193,7 @@ function deliver(st, c) {
     c.state = 'storewait';
     c.timer = 3;
     const kind = RESOURCES[c.carry.r].kind;
-    notifyOnce(st, `full-${kind}`, 40, `📦 Your ${kind === 'food' ? 'granaries are' : 'storehouses are'} full. Build another ${kind === 'food' ? 'granary' : 'storehouse'}${kind === 'food' ? '' : ' or sell at the market'}.`, 'bad');
+    notifyOnce(st, `full-${kind}`, 150, `📦 Your ${kind === 'food' ? 'granaries are' : 'storehouses are'} full. Build another ${kind === 'food' ? 'granary' : 'storehouse'}${kind === 'food' ? '' : ' or sell at the market'}.`, 'bad');
     return false;
   }
   const n = addRes(st, c.carry.r, c.carry.n);
@@ -238,7 +238,7 @@ function takeFromSource(st, i, job) {
     }
     return n;
   }
-  if (job.source === 'water') return job.yield;
+  if (job.source === 'water') return Math.round(job.yield * (st.tech.nets ? 1.5 : 1));
   const n = Math.min(job.yield, st.amount[i]);
   st.amount[i] -= n;
   if (st.amount[i] === 0 && job.source !== 'palm') {
@@ -455,7 +455,8 @@ export function updateCitizen(st, c, dt) {
           return;
         }
         c.state = 'gather';
-        c.timer = def.work;
+        // Imported iron tools speed up every hand that cuts, digs or picks.
+        c.timer = def.work * (st.tech.tools && def.source !== 'water' ? 0.75 : 1);
       }
       return;
     }
@@ -521,7 +522,10 @@ export function updateCitizen(st, c, dt) {
           goTo(st, c, fx, fy, { max: 200 });
         }
       }
-      job.growth += (dt / def.grow) * season(st).farm;
+      // Cassava shrugs off the Harmattan far better than yam does.
+      const sf = season(st).farm;
+      const seasonal = def.product === 'cassava' ? 0.75 + 0.25 * sf : sf;
+      job.growth += (dt / def.grow) * seasonal * (st.tech.tools ? 1.25 : 1);
       if (job.growth >= 1) {
         job.growth = 1;
         c.state = 'harvest';
@@ -534,7 +538,7 @@ export function updateCitizen(st, c, dt) {
       c.timer -= dt;
       if (c.timer > 0) return;
       job.growth = 0;
-      c.carry = { r: def.product, n: def.yield };
+      c.carry = { r: def.product, n: Math.round(def.yield * stat(job, 'yield')) };
       headToStore(st, c);
       return;
     }
@@ -653,6 +657,11 @@ export function updateCitizen(st, c, dt) {
       job.craftT -= dt;
       if (job.craftT <= 0) {
         job.craftT = 0;
+        // Factories also export part of each batch for cash.
+        if (def.cash) {
+          st.res.cowries += def.cash;
+          st.stats.earned = (st.stats.earned || 0) + def.cash;
+        }
         c.carry = { r: def.product, n: def.yield };
         headToStore(st, c);
       }

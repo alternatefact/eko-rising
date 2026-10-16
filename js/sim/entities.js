@@ -51,6 +51,7 @@ export function createBuilding(st, type, x, y, opts = {}) {
     paused: false,
     growth: 0,
     queue: [],
+    level: 1,
     trainT: 0,
     craftT: 0,
     cd: 0,

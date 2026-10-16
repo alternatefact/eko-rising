@@ -6,6 +6,7 @@ import { createUnit, notify } from './entities.js';
 import { armyPower, launchWarBand, declareWar } from './military.js';
 import { addRes, addMood, spawnStranger } from './economy.js';
 import { revealAround } from './world.js';
+import { askForWarriors } from './trade.js';
 import { unitPower } from '../data/units.js';
 import { ORIGINS } from '../data/names.js';
 
@@ -41,6 +42,11 @@ export function initFaction(st, def, spot) {
     style: def.style || 'village',
     raids: def.raids !== false,
     origin: def.origin,
+    leader: def.leader || null,
+    wants: def.wants || {},
+    offers: def.offers || {},
+    trade: false,
+    helpReady: 0,
   };
   st.factions.push(f);
   st.factionMap[f.id] = f;
@@ -75,6 +81,12 @@ export function factionPower(st, f) {
   let p = 0;
   for (const u of st.units) if (u.owner === f.id && !u.dead) p += unitPower(u.type);
   return p + f.strength * 40;
+}
+
+// Kingdoms brought under your rule, by the sword or by fear of it. Bandit
+// camps are not kingdoms and don't count.
+export function subdued(st) {
+  return st.factions.filter((f) => f.temperament !== 'bandit' && (f.status === 'conquered' || f.status === 'vassal'));
 }
 
 export function unified(st) {
@@ -194,8 +206,9 @@ export function conquer(st, f) {
 
 export function dailyFactions(st) {
   for (const f of st.factions) {
+    // A sacked kingdom pays little; a willing partner pays every day.
     if (f.status === 'conquered') {
-      collect(st, f.tribute, 0.6);
+      collect(st, f.tribute, 0.4);
       continue;
     }
     const base = BASE_REL[f.temperament] ?? 0;
@@ -207,7 +220,6 @@ export function dailyFactions(st) {
       declareWar(st, f, false);
       notify(st, `🔥 The ${f.name} have lost patience with you and taken up arms.`, 'war', { x: f.x, y: f.y });
     }
-    if (f.status === 'allied') collect(st, { cowries: 2 + f.strength * 2 }, 1);
     if (f.status === 'vassal') collect(st, f.tribute, 1);
   }
 }
@@ -231,7 +243,7 @@ export function diplomacy(st, fid, action) {
   switch (action) {
     case 'gift': {
       const cost = giftCost(st, f);
-      if (st.res.cowries < cost) return { ok: false, reason: `A worthy gift costs ${cost} cowries.` };
+      if (st.res.cowries < cost) return { ok: false, reason: `A worthy gift costs ${cost}.` };
       st.res.cowries -= cost;
       const gain = Math.max(4, Math.round(16 * Math.pow(0.82, f.gifts)));
       f.gifts++;
@@ -276,9 +288,26 @@ export function diplomacy(st, fid, action) {
       return { ok: false, reason: 'Not strong enough.' };
     }
     case 'war': {
+      f.trade = false;
       declareWar(st, f, false);
       return { ok: true };
     }
+    case 'trade': {
+      if (f.status === 'hostile') return { ok: false, reason: 'Make peace first.' };
+      if (f.trade) return { ok: false, reason: 'You already trade with them.' };
+      if (!st.buildings.some((b) => b.type === 'market' && b.owner === 'player' && !b.dead && b.built >= 1)) {
+        return { ok: false, reason: 'Build a Market first — their traders need somewhere to sell.' };
+      }
+      if (f.relation < 20) {
+        notify(st, `🙅 ${f.leader || `The ${f.name}`} will not open a trade route with strangers. Send gifts first (need relations 20).`, 'bad', { x: f.x, y: f.y });
+        return { ok: false, reason: 'They need relations of 20 to trade.' };
+      }
+      f.trade = true;
+      notify(st, `🤝 A trade agreement with the ${f.name}! Their caravans bring money every day, and you can sell them what they need.`, 'good', { x: f.x, y: f.y });
+      return { ok: true };
+    }
+    case 'help':
+      return askForWarriors(st, fid);
     default:
       return { ok: false, reason: 'Unknown action.' };
   }
@@ -304,7 +333,7 @@ function claimPoi(st, p) {
   p.claimed = true;
   const r = p.reward || {};
   const got = [];
-  for (const k of ['yam', 'fish', 'meat', 'wood', 'stone', 'iron', 'palmoil', 'weapons', 'cowries']) {
+  for (const k of ['yam', 'garri', 'fish', 'meat', 'wood', 'stone', 'iron', 'palmoil', 'weapons', 'salt', 'cloth', 'cowries']) {
     if (r[k]) {
       const n = Math.floor(addRes(st, k, r[k]));
       if (n) got.push(`${n} ${k}`);

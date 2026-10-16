@@ -22,10 +22,11 @@ function welcomePortuguese(st, api) {
   st.flags.europeanTrade = true;
   st.foreign.portuguese.trade = true;
   st.foreign.portuguese.hostile = false;
+  st.flags.cassava = true;
   api.addRes('iron', 15);
   api.schedule('lagos_name', 2);
   if (!st.fired.atlantic) api.schedule('atlantic', 8);
-  api.notify(`⚓ Trade with the Portuguese has begun. You can now build a ${BUILDINGS.tradingpost.name}.`, 'good');
+  api.notify(`⚓ Trade with the Portuguese has begun. They brought cassava cuttings from across the ocean — plant Cassava Farms and build Garri Houses. Once you are a Town, build a ${BUILDINGS.port.name} so their merchant ships can dock.`, 'good');
 }
 
 export const LAGOS = {
@@ -67,36 +68,42 @@ export const LAGOS = {
   factions: [
     {
       id: 'awori', name: 'Awori of Ọ̀tà', people: 'Awori', origin: 'Awori', strength: 2, temperament: 'friendly',
+      leader: 'Ọlọ́ta Olúwọlé of Ọ̀tà', wants: { fish: 4, iron: 9, salt: 9 }, offers: { yam: 3, wood: 3 },
       at: [0.27, 0.24], color: '#3f8f5a', garrison: { warrior: 4, bowman: 2 },
       loot: { yam: 60, wood: 40, cowries: 80 }, tribute: { yam: 6, cowries: 6 }, joiners: 4,
       desc: 'Your Awori kin, farmers and hunters of the forest at Ọ̀tà. Like you, they trace their line to Olófin, who led the Awori south to the lagoon.',
     },
     {
       id: 'egun', name: 'Egun of Àgbádárìgì', people: 'Egun', origin: 'Egun', strength: 3, temperament: 'proud',
+      leader: 'Akran Gbẹ̀nù of Àgbádárìgì', wants: { yam: 3, garri: 7, cloth: 13 }, offers: { fish: 3, salt: 8 },
       at: [0.08, 0.62], color: '#c2873a', garrison: { warrior: 6, bowman: 4 },
       loot: { fish: 80, palmoil: 30, cowries: 150 }, tribute: { fish: 6, cowries: 9 }, joiners: 5,
       desc: 'Fishermen and traders of the western creeks at Badagry. Shrewd, independent and well connected all along the coast.',
     },
     {
       id: 'egba', name: 'Ẹ̀gbá of Abẹ́òkúta', people: 'Egba', origin: 'Egba', strength: 5, temperament: 'warlike',
+      leader: 'Alákẹ́ Adéṣínà of the Ẹ̀gbá', wants: { salt: 10, cloth: 14, muskets: 45 }, offers: { horses: 70, yam: 3, iron: 8 },
       at: [0.45, 0.06], color: '#8b3a2b', garrison: { warrior: 9, bowman: 6, horseman: 4 },
       loot: { yam: 120, iron: 40, weapons: 12, cowries: 260 }, tribute: { yam: 10, cowries: 16 }, joiners: 7,
       desc: 'Hardened warriors from the rocky north, under the shelter of Olúmọ Rock. Their war bands can wipe out a careless army in minutes.',
     },
     {
       id: 'ijebu', name: 'Ìjẹ̀bú of Ẹ̀pẹ́', people: 'Ijebu', origin: 'Ijebu', strength: 4, temperament: 'proud',
+      leader: 'Awùjalẹ̀ Adémúyìwá of Ìjẹ̀bú', wants: { iron: 9, weapons: 20, palmoil: 7 }, offers: { garri: 6, cloth: 13 },
       at: [0.9, 0.42], color: '#6d3fa0', garrison: { warrior: 8, bowman: 5, edo: 2 },
       loot: { yam: 80, palmoil: 40, cowries: 220 }, tribute: { palmoil: 4, cowries: 14 }, joiners: 6,
       desc: 'Masters of the eastern lagoon trade routes. Rich, disciplined, and wary of upstarts on their waters.',
     },
     {
       id: 'edo', name: 'Edo War Camp', people: 'Edo', origin: 'Edo', strength: 5, temperament: 'proud',
+      leader: 'Ìyásẹ̀ Òsàrọ̀, war chief of the Oba of Benin', wants: { palmoil: 7, salt: 10, fish: 3 }, offers: { weapons: 18, iron: 8 },
       at: [0.76, 0.56], color: '#b8860b', garrison: { edo: 9, bowman: 5 },
       loot: { iron: 40, weapons: 10, cowries: 240 }, tribute: { cowries: 18 }, joiners: 4,
       desc: 'An outpost of the great Benin Kingdom on the lagoon. The Edo call this whole country "Eko" — the war camp.',
     },
     {
       id: 'ilaje', name: 'Ìlàjẹ fishing village', people: 'Ilaje', strength: 1, temperament: 'friendly', major: false,
+      leader: 'Olú Ẹ̀bìkẹ́ of the Ìlàjẹ', wants: { yam: 3, wood: 3 }, offers: { fish: 3 },
       at: [0.96, 0.64], color: '#2a7f9e', garrison: { warrior: 3 }, huts: 4,
       loot: { fish: 60, cowries: 40 }, tribute: { fish: 6 }, joiners: 3,
       desc: 'A small, peaceful fishing village at the eastern end of the lagoon.',
@@ -228,7 +235,7 @@ export const LAGOS = {
       text: () =>
         "A ship with great white sails painted with red crosses anchors off your shore. Pale, bearded men wade in — Portuguese, from a land far to the north. Their captain offers iron bars, cloth and brass manillas, and asks for ivory, pepper and palm oil.\n\nThey have already named your lagoon 'Lago de Curamo'.",
       choices: [
-        { label: 'Welcome them and trade', hint: 'Iron as a gift. Unlocks the Trading Post and musketeers.', apply: welcomePortuguese },
+        { label: 'Welcome them and trade', hint: 'Iron as a gift, and cassava. Their ships will trade at your port.', apply: welcomePortuguese },
         {
           label: 'Send them back to their ship',
           hint: 'They will return.',
@@ -565,6 +572,15 @@ export const LAGOS = {
           },
         },
         {
+          label: 'Buy 2 horses (🐚 120)',
+          hint: 'For horsemen at the Training Ground.',
+          can: (st) => st.res.cowries >= 120 && st.era >= 2,
+          apply: (st, api) => {
+            st.res.cowries -= 120;
+            api.addRes('horses', 2);
+          },
+        },
+        {
           label: 'Buy 15 iron (🐚 80)',
           can: (st) => st.res.cowries >= 80,
           apply: (st, api) => {
@@ -578,20 +594,24 @@ export const LAGOS = {
   ],
 
   objectives: [
-    { id: 'wood', text: 'Build a Woodcutter’s Camp', hint: 'Your wife will go and cut wood. Put it near trees.', done: (st) => has(st, 'woodcutter'), reward: { wood: 10 } },
+    { id: 'wood', text: 'Build a Woodcutter’s Camp', hint: 'Your wife will go and cut wood. Put it near trees. Homes and farms are built from wood and stone you gather yourself.', done: (st) => has(st, 'woodcutter'), reward: { wood: 10 } },
     { id: 'hut', text: 'Build a Hut', hint: 'Strangers at the campfire move into new huts and start working.', done: (st) => has(st, 'hut'), reward: { yam: 10 } },
     { id: 'food2', text: 'Add fish or meat to the diet', hint: 'Build a Fishing Jetty by the water or a Hunter’s Lodge near the forest.', done: (st) => has(st, 'fisher') || has(st, 'hunter') },
     { id: 'pop8', text: 'Grow to 8 people', hint: 'Keep people fed and happy and more will come. Build huts for them.', done: (st) => pop(st) >= 8 },
     { id: 'store', text: 'Build a Storehouse and a Granary', hint: 'More room, and shorter walks for your workers.', done: (st) => has(st, 'storehouse') && has(st, 'granary') },
+    { id: 'army', text: 'Raise 3 fighters', hint: 'Hire fighters at your compound for money, or build a Training Ground and train your own people (cheaper, but it costs money to build).', done: (st) => st.units.filter((u) => u.owner === 'player' && u.type !== 'scout' && !u.dead).length >= 3 },
     { id: 'scout', text: 'Explore the land with a scout', hint: 'Select your compound and train a scout. Then tap the map to send them.', done: (st) => st.stats.explored >= 1800, reward: { cowries: 20 } },
-    { id: 'era1', text: 'Advance to the Compound era', hint: 'Open the Era panel (🌅) at the top.', done: (st) => st.era >= 1, reward: { cowries: 30 } },
-    { id: 'army', text: 'Build a War Camp and raise 3 fighters', hint: 'Bandits will come. Spearmen and archers keep your people safe.', done: (st) => has(st, 'warcamp') && st.units.filter((u) => u.owner === 'player' && u.type !== 'scout' && !u.dead).length >= 3 },
-    { id: 'meet', text: 'Meet three peoples of the land', hint: 'Scouts find villages. Some are friendly — some are deadly.', done: (st) => st.stats.met >= 3 },
-    { id: 'palace', text: 'Build the Ààfin and become a Town', hint: 'Then advance to the Town era.', done: (st) => st.era >= 2 },
-    { id: 'unite2', text: 'Unite two peoples', hint: 'By alliance, tribute or conquest — see the Peoples panel (🤝).', done: (st) => unifiedCount(st) >= 2 },
-    { id: 'port', text: 'Become a Port City', hint: 'Trade with the ships from across the sea, build a market and a canoe yard.', done: (st) => st.era >= 3 },
+    { id: 'era1', text: 'Advance to the Compound age', hint: 'Open the Era panel (🌅) at the top.', done: (st) => st.era >= 1, reward: { cowries: 30 } },
+    { id: 'upgrade', text: 'Upgrade a hut into a mud-brick house', hint: 'Select a hut and tap Upgrade. More people fit in.', done: (st) => st.buildings.some((b) => b.type === 'hut' && (b.level || 1) >= 2 && !b.dead) },
+    { id: 'tradeagree', text: 'Make a trade agreement with a kingdom', hint: 'Trade brings money every day, and they buy what they lack. Meet a people with a scout, then use the Peoples panel (🤝).', done: (st) => st.factions.some((f) => f.trade || f.status === 'allied') },
+    { id: 'subdue1', text: 'Subdue a kingdom', hint: 'Conquer one, or frighten it into paying tribute. No town grows past the Compound age without it.', done: (st) => st.factions.some((f) => f.temperament !== 'bandit' && (f.status === 'conquered' || f.status === 'vassal')) },
+    { id: 'palace', text: 'Build the Ààfin and become a Town', hint: 'Then advance to the Town age.', done: (st) => st.era >= 2 },
+    { id: 'garri', text: 'Make garri', hint: 'Plant a Cassava Farm and build a Garri House. Garri feeds your people and sells well.', done: (st) => (st.stats.made.garri || 0) > 0 },
+    { id: 'ship', text: 'Sell goods to a merchant ship', hint: 'Build a Port. Ships dock every few days to buy palm oil, garri and fish — and sell muskets, cannon, tools and more.', done: (st) => (st.stats.shipSales || 0) > 0 },
+    { id: 'port', text: 'Become a Port City', hint: 'Subdue two kingdoms, trade with the ships, build a market and a canoe yard.', done: (st) => st.era >= 3 },
     { id: 'foreign', text: 'Settle the question of the Europeans', hint: 'Treaty, partnership or war — your call.', done: (st) => !!st.flags.foreignResolved },
-    { id: 'all', text: 'Unite every major people of Lagos', hint: 'Five peoples share this land with you.', done: (st) => unifiedCount(st) >= majorCount(st) },
+    { id: 'metro', text: 'Reach the Metropolis age', hint: 'Subdue three kingdoms, build a port and a school, and gather a fortune.', done: (st) => st.era >= 4 },
+    { id: 'all', text: 'Unite every major people of Lagos', hint: 'Five peoples share this land with you — ally with them, or rule them.', done: (st) => unifiedCount(st) >= majorCount(st) },
     { id: 'nigeria', text: 'Proclaim The New Nigeria', hint: 'Build the House of Assembly, then proclaim it from the Era panel.', done: (st) => !!st.flags.proclaimed },
   ],
 };

@@ -6,7 +6,7 @@ import { REGIONS } from '../regions/index.js';
 import { generateWorld, reachable } from '../world/generate.js';
 import { T, F, WALK, isWater } from '../world/terrain.js';
 import { Rng } from '../core/rng.js';
-import { BUILDINGS } from '../data/buildings.js';
+import { BUILDINGS, nextUpgrade } from '../data/buildings.js';
 import { ERAS } from '../data/eras.js';
 import { UNITS } from '../data/units.js';
 import { ORIGINS } from '../data/names.js';
@@ -22,6 +22,7 @@ import { updateAnimal, spawnAnimals, replenishAnimals } from './animals.js';
 import { updateUnit, updateTowers, updateTraining, updateShips, updateExpeditions, train as trainUnit, isHostileOwner } from './military.js';
 import { initFaction, updateFactions, dailyFactions, updatePois, diplomacy } from './factions.js';
 import { checkEvents, objectives, chooseEvent as choose, advanceEra as advance, proclaim as proclaimNation } from './events.js';
+import { updatePort, dailyTrade, expireAllies, hire as hireFighter, barter as barterWith, sellToShip, buyFromShip } from './trade.js';
 
 export const STEP = 0.05;
 
@@ -33,7 +34,7 @@ export function newGame(opts = {}) {
   const world = generateWorld(region, seed);
   const n = world.W * world.H;
   const st = {
-    version: 1,
+    version: 2,
     regionId: region.id,
     region,
     seed,
@@ -52,7 +53,11 @@ export function newGame(opts = {}) {
     rng: new Rng(seed ^ 0x9e3779b9),
     time: { t: 0, day: 0, dayT: 0, year: ERAS[0].year },
     era: 0,
-    res: { yam: 30, fish: 0, meat: 0, wood: 40, stone: 0, iron: 0, palmoil: 0, weapons: 0, cowries: 20 },
+    res: { ...Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])), yam: 30, wood: 40, cowries: 50 },
+    harbour: { ship: null, next: 0, sailing: false },
+    tech: {},
+    luxury: {},
+    marketSold: {},
     cap: { food: 0, goods: 0 },
     buildings: [],
     citizens: [],
@@ -217,19 +222,33 @@ export function tick(st, dt = STEP) {
   cleanup(st);
 }
 
-function everySecond(st) {
-  st.cap = capacity(st);
+// Where hostile fighters are, so townsfolk know when to run.
+function computeThreats(st) {
   st.threats = [];
   for (const u of st.units) {
     if (u.dead || !isHostileOwner(st, 'player', u.owner)) continue;
     const i = Math.floor(u.y) * st.W + Math.floor(u.x);
     if (st.territory[i] === 1 || st.explored[i]) st.threats.push({ x: u.x, y: u.y });
   }
+}
+
+function everySecond(st) {
+  st.cap = capacity(st);
+  computeThreats(st);
   for (const b of st.buildings) {
     if (b.owner === 'player' && b.built >= 1 && b.hp < b.maxHp && st.time.t - (b.hitT || 0) > 12) b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.02);
   }
+  // Soldiers near a hospital are patched up.
+  const hospital = st.buildings.find((b) => b.type === 'hospital' && b.owner === 'player' && !b.dead && b.built >= 1);
+  if (hospital) {
+    for (const u of st.units) {
+      if (u.owner === 'player' && !u.dead && u.hp < u.maxHp && Math.hypot(u.x - hospital.x - 1.5, u.y - hospital.y - 1.5) < 7) u.hp = Math.min(u.maxHp, u.hp + 4);
+    }
+  }
   houseStrangers(st);
   st.dirty.jobs = true;
+  updatePort(st);
+  expireAllies(st);
   updateFactions(st, 1);
   updatePois(st);
   updateExpeditions(st);
@@ -247,6 +266,7 @@ function newDay(st) {
   dailyUpkeep(st);
   dailyCitizens(st);
   dailyFactions(st);
+  dailyTrade(st);
 }
 
 function checkDefeat(st) {
@@ -450,6 +470,37 @@ export function setRations(st, v) {
   st.rations = Math.max(0, Math.min(3, v));
 }
 
+// Grow a building to its next level: a hut into a mud-brick house, and so on.
+export function canUpgrade(st, id) {
+  const b = st.byId.get(id);
+  if (!b || b.owner !== 'player' || b.dead) return { ok: false };
+  const up = nextUpgrade(b);
+  if (!up) return { ok: false, reason: 'Fully upgraded.' };
+  if (b.built < 1) return { ok: false, reason: 'Still being built.' };
+  if (up.era > st.era) return { ok: false, reason: `Needs the ${ERAS[up.era].name} age.`, up };
+  if (!canAfford(st, up.cost)) return { ok: false, reason: 'Not enough resources.', up };
+  return { ok: true, up };
+}
+
+export function upgradeBuilding(st, id) {
+  const can = canUpgrade(st, id);
+  if (!can.ok) return can;
+  const b = st.byId.get(id);
+  spend(st, can.up.cost);
+  b.level = (b.level || 1) + 1;
+  b.maxHp = Math.round(b.maxHp * 1.5);
+  b.hp = b.maxHp;
+  b.built = 0.6;
+  st.dirty.jobs = true;
+  st.stats.upgrades = (st.stats.upgrades || 0) + 1;
+  notify(st, `🏗️ Upgrading to ${can.up.name}.`, 'good', { x: b.x + b.w / 2, y: b.y + b.h / 2 });
+  return { ok: true };
+}
+
+export const hire = hireFighter;
+export const barter = barterWith;
+export const shipSell = sellToShip;
+export const shipBuy = buyFromShip;
 export const trade = marketTrade;
 export const diplo = diplomacy;
 export const chooseEvent = choose;
@@ -489,7 +540,7 @@ const CTOR = { terrain: Uint8Array, trees: Uint8Array, feature: Uint8Array, amou
 export function deserialize(json) {
   const data = JSON.parse(json);
   const region = REGIONS[data.regionId];
-  if (!region || data.version !== 1) throw new Error('This save is from a different version of the game.');
+  if (!region || data.version !== 2) throw new Error('This save is from an older version of the game. Please start a new game.');
   const st = { ...data };
   delete st.arrays;
   delete st.rngState;
@@ -514,6 +565,7 @@ export function deserialize(json) {
   st.visVersion = 0;
   computeTerritory(st);
   computeVisibility(st);
+  computeThreats(st);
   st.cap = capacity(st);
   return st;
 }
