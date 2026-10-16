@@ -301,7 +301,8 @@ export class Hud {
       <div class="body"><h2>The New Nigeria</h2>
       <div class="text">In the year ${st.time.year}, in the House of Assembly at ${esc(st.name)}, every people of the land speaks with one voice. What began as ${esc(st.founder)} and ${esc(st.spouse)}'s yam farm by the lagoon is now the heart of a new nation.\n\nChapter one — Lagos — is complete. ${unified(st).length} peoples united, ${population(st)} people in your city, ${st.stats.conquered} villages conquered, ${st.stats.trained} soldiers trained.\n\nThe road north to Ogun, Oyo and beyond opens in a future update.</div>
       <div class="choices"><button class="choice" data-end="continue"><b>Keep building</b><span>Your city is yours to grow.</span></button>
-      <button class="choice" data-end="title"><b>Back to the map of Nigeria</b></button></div></div></div>`;
+      <button class="choice" data-end="title"><b>Back to the map of Nigeria</b></button></div>
+      <p class="owner">Eko Rising — an original game by alternatefact Studios.</p></div></div>`;
   }
 
   defeatHtml() {
@@ -606,6 +607,7 @@ export class Hud {
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
       <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home.</p>
+      <p class="owner">Eko Rising is an original game by <a href="/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
       ${this.panel?.data === 'log' ? `<h4>History</h4><div class="list">${this.st.log.slice().reverse().map((m) => `<div class="item"><span>${esc(m.text)}</span><span class="muted">d${m.day + 1}</span></div>`).join('')}</div>` : ''}`;
   }
 
