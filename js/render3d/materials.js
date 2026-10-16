@@ -91,6 +91,17 @@ export function toonInstanced(key) {
   return m;
 }
 
+// Instanced material with a texture (e.g. patterned cloth), tinted per instance.
+export function toonInstancedMap(key, map) {
+  const k = `instmap|${key}`;
+  if (cache.has(k)) return cache.get(k);
+  const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonGradient(), map });
+  withFog(m);
+  m.customProgramCacheKey = () => 'fow-map';
+  cache.set(k, m);
+  return m;
+}
+
 // --- Hand-painted textures ------------------------------------------------------
 
 const textures = new Map();
@@ -250,10 +261,74 @@ export function texture(name) {
   if (url && typeof Image !== 'undefined') {
     const img = new Image();
     img.onload = () => {
+      // The GPU copy was sized for the placeholder; drop it so it is rebuilt.
+      t.dispose();
       t.image = img;
       t.needsUpdate = true;
     };
     img.src = url;
   }
   return t;
+}
+
+// --- Painted textures that tile across the world -------------------------------
+
+// A repeating texture from art/, shown as a flat colour until the image arrives.
+export function artTexture(path, fallback = '#808080', { repeat = true } = {}) {
+  const key = `art|${path}`;
+  if (textures.has(key)) return textures.get(key);
+  const c = canvas(4);
+  const g = c.getContext('2d');
+  g.fillStyle = fallback;
+  g.fillRect(0, 0, 4, 4);
+  const t = new THREE.CanvasTexture(c);
+  if (repeat) {
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+  }
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  if (typeof Image !== 'undefined') {
+    const img = new Image();
+    img.onload = () => {
+      // The GPU copy was sized for the placeholder; drop it so it is rebuilt.
+      t.dispose();
+      t.image = img;
+      t.needsUpdate = true;
+    };
+    img.src = path;
+  }
+  textures.set(key, t);
+  return t;
+}
+
+// --- Wind ---------------------------------------------------------------------------
+
+// Grass, leaves and fronds sway together. `aSway` (0 at the root, 1 at the
+// tip) says how far each vertex may move.
+export const WIND = { uTime: { value: 0 }, uStrength: { value: 1 } };
+
+export const SWAY_VERTEX = `
+  {
+    vec2 swayAt = vec2(0.0);
+    #ifdef USE_INSTANCING
+      swayAt = instanceMatrix[3].xz;
+    #endif
+    float ph = uTime * 1.5 + swayAt.x * 0.37 + swayAt.y * 0.23;
+    float sw = (sin(ph) * 0.65 + sin(ph * 2.31 + 1.7) * 0.35) * aSway * uStrength;
+    vec3 wind = vec3(sw * 0.06, 0.0, sw * 0.035);
+    #ifdef USE_INSTANCING
+      // Undo the plant's own turn so every plant bends the same way.
+      mat3 im = mat3(instanceMatrix);
+      transformed += transpose(im) * wind / max(dot(im[0], im[0]), 0.0001);
+    #else
+      transformed += wind;
+    #endif
+  }
+`;
+
+export function withSway(shader) {
+  shader.uniforms.uTime = WIND.uTime;
+  shader.uniforms.uStrength = WIND.uStrength;
+  shader.vertexShader = 'attribute float aSway;\nuniform float uTime;\nuniform float uStrength;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${SWAY_VERTEX}`);
 }

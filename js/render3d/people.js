@@ -3,14 +3,14 @@
 // InstancedMesh; every frame we pose each figure and write its parts.
 
 import * as THREE from '../vendor/three.module.js';
-import { toonInstanced } from './materials.js';
+import { toonInstanced, toonInstancedMap, artTexture } from './materials.js';
 import { SKIN, CARRY, FOREIGN_COAT } from '../render/palette.js';
 
 export class Pool {
-  constructor(scene, geometry, key, capacity = 256, shadow = true) {
+  constructor(scene, geometry, key, capacity = 256, shadow = true, material = null) {
     this.scene = scene;
     this.geometry = geometry;
-    this.material = toonInstanced(key);
+    this.material = material || toonInstanced(key);
     this.shadow = shadow;
     this.make(capacity);
   }
@@ -50,10 +50,42 @@ export class Pool {
 }
 
 // Geometries with their pivot where the part hinges.
-function limb(r1, r2, len) {
-  const g = new THREE.CylinderGeometry(r1, r2, len, 6);
+function limb(r1, r2, len, end = 0) {
+  const g = new THREE.CylinderGeometry(r1, r2, len, 7);
   g.translate(0, -len / 2, 0);
-  return g;
+  if (!end) return g;
+  // A rounded hand or foot at the end.
+  const b = new THREE.SphereGeometry(end, 7, 5);
+  b.translate(0, -len, end * 0.3);
+  return merge([g, b]);
+}
+
+function merge(list) {
+  const pos = [];
+  const nor = [];
+  const uv = [];
+  for (const src of list) {
+    const g = src.index ? src.toNonIndexed() : src;
+    pos.push(...g.attributes.position.array);
+    nor.push(...g.attributes.normal.array);
+    uv.push(...(g.attributes.uv ? g.attributes.uv.array : new Float32Array((g.attributes.position.count) * 2)));
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return out;
+}
+
+// Ankara print for wrappers, head-ties and some shirts, tinted per person.
+let cloth = null;
+function clothMaterial() {
+  if (!cloth) {
+    const t = artTexture('art/tex/ankara.webp', '#d0d0d0');
+    t.repeat.set(2, 2);
+    cloth = toonInstancedMap('ankara', t);
+  }
+  return cloth;
 }
 
 const colorCache = new Map();
@@ -67,14 +99,18 @@ const HOSTILE_COLOR = '#c0392b';
 
 export class People {
   constructor(scene) {
-    const P = (geo, key, cap, shadow) => new Pool(scene, geo, key, cap, shadow);
+    const P = (geo, key, cap, shadow, mat) => new Pool(scene, geo, key, cap, shadow, mat);
+    const print = clothMaterial();
     this.pools = {
-      leg: P(limb(0.024, 0.02, 0.14), 'leg', 512),
-      arm: P(limb(0.02, 0.017, 0.13), 'arm', 512),
-      body: P(new THREE.CapsuleGeometry(0.068, 0.11, 3, 8), 'body', 256),
-      skirt: P(new THREE.ConeGeometry(0.1, 0.17, 8), 'skirt', 256),
-      head: P(new THREE.IcosahedronGeometry(0.064, 1), 'head', 256),
-      gele: P(new THREE.IcosahedronGeometry(0.075, 1), 'gele', 128),
+      leg: P(limb(0.024, 0.02, 0.14, 0.022), 'leg', 512),
+      arm: P(limb(0.02, 0.017, 0.13, 0.02), 'arm', 512),
+      body: P(new THREE.CapsuleGeometry(0.068, 0.11, 4, 12), 'body', 256),
+      bodyP: P(new THREE.CapsuleGeometry(0.068, 0.11, 4, 12), 'bodyP', 256, true, print),
+      skirt: P(new THREE.ConeGeometry(0.1, 0.17, 12, 1, true), 'skirt', 256, true, print),
+      head: P(new THREE.IcosahedronGeometry(0.064, 2), 'head', 256),
+      eye: P(new THREE.SphereGeometry(0.012, 6, 5), 'eye', 512, false),
+      pupil: P(new THREE.SphereGeometry(0.0065, 5, 4), 'pupil', 512, false),
+      gele: P(new THREE.IcosahedronGeometry(0.075, 2), 'gele', 128, true, print),
       cap: P(new THREE.CylinderGeometry(0.05, 0.058, 0.045, 8), 'cap', 256),
       hat: P(new THREE.CylinderGeometry(0.052, 0.05, 0.1, 8), 'hat', 128),
       load: P(new THREE.BoxGeometry(0.2, 0.06, 0.12), 'load', 128),
@@ -152,7 +188,7 @@ export class People {
     const p = t * 9 + c.id;
     const walk = moving ? Math.sin(p) : 0;
     const bob = moving ? Math.abs(Math.sin(p)) * 0.012 : 0;
-    this.setBase(x, ground + bob, y, h, 1.8);
+    this.setBase(x, ground + bob, y, h, 2.0);
     const skin = SKIN[c.id % SKIN.length];
     const carrying = !!c.carry;
     // Legs and arms swing in opposite phase.
@@ -160,18 +196,27 @@ export class People {
     this.part('leg', '#3b2a1a', 0.035, 0.15, 0, -walk * 0.6);
     if (c.female) {
       this.part('skirt', c.cloth, 0, 0.13, 0);
-      this.part('body', c.wrap, 0, 0.27, 0, 0, 0, 0, 0.9, 0.75, 0.85);
+      this.part('bodyP', c.wrap, 0, 0.27, 0, 0, 0, 0, 0.9, 0.75, 0.85);
     } else {
-      this.part('body', c.cloth, 0, 0.25, 0);
+      this.part(c.id % 3 === 0 ? 'bodyP' : 'body', c.cloth, 0, 0.25, 0);
     }
     const armSwing = carrying ? -2.8 : -walk * 0.5;
     const work = opts.tool ? Math.sin(t * 8 + c.id) * 0.7 - 0.9 : 0;
     this.part('arm', c.female ? c.wrap : c.cloth, -0.085, 0.32, 0, armSwing, 0, -0.15);
     this.part('arm', c.female ? c.wrap : c.cloth, 0.085, 0.32, 0, carrying ? armSwing : opts.tool ? work : walk * 0.5, 0, 0.15);
     this.part('head', skin, 0, 0.4, 0);
-    if (c.female) this.part('gele', c.wrap, 0, 0.46, -0.01, 0.2, 0, 0, 1.35, 0.6, 1.1);
+    this.eyes(0.4);
+    if (c.female) this.part('gele', c.wrap, 0, 0.455, -0.012, 0.25, 0, 0, 1.15, 0.55, 1.0);
     else this.part('cap', c.wrap, 0.008, 0.46, 0, 0, 0, 0.25);
     if (carrying) this.load(c.carry.r, 0.5);
+  }
+
+  // Two dark eyes on the front of the head.
+  eyes(y) {
+    for (const x of [-0.024, 0.024]) {
+      this.part('eye', '#f6f1e6', x, y + 0.01, 0.054, 0, 0, 0, 1, 1.15, 0.7);
+      this.part('pupil', '#1a1210', x * 0.92, y + 0.009, 0.064);
+    }
   }
 
   load(r, y) {
@@ -206,7 +251,7 @@ export class People {
     const walk = moving ? Math.sin(p) : 0;
     const swing = opts.swing || 0;
     const mounted = u.type === 'horseman';
-    this.setBase(x, ground + (moving ? Math.abs(Math.sin(p)) * 0.01 : 0), y, h, 1.8);
+    this.setBase(x, ground + (moving ? Math.abs(Math.sin(p)) * 0.01 : 0), y, h, 2.0);
     this.part('ring', ownerColor, 0, 0.01, 0);
     let lift = 0;
     if (mounted) {
@@ -224,6 +269,7 @@ export class People {
     const coat = FOREIGN_COAT[u.type] || (u.type === 'edo' ? '#b8860b' : u.type === 'slaver' ? '#3b3b3b' : u.type === 'bandit' ? '#5d4e3a' : u.cloth || '#efe6d2');
     this.part('body', coat, 0, 0.25 + lift, 0);
     this.part('head', foreign ? '#e8c3a0' : SKIN[u.id % SKIN.length], 0, 0.4 + lift, 0);
+    this.eyes(0.4 + lift);
     if (u.type === 'marine') this.part('hat', '#111111', 0, 0.48 + lift, 0, 0, 0, 0, 1, 1.1, 1);
     else if (u.type === 'soldado') this.part('gele', '#9aa0a6', 0, 0.45 + lift, 0, 0, 0, 0, 1, 0.55, 1);
     else if (u.type === 'french') this.part('hat', '#1d3b70', 0, 0.47 + lift, 0, 0, 0, Math.PI / 2, 0.6, 1, 1.8);

@@ -5,13 +5,15 @@
 // World axes: x runs east like tile x, z runs south like tile y, y is up.
 
 import * as THREE from '../vendor/three.module.js';
-import { T, F, isWater } from '../world/terrain.js';
+import { T } from '../world/terrain.js';
 import { hash2 } from '../core/rng.js';
-import { GROUND, PLAYER, ENEMY } from '../render/palette.js';
+import { PLAYER, ENEMY } from '../render/palette.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
 import { isHostileOwner } from '../sim/military.js';
-import { FOW, toon, toonInstanced, withFog } from './materials.js';
+import { FOW, toon, toonInstanced, WIND } from './materials.js';
+import { Ground, WATER_Y } from './ground.js';
+import { Flora } from './flora.js';
 import { buildingModel, villageModel, shipModel, mergeModel, disposeModel } from './models.js';
 import { People, Pool } from './people.js';
 
@@ -19,8 +21,6 @@ const HEIGHT = {
   [T.OCEAN]: -0.75, [T.LAGOON]: -0.45, [T.RIVER]: -0.4, [T.FORD]: -0.1, [T.SAND]: 0.03,
   [T.MANGROVE]: -0.02, [T.GRASS]: 0.06, [T.FOREST]: 0.08, [T.SAVANNA]: 0.07, [T.HILL]: 0.45,
 };
-const WATER_Y = -0.15;
-const TEX = 16; // terrain texture pixels per tile
 const PITCH = 0.95;
 
 export function webglAvailable() {
@@ -76,9 +76,11 @@ export class Renderer3D {
 
   attach(st) {
     this.st = st;
-    for (const obj of [this.terrain, this.water, this.borderLines, this.vegRoot, this.dynRoot]) {
+    for (const obj of [this.borderLines, this.dynRoot]) {
       if (obj) this.scene.remove(obj);
     }
+    this.ground?.dispose();
+    this.flora?.dispose();
     this.people?.pools && Object.values(this.people.pools).forEach((p) => this.scene.remove(p.mesh));
     this.buildingObjs = new Map();
     this.villageObjs = new Map();
@@ -88,8 +90,7 @@ export class Renderer3D {
     this.scene.add(this.dynRoot);
 
     this.buildHeights();
-    this.buildTerrain();
-    this.buildWater();
+    this.ground = new Ground(this.scene, st, this.vh, this.mobile);
     this.fogTex = new THREE.DataTexture(new Uint8Array(st.W * st.H * 4), st.W, st.H, THREE.RGBAFormat);
     this.fogTex.magFilter = THREE.LinearFilter;
     this.fogTex.minFilter = THREE.LinearFilter;
@@ -100,10 +101,10 @@ export class Renderer3D {
     FOW.terrMap.value = this.terrTex;
     this.fogVersion = -1;
     this.terrVersion = -1;
-    this.vegRoot = new THREE.Group();
-    this.scene.add(this.vegRoot);
-    this.vegPools = null;
-    this.buildVegetation();
+    this.ground.updateWear();
+    this.flora = new Flora(this.scene, st, (x, y) => this.groundAt(x, y), this.mobile);
+    this.flora.update(this.ground.wear, Infinity);
+    this.wearAt = 0;
     this.people = new People(this.dynRoot);
     this.fx = {
       arrow: new Pool(this.dynRoot, new THREE.CylinderGeometry(0.008, 0.008, 0.35, 4).rotateX(Math.PI / 2), 'arrow', 64, false),
@@ -119,9 +120,6 @@ export class Renderer3D {
     this.circle.visible = false;
     this.dynRoot.add(this.circle);
     this.borderVersion = -1;
-    this.pendingTiles = new Set();
-    this.vegDirty = false;
-    this.repaintT = 0;
     this.ghostType = null;
   }
 
@@ -179,246 +177,6 @@ export class Renderer3D {
   // Ground height under a walker: never below the water surface.
   standAt(x, y) {
     return Math.max(WATER_Y - 0.05, this.groundAt(x, y));
-  }
-
-  buildTerrain() {
-    const st = this.st;
-    const W = st.W;
-    const H = st.H;
-    const pos = new Float32Array((W + 1) * (H + 1) * 3);
-    const uv = new Float32Array((W + 1) * (H + 1) * 2);
-    for (let y = 0; y <= H; y++) {
-      for (let x = 0; x <= W; x++) {
-        const k = y * (W + 1) + x;
-        pos[k * 3] = x;
-        pos[k * 3 + 1] = this.vh[k];
-        pos[k * 3 + 2] = y;
-        uv[k * 2] = x / W;
-        uv[k * 2 + 1] = 1 - y / H;
-      }
-    }
-    const idx = [];
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const a = y * (W + 1) + x;
-        const b = a + 1;
-        const c = a + W + 1;
-        const d = c + 1;
-        idx.push(a, c, b, b, c, d);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-
-    this.groundCanvas = document.createElement('canvas');
-    this.groundCanvas.width = W * TEX;
-    this.groundCanvas.height = H * TEX;
-    this.paintGround(0, 0, W, H);
-    this.groundTex = new THREE.CanvasTexture(this.groundCanvas);
-    this.groundTex.colorSpace = THREE.SRGBColorSpace;
-    this.groundTex.anisotropy = 4;
-    const mat = new THREE.MeshLambertMaterial({ map: this.groundTex });
-    withFog(mat, (shader) => {
-      shader.uniforms.terrMap = FOW.terrMap;
-      shader.uniforms.showTerr = FOW.showTerr;
-      shader.fragmentShader = 'uniform sampler2D terrMap;\nuniform float showTerr;\n' + shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `if (showTerr > 0.5) {
-          vec4 terr = texture2D(terrMap, vFowXZ / fowSize);
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.93, 0.55), terr.g * 0.22);
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.85, 0.15, 0.1), terr.r * 0.32);
-        }
-        #include <dithering_fragment>`,
-      );
-    });
-    this.terrain = new THREE.Mesh(g, mat);
-    this.terrain.receiveShadow = true;
-    this.scene.add(this.terrain);
-  }
-
-  paintGround(x0, y0, x1, y1) {
-    const st = this.st;
-    const g = this.groundCanvas.getContext('2d');
-    const W = st.W;
-    const H = st.H;
-    const seed = st.seed;
-    const bx0 = Math.max(0, x0 - 1);
-    const by0 = Math.max(0, y0 - 1);
-    const bx1 = Math.min(W, x1 + 1);
-    const by1 = Math.min(H, y1 + 1);
-    const base = (t) => (isWater(t) ? (t === T.OCEAN ? '#2a5770' : '#5c7d62') : GROUND[t][0]);
-    for (let y = by0; y < by1; y++) {
-      for (let x = bx0; x < bx1; x++) {
-        g.fillStyle = base(st.terrain[y * W + x]);
-        g.fillRect(x * TEX, y * TEX, TEX, TEX);
-      }
-    }
-    for (let y = by0; y < by1; y++) {
-      for (let x = bx0; x < bx1; x++) {
-        const t = st.terrain[y * W + x];
-        if (isWater(t)) continue;
-        const pal = GROUND[t];
-        for (let k = 0; k < 3; k++) {
-          g.globalAlpha = 0.5;
-          g.fillStyle = pal[1 + (k % 2)];
-          g.beginPath();
-          g.arc(x * TEX + hash2(x * 4 + k, y, seed + 31) * TEX, y * TEX + hash2(x, y * 4 + k, seed + 37) * TEX, 3 + hash2(x + k, y - k, seed + 41) * 6, 0, Math.PI * 2);
-          g.fill();
-        }
-        g.globalAlpha = 1;
-        if (t === T.GRASS || t === T.SAVANNA || t === T.FOREST) {
-          g.strokeStyle = t === T.SAVANNA ? 'rgba(140,120,50,0.7)' : 'rgba(55,95,30,0.6)';
-          g.lineWidth = 1;
-          for (let k = 0; k < 3; k++) {
-            const gx = x * TEX + hash2(x, y + k * 7, seed + 51) * TEX;
-            const gy = y * TEX + hash2(x + k * 7, y, seed + 53) * TEX;
-            g.beginPath();
-            g.moveTo(gx, gy);
-            g.lineTo(gx - 1, gy - 3);
-            g.stroke();
-          }
-        } else if (t === T.SAND) {
-          g.fillStyle = 'rgba(160,130,80,0.4)';
-          for (let k = 0; k < 3; k++) g.fillRect(x * TEX + hash2(x, y + k, seed + 61) * TEX, y * TEX + hash2(x + k, y, seed + 63) * TEX, 1, 1);
-        }
-      }
-    }
-  }
-
-  buildWater() {
-    const st = this.st;
-    const segX = Math.ceil(st.W / 2);
-    const segY = Math.ceil(st.H / 2);
-    const g = new THREE.PlaneGeometry(st.W + 40, st.H + 40, segX, segY);
-    g.rotateX(-Math.PI / 2);
-    g.translate(st.W / 2, WATER_Y, st.H / 2);
-    const colors = [];
-    const p = g.attributes.position;
-    const deep = new THREE.Color('#1d5b86');
-    const lagoon = new THREE.Color('#2a93a0');
-    for (let k = 0; k < p.count; k++) {
-      const x = Math.floor(p.getX(k));
-      const y = Math.floor(p.getZ(k));
-      const inside = x >= 0 && y >= 0 && x < st.W && y < st.H;
-      const t = inside ? st.terrain[y * st.W + x] : T.OCEAN;
-      const c = t === T.OCEAN || (!inside && y > st.H * 0.7) ? deep : lagoon;
-      colors.push(c.r, c.g, c.b);
-    }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    // Glints that drift across the surface.
-    const c = document.createElement('canvas');
-    c.width = 128;
-    c.height = 128;
-    const x = c.getContext('2d');
-    x.fillStyle = '#ffffff';
-    x.fillRect(0, 0, 128, 128);
-    x.strokeStyle = 'rgba(190,230,240,0.9)';
-    x.lineWidth = 2;
-    for (let k = 0; k < 26; k++) {
-      const px = hash2(k, 1, 9) * 128;
-      const py = hash2(k, 2, 9) * 128;
-      x.beginPath();
-      x.moveTo(px, py);
-      x.quadraticCurveTo(px + 8, py - 3, px + 16, py);
-      x.stroke();
-    }
-    this.waterTex = new THREE.CanvasTexture(x.canvas);
-    this.waterTex.wrapS = THREE.RepeatWrapping;
-    this.waterTex.wrapT = THREE.RepeatWrapping;
-    this.waterTex.repeat.set(st.W / 6, st.H / 6);
-    this.waterTex.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.MeshPhongMaterial({ vertexColors: true, map: this.waterTex, transparent: true, opacity: 0.86, shininess: 90, specular: new THREE.Color('#9fd8e0') });
-    withFog(mat);
-    this.water = new THREE.Mesh(g, mat);
-    this.water.receiveShadow = true;
-    this.scene.add(this.water);
-  }
-
-  // --- Trees, palms and rocks ------------------------------------------------------
-
-  buildVegetation() {
-    if (!this.vegPools) {
-      const merged = palmFronds();
-      this.vegPools = {
-        trunk: new Pool(this.vegRoot, new THREE.CylinderGeometry(0.045, 0.075, 0.5, 5).translate(0, 0.25, 0), 'trunk', 2048),
-        canopy: new Pool(this.vegRoot, new THREE.IcosahedronGeometry(0.33, 0), 'canopy', 4096),
-        palmTrunk: new Pool(this.vegRoot, new THREE.CylinderGeometry(0.035, 0.05, 0.9, 5).translate(0, 0.45, 0), 'palmtrunk', 1024),
-        fronds: new Pool(this.vegRoot, merged, 'fronds', 1024),
-        fruit: new Pool(this.vegRoot, new THREE.IcosahedronGeometry(0.06, 0), 'fruit', 1024, false),
-        rock: new Pool(this.vegRoot, new THREE.DodecahedronGeometry(0.17, 0), 'rock', 2048),
-      };
-    }
-    const st = this.st;
-    const P = this.vegPools;
-    for (const p of Object.values(P)) p.begin();
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    const v = new THREE.Vector3();
-    const s = new THREE.Vector3();
-    const c = new THREE.Color();
-    const put = (pool, x, y, z, sx, sy, sz, ry, color, rx = 0, rz = 0) => {
-      e.set(rx, ry, rz);
-      q.setFromEuler(e);
-      m.compose(v.set(x, y, z), q, s.set(sx, sy, sz));
-      pool.add(m, c.set(color));
-    };
-    const W = st.W;
-    for (let i = 0; i < st.terrain.length; i++) {
-      const x = i % W;
-      const y = (i / W) | 0;
-      const t = st.terrain[i];
-      const trees = st.trees[i];
-      const f = st.feature[i];
-      const seed = st.seed;
-      if (trees > 0) {
-        const n = t === T.FOREST ? (trees > 40 ? 3 : trees > 18 ? 2 : 1) : 1;
-        for (let k = 0; k < n; k++) {
-          const tx = x + 0.2 + hash2(x + k, y, seed + 81) * 0.6;
-          const ty = y + 0.2 + hash2(x, y + k, seed + 83) * 0.6;
-          const gy = this.groundAt(tx, ty);
-          const sc = 0.85 + hash2(x - k, y, seed + 85) * 0.5;
-          const ry = hash2(x, y, seed + 87 + k) * 6.28;
-          if (t === T.SAVANNA) {
-            put(P.trunk, tx, gy, ty, 0.8, 1.3 * sc, 0.8, ry, '#6b4b2a');
-            put(P.canopy, tx, gy + 0.72 * sc, ty, 1.5 * sc, 0.38 * sc, 1.5 * sc, ry, hash2(x, y, 3) < 0.5 ? '#7a8f3a' : '#6b7d34');
-          } else if (t === T.MANGROVE) {
-            put(P.trunk, tx, gy, ty, 1.2, 0.6, 1.2, ry, '#4a3624');
-            put(P.canopy, tx, gy + 0.32, ty, 1.1 * sc, 0.75 * sc, 1.1 * sc, ry, '#2f5233');
-          } else {
-            put(P.trunk, tx, gy, ty, 1, sc, 1, ry, '#5a3a20');
-            const shade = hash2(x + k, y + k, seed + 89);
-            put(P.canopy, tx, gy + 0.62 * sc, ty, sc, sc * 1.05, sc, ry, shade < 0.33 ? '#2f6b2a' : shade < 0.66 ? '#3a7a30' : '#4a8a36');
-            if (shade > 0.5) put(P.canopy, tx + 0.08, gy + 0.85 * sc, ty - 0.05, sc * 0.6, sc * 0.6, sc * 0.6, ry, '#5c9a3e');
-          }
-        }
-      }
-      if (f === F.PALM) {
-        const tx = x + 0.5;
-        const ty = y + 0.5;
-        const gy = this.groundAt(tx, ty);
-        const lean = (hash2(x, y, seed + 91) - 0.5) * 0.4;
-        const ry = hash2(x, y, seed + 93) * 6.28;
-        put(P.palmTrunk, tx, gy, ty, 1, 1, 1, ry, '#7a5a35', lean, 0);
-        const top = v.set(0, 0.9, 0).applyEuler(e.set(lean, ry, 0));
-        const fx = tx + top.x;
-        const fz = ty + top.z;
-        const fy = gy + top.y;
-        put(P.fronds, fx, fy, fz, 1, 1, 1, ry, '#3c8a3a');
-        if (st.amount[i] >= 4) put(P.fruit, fx, fy - 0.06, fz, 1, 1, 1, 0, '#d35400');
-      } else if (f === F.ROCK || f === F.IRON) {
-        for (let k = 0; k < 3; k++) {
-          const tx = x + 0.2 + hash2(x + k, y, seed + 97) * 0.6;
-          const ty = y + 0.2 + hash2(x, y + k, seed + 99) * 0.6;
-          const sc = 0.7 + hash2(x - k, y + k, seed + 101) * 0.7;
-          put(P.rock, tx, this.groundAt(tx, ty) + 0.05, ty, sc, sc * 0.75, sc, k * 2.1, f === F.IRON ? '#8a4b32' : '#9a9387');
-        }
-      }
-    }
-    for (const p of Object.values(P)) p.end();
   }
 
   // --- Camera ------------------------------------------------------------------------
@@ -500,7 +258,7 @@ export class Renderer3D {
 
   zoomAt(factor, sx, sy) {
     const before = this.screenToTile(sx, sy);
-    this.cam.zoom = Math.max(0.45, Math.min(2.6, this.cam.zoom * factor));
+    this.cam.zoom = Math.max(0.45, Math.min(3.4, this.cam.zoom * factor));
     this.updateCamera();
     const after = this.screenToTile(sx, sy);
     this.cam.x += before.x - after.x;
@@ -554,37 +312,21 @@ export class Renderer3D {
     this.scene.add(this.borderLines);
   }
 
-  takeTileChanges(dt) {
+  // Felled trees and new buildings rebuild their patch of plants; worn
+  // ground is recomputed every couple of seconds.
+  takeTileChanges() {
     const st = this.st;
     if (st.changedTiles.length) {
-      for (const i of st.changedTiles) this.pendingTiles.add(i);
+      for (const i of st.changedTiles) this.flora.touch(i);
       st.changedTiles.length = 0;
-      this.vegDirty = true;
     }
-    this.repaintT -= dt;
-    if (this.repaintT > 0 || (!this.pendingTiles.size && !this.vegDirty)) return;
-    this.repaintT = 1.2;
-    if (this.vegDirty) {
-      this.buildVegetation();
-      this.vegDirty = false;
+    const now = performance.now();
+    if (now >= this.wearAt) {
+      this.wearAt = now + 2000;
+      for (const i of this.ground.updateWear()) this.flora.touch(i);
     }
-    if (this.pendingTiles.size) {
-      let x0 = Infinity;
-      let y0 = Infinity;
-      let x1 = -Infinity;
-      let y1 = -Infinity;
-      for (const i of this.pendingTiles) {
-        const x = i % st.W;
-        const y = (i / st.W) | 0;
-        x0 = Math.min(x0, x);
-        y0 = Math.min(y0, y);
-        x1 = Math.max(x1, x + 1);
-        y1 = Math.max(y1, y + 1);
-      }
-      this.pendingTiles.clear();
-      this.paintGround(x0, y0, x1, y1);
-      this.groundTex.needsUpdate = true;
-    }
+    this.flora.update(this.ground.wear, 3);
+    this.flora.showGrass(this.cam.zoom >= 0.9);
   }
 
   wallNeighbours(b) {
@@ -607,6 +349,7 @@ export class Renderer3D {
       const growth = b.type === 'farm' || b.type === 'cassava' ? Math.round((b.growth || 0) * 5) : 0;
       const key = `${b.type}|${b.level || 1}|${st.era >= 3}|${growth}|${n ? `${+n.l}${+n.r}${+n.u}${+n.d}` : ''}|${b.type === 'port' ? `${st.flags.britishPartner}${st.flags.colonized}${st.flags.frenchPact}` : ''}`;
       let o = this.buildingObjs.get(b.id);
+      if (!o) this.flora.touchRect(b.x - 1, b.y - 1, b.x + b.w, b.y + b.h);
       if (!o || o.key !== key) {
         if (o) {
           this.dynRoot.remove(o.group);
@@ -631,6 +374,8 @@ export class Renderer3D {
     }
     for (const [id, o] of this.buildingObjs) {
       if (!seen.has(id)) {
+        const p = o.group.position;
+        this.flora.touchRect(p.x - 1, p.z - 1, p.x + 4, p.z + 4);
         this.dynRoot.remove(o.group);
         disposeModel(o.group);
         this.buildingObjs.delete(id);
@@ -697,10 +442,10 @@ export class Renderer3D {
     const t = performance.now() / 1000;
     const dt = this.lastT ? Math.min(0.1, t - this.lastT) : 0;
     this.lastT = t;
-    this.takeTileChanges(dt);
+    this.takeTileChanges();
     this.updateFog();
     FOW.showTerr.value = view.showTerritory ? 1 : 0;
-    this.waterTex.offset.set((t * 0.012) % 1, (t * 0.02) % 1);
+    WIND.uTime.value = t;
 
     // Season: the Harmattan turns the light hazy and gold.
     const s = season(st);
@@ -708,6 +453,7 @@ export class Renderer3D {
     this.scene.background.set(harmattan ? '#2a2318' : '#0c1016');
     this.sun.color.set(harmattan ? '#ffd9a0' : '#fff0d6');
     this.hemi.color.set(harmattan ? '#f3d9b0' : '#dff1ff');
+    WIND.uStrength.value = harmattan ? 1.6 : 1;
 
     this.syncBuildings(t);
     this.syncVillages(t);
@@ -727,6 +473,7 @@ export class Renderer3D {
     }
     for (const c of st.citizens) {
       if (c.hidden) continue;
+      if (c.path) this.ground.addFootfall(c.x, c.y, dt);
       const x = c.px + (c.x - c.px) * alpha + c.ox;
       const y = c.py + (c.y - c.py) * alpha + c.oy;
       if (!inView(x, y) || !seenTile(x, y)) continue;
@@ -894,7 +641,7 @@ export class Renderer3D {
       const x = u.px + (u.x - u.px) * alpha;
       const y = u.py + (u.y - u.py) * alpha;
       if (u.owner !== 'player' && !st.visible[Math.floor(y) * st.W + Math.floor(x)]) continue;
-      bar(x, y, this.standAt(x, y) + (u.type === 'horseman' ? 0.85 : 0.65), u.hp / u.maxHp, 22);
+      bar(x, y, this.standAt(x, y) + (u.type === 'horseman' ? 1.35 : 1.0), u.hp / u.maxHp, 22);
     }
     for (const b of st.buildings) {
       if (b.dead || b.built < 1 || b.hp >= b.maxHp) continue;
@@ -945,25 +692,6 @@ export class Renderer3D {
     gl.dispose();
     return out;
   }
-}
-
-// Seven drooping palm fronds merged into one geometry.
-function palmFronds() {
-  const pos = [];
-  const blade = new THREE.ConeGeometry(0.06, 0.6, 3).toNonIndexed();
-  blade.translate(0, 0.3, 0);
-  for (let k = 0; k < 7; k++) {
-    const g = blade.clone();
-    g.rotateZ(-1.9);
-    g.rotateY((k / 7) * Math.PI * 2);
-    g.scale(1, 0.7, 1);
-    const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) pos.push(p.getX(i), p.getY(i), p.getZ(i));
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  out.computeVertexNormals();
-  return out;
 }
 
 export { toon, toonInstanced };

@@ -77,21 +77,109 @@ function prism(w, d, h) {
 
 // --- Pieces ---------------------------------------------------------------------
 
+// A doorway: a dark opening in a wooden frame, facing +z.
+function door(group, x, y0, z, w, h, frame = C.wood()) {
+  group.add(mesh(box(w, h, 0.05), C.dark(), x, y0 + h / 2, z));
+  for (const dx of [-1, 1]) group.add(mesh(box(0.035, h + 0.03, 0.06), frame, x + dx * (w / 2 + 0.015), y0 + h / 2, z + 0.01));
+  group.add(mesh(box(w + 0.1, 0.04, 0.07), frame, x, y0 + h + 0.02, z + 0.01));
+}
+
+// A small window with open wooden shutters, facing +z.
+function windowAt(group, x, y, z, size, shutter = C.wood(), glass = C.dark()) {
+  group.add(mesh(box(size, size * 0.85, 0.05), glass, x, y, z));
+  group.add(mesh(box(size + 0.06, 0.03, 0.06), shutter, x, y - size * 0.45, z + 0.01));
+  for (const dx of [-1, 1]) {
+    const sh = mesh(box(size * 0.5, size * 0.85, 0.025), shutter, x + dx * size * 0.62, y, z + 0.05);
+    sh.rotation.y = dx * 0.6;
+    group.add(sh);
+  }
+}
+
+// A round hut: raised plinth, mud wall, thick layered thatch tied at the top.
 function roundHut(group, cx, cz, r, opts = {}) {
-  const wallH = r * 0.75;
-  group.add(mesh(cyl(r * 0.92, r, wallH, 14), opts.wall || C.mud(), cx, wallH / 2, cz));
-  const roof = mesh(cone(r * 1.32, r * 1.15, 16), opts.roof || C.thatch(), cx, wallH + r * 0.5, cz);
-  group.add(roof);
-  group.add(mesh(box(r * 0.42, r * 0.5, 0.06), C.dark(), cx, r * 0.25, cz + r * 0.95));
+  const wallH = r * 0.78;
+  group.add(mesh(cyl(r * 1.0, r * 1.06, 0.06, 16), C.mudDark(), cx, 0.03, cz));
+  group.add(mesh(cyl(r * 0.92, r * 0.97, wallH, 16), opts.wall || C.mud(), cx, 0.04 + wallH / 2, cz));
+  const roof = opts.roof || C.thatch();
+  const tier = (rad, h, base) => group.add(mesh(cone(rad, h, 18), roof, cx, base + h / 2, cz));
+  tier(r * 1.42, r * 0.55, wallH - r * 0.06);
+  tier(r * 1.1, r * 0.62, wallH + r * 0.2);
+  tier(r * 0.66, r * 0.6, wallH + r * 0.52);
+  group.add(mesh(cyl(r * 0.05, r * 0.12, r * 0.28, 6), C.wood(), cx, wallH + r * 1.18, cz));
+  door(group, cx, 0.05, cz + r * 0.93, r * 0.4, wallH * 0.72);
   return group;
 }
 
+// A rectangular house with a raised plinth, overhanging gable roof, ridge
+// beam, framed door and shuttered windows; optionally a front verandah.
 function gableHouse(group, cx, cz, w, d, wallH, opts = {}) {
-  group.add(mesh(box(w, wallH, d), opts.wall || C.mud(), cx, wallH / 2, cz));
-  const roof = mesh(prism(w + 0.2, d + 0.25, d * 0.45), opts.roof || C.thatch(), cx, wallH, cz);
-  group.add(roof);
-  group.add(mesh(box(w * 0.18, wallH * 0.7, 0.05), C.dark(), cx, wallH * 0.35, cz + d / 2 + 0.01));
+  const wallM = opts.wall || C.mud();
+  const roofM = opts.roof || C.thatch();
+  group.add(mesh(box(w + 0.08, 0.07, d + 0.08), opts.plinth || C.mudDark(), cx, 0.035, cz));
+  group.add(mesh(box(w, wallH, d), wallM, cx, 0.05 + wallH / 2, cz));
+  const roofH = d * 0.45;
+  group.add(mesh(prism(w + 0.3, d + 0.4, roofH), roofM, cx, wallH + 0.04, cz));
+  group.add(mesh(box(w + 0.34, 0.05, 0.08), opts.ridge || C.wood(), cx, wallH + roofH + 0.05, cz));
+  const front = cz + d / 2 + 0.01;
+  door(group, cx, 0.07, front, Math.min(0.28, w * 0.2), wallH * 0.7, opts.frame);
+  if (w >= 1.1 && opts.windows !== false) {
+    for (const dx of [-1, 1]) windowAt(group, cx + dx * w * 0.3, 0.05 + wallH * 0.58, front, 0.17, opts.shutter, opts.glass);
+  }
+  if (opts.verandah) {
+    // Posts carrying a lean-to roof along the front.
+    const depth = 0.34;
+    const posts = Math.max(2, Math.round(w / 0.5));
+    for (let k = 0; k < posts; k++) {
+      const x = cx - w / 2 + 0.06 + (k * (w - 0.12)) / (posts - 1);
+      group.add(mesh(cyl(0.028, 0.032, wallH * 0.85, 6), opts.post || C.wood(), x, wallH * 0.425 + 0.05, front + depth));
+    }
+    const lean = mesh(box(w + 0.1, 0.035, depth + 0.2), roofM, cx, wallH * 0.9 + 0.06, front + depth / 2);
+    lean.rotation.x = 0.28;
+    group.add(lean);
+    group.add(mesh(box(w + 0.06, 0.05, depth + 0.1), opts.plinth || C.mudDark(), cx, 0.025, front + depth / 2));
+  }
   return group;
+}
+
+// Everyday things around a home: water pots, a mortar for pounding yam,
+// firewood and a stool. Chosen by the building's id so they stay put.
+function homeProps(group, b, w, d) {
+  const id = b.id || 1;
+  const spots = [[0.18, d - 0.2], [w - 0.2, d - 0.18], [w - 0.18, 0.2], [0.2, 0.22]];
+  const pick = (k) => spots[(id + k) % spots.length];
+  {
+    const [x, z] = pick(0);
+    g2(group, 'pot', x, z);
+    g2(group, 'pot', x + 0.13, z - 0.06, 0.75);
+  }
+  {
+    const [x, z] = pick(1);
+    if (id % 3 === 0) {
+      for (let k = 0; k < 3; k++) {
+        const log = mesh(cyl(0.035, 0.035, 0.4, 6), C.wood(), x, 0.04 + Math.floor(k / 2) * 0.06, z + (k % 2) * 0.07 - 0.035 + (k === 2 ? 0.035 : 0));
+        log.rotation.z = Math.PI / 2;
+        group.add(log);
+      }
+    } else {
+      g2(group, 'mortar', x, z);
+    }
+  }
+  if (id % 2 === 0) {
+    const [x, z] = pick(2);
+    group.add(mesh(cyl(0.07, 0.06, 0.1, 8), C.wood(), x, 0.05, z));
+  }
+}
+
+function g2(group, kind, x, z, s = 1) {
+  if (kind === 'pot') {
+    group.add(mesh(ball(0.075 * s, 1), toon('#9c5a33'), x, 0.07 * s, z));
+    group.add(mesh(cyl(0.035 * s, 0.045 * s, 0.05 * s, 8), toon('#8a4d2b'), x, 0.15 * s, z));
+  } else if (kind === 'mortar') {
+    group.add(mesh(cyl(0.08, 0.06, 0.16, 8), toon('#6d4c2f'), x, 0.08, z));
+    const pestle = mesh(cyl(0.015, 0.015, 0.42, 5), toon('#c49a6c'), x + 0.02, 0.3, z);
+    pestle.rotation.z = 0.15;
+    group.add(pestle);
+  }
 }
 
 function flag(group, x, z, color, h = 1.4) {
@@ -101,12 +189,8 @@ function flag(group, x, z, color, h = 1.4) {
   group.add(cloth);
 }
 
-function earthPad(group, w, d, color = '#b88a5c') {
-  const pad = mesh(cyl(1, 1, 0.04, 24), toon(color), w / 2, 0.02, d / 2);
-  pad.scale.set(w * 0.52, 1, d * 0.52);
-  pad.castShadow = false;
-  group.add(pad);
-}
+// Yards are drawn by the ground itself (worn earth around buildings).
+function earthPad() {}
 
 // A Nigerian yam heap: a tall mound of loose earth with a stake for the vine.
 function yamHeap(group, x, z, growth) {
@@ -143,9 +227,13 @@ const BUILD = {
   compound(g, b, st) {
     earthPad(g, 3, 3);
     const big = (b.level || 1) >= 2;
-    const roofOpts = { roof: st.era >= 3 ? C.zinc() : C.thatch(), wall: C.mud() };
+    const roofOpts = { roof: st.era >= 3 ? C.zinc() : C.thatch(), wall: C.mud(), windows: false };
     gableHouse(g, 1.5, 0.45, 2.8, 0.8, 0.55, roofOpts);
-    gableHouse(g, 1.5, 2.55, 2.8, 0.8, 0.55, roofOpts);
+    gableHouse(g, 1.5, 2.55, 2.8, 0.8, 0.55, { ...roofOpts, windows: true });
+    // Verandah posts around the courtyard.
+    for (const [x, z] of [[0.95, 1.0], [2.05, 1.0], [0.95, 2.0], [2.05, 2.0], [1.5, 1.0], [1.5, 2.0]]) g.add(mesh(cyl(0.025, 0.03, 0.5, 6), C.wood(), x, 0.27, z));
+    g2(g, 'mortar', 1.1, 1.75);
+    g2(g, 'pot', 1.95, 1.75);
     const side = gableHouse(new THREE.Group(), 0, 0, 1.4, 0.7, 0.55, roofOpts);
     side.rotation.y = Math.PI / 2;
     side.position.set(0.4, 0, 1.5);
@@ -187,23 +275,39 @@ const BUILD = {
     earthPad(g, 2, 2);
     const lvl = b.level || 1;
     if (lvl === 1) {
-      roundHut(g, 1, 1, 0.62);
+      roundHut(g, 1, 0.95, 0.62);
     } else if (lvl === 2) {
-      gableHouse(g, 1, 1, 1.5, 1.2, 0.7, { wall: C.mud(), roof: C.thatch() });
+      // Mud-brick house with a thatched verandah.
+      gableHouse(g, 1, 0.85, 1.5, 1.05, 0.7, { wall: C.mud(), roof: C.thatch(), verandah: true });
     } else if (lvl === 3) {
-      gableHouse(g, 1, 1, 1.6, 1.3, 0.75, { wall: C.plaster(), roof: C.zinc() });
-      g.add(mesh(box(0.25, 0.25, 0.04), C.glass(), 0.55, 0.45, 1.66));
-      g.add(mesh(box(0.25, 0.25, 0.04), C.glass(), 1.45, 0.45, 1.66));
+      // Zinc-roof bungalow: plastered walls, blue shutters, white pillars.
+      gableHouse(g, 1, 0.85, 1.6, 1.1, 0.75, {
+        wall: C.plaster(), roof: C.zinc(), verandah: true, plinth: toon('#9a8f80'), post: C.white(),
+        shutter: toon('#2d6db5'), frame: toon('#2d6db5'), ridge: toon('#7d868b'),
+      });
+      g.add(mesh(box(0.5, 0.05, 0.16), toon('#9a8f80'), 1, 0.025, 1.85));
     } else {
-      // A modern storey building: two floors, balcony and water tank.
-      g.add(mesh(box(1.6, 1.6, 1.4), C.plaster(), 1, 0.8, 1));
-      g.add(mesh(box(1.7, 0.08, 1.5), toon('#d7cfc0'), 1, 1.62, 1));
-      g.add(mesh(box(1.7, 0.06, 0.4), toon('#d7cfc0'), 1, 0.85, 1.8));
-      for (const y of [0.45, 1.2]) {
-        for (const x of [0.6, 1.4]) g.add(mesh(box(0.32, 0.32, 0.04), C.glass(), x, y, 1.72));
+      // A modern storey building: two floors, balcony with railing, parapet
+      // and a water tank on the roof.
+      const wallM = C.plaster();
+      const trim = toon('#d7cfc0');
+      g.add(mesh(box(1.66, 0.08, 1.46), toon('#9a8f80'), 1, 0.04, 1));
+      g.add(mesh(box(1.6, 1.6, 1.4), wallM, 1, 0.84, 1));
+      g.add(mesh(box(1.7, 0.08, 1.5), trim, 1, 1.66, 1));
+      for (const [x, z, w, d] of [[1, 0.27, 1.7, 0.06], [1, 1.73, 1.7, 0.06], [0.17, 1, 0.06, 1.5], [1.83, 1, 0.06, 1.5]]) g.add(mesh(box(w, 0.14, d), trim, x, 1.77, z));
+      g.add(mesh(box(1.7, 0.06, 0.42), trim, 1, 0.9, 1.9));
+      for (let k = 0; k < 7; k++) g.add(mesh(box(0.025, 0.2, 0.025), C.iron(), 0.2 + k * 0.27, 1.03, 2.09));
+      g.add(mesh(box(1.66, 0.03, 0.03), C.iron(), 1, 1.13, 2.09));
+      for (const y of [0.5, 1.28]) {
+        for (const x of [0.55, 1.45]) {
+          g.add(mesh(box(0.34, 0.34, 0.04), C.glass(), x, y, 1.71));
+          g.add(mesh(box(0.42, 0.05, 0.06), trim, x, y - 0.2, 1.72));
+        }
       }
-      g.add(mesh(cyl(0.18, 0.18, 0.3, 10), toon('#2d6db5'), 1.5, 1.82, 0.6));
+      door(g, 1, 0.08, 1.71, 0.26, 0.5, toon('#5a3a20'));
+      g.add(mesh(cyl(0.18, 0.18, 0.3, 10), toon('#2d6db5'), 1.45, 1.9, 0.6));
     }
+    homeProps(g, b, 2, 2);
   },
 
   farm(g, b) {
@@ -251,7 +355,7 @@ const BUILD = {
 
   woodcutter(g) {
     earthPad(g, 2, 2);
-    gableHouse(g, 0.75, 0.75, 1.1, 0.9, 0.5, {});
+    gableHouse(g, 0.75, 0.75, 1.1, 0.9, 0.5, { windows: false });
     const log = cyl(0.1, 0.1, 0.8, 8);
     for (let k = 0; k < 5; k++) {
       const m = mesh(log, C.wood(), 1.45 + (k % 3) * 0.02, 0.1 + Math.floor(k / 3) * 0.18, 1.2 + (k % 3) * 0.2);
@@ -448,7 +552,7 @@ const BUILD = {
 
   blacksmith(g) {
     earthPad(g, 2, 2);
-    gableHouse(g, 0.8, 0.8, 1.3, 1, 0.6, {});
+    gableHouse(g, 0.8, 0.8, 1.3, 1, 0.6, { windows: false });
     g.add(mesh(cone(0.3, 0.6, 10), C.mudDark(), 1.55, 0.3, 1.45));
     const glow = mesh(ball(0.1, 0), toon('#ff8c1a', { emissive: '#ff6a00' }), 1.55, 0.2, 1.72);
     glow.userData.flame = true;
