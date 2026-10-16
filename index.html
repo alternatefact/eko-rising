@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1b130c" />
+    <title>Eko Rising — Build Lagos | alternatefact Studios</title>
+    <meta name="description" content="Eko Rising: start as a farmer and his wife by the lagoon, grow a compound into a town and a port city, face the Portuguese, the Edo, the British — and unite the land into The New Nigeria. A free strategy game from alternatefact Studios." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Eko Rising — Build Lagos from a single farm" />
+    <meta property="og:description" content="A free city-building strategy game rooted in the history of Lagos and Nigeria. You decide how history goes." />
+    <meta property="og:image" content="/brand/og-image.jpg" />
+    <link rel="icon" type="image/png" href="/brand/alternatefact-favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/game.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="world" aria-label="The game map"></canvas>
+
+      <header id="topbar">
+        <div class="brand">
+          <strong id="town-name">Èkó</strong>
+          <span id="era-chip" class="chip">Farmstead</span>
+        </div>
+        <div id="resources" class="resources"></div>
+        <div id="date" class="date"></div>
+        <div class="top-actions">
+          <button class="icon-btn" data-panel="era" title="Eras and the New Nigeria">🌅<span>Era</span></button>
+          <button class="icon-btn" data-panel="peoples" title="Peoples of the land">🤝<span>Peoples</span></button>
+          <button class="icon-btn" data-panel="kingdom" title="Taxes, food and happiness">⚖️<span>Rule</span></button>
+          <button class="icon-btn" id="army-btn" title="Select your whole army (G)">🛡️<span>Army</span></button>
+          <button class="icon-btn" id="speed-btn" title="Pause / speed (Space, 1-3)">⏸<span>1×</span></button>
+          <button class="icon-btn" data-panel="menu" title="Menu">☰<span>Menu</span></button>
+        </div>
+      </header>
+
+      <aside id="objectives" aria-live="polite"></aside>
+      <div id="feed" aria-live="polite"></div>
+
+      <section id="panel" hidden></section>
+
+      <div id="placebar" hidden>
+        <span id="place-msg"></span>
+        <button id="place-ok" class="btn primary">✓ Place</button>
+        <button id="place-cancel" class="btn">✕</button>
+      </div>
+
+      <nav id="buildbar">
+        <button id="build-toggle" class="build-toggle" aria-expanded="true">🔨 Build</button>
+        <div id="build-tabs" class="tabs"></div>
+        <div id="build-items" class="items"></div>
+      </nav>
+
+      <canvas id="minimap" aria-label="Minimap"></canvas>
+
+      <div id="modal" hidden></div>
+      <div id="toast" hidden></div>
+
+      <div id="title">
+        <div class="title-sky"></div>
+        <div class="title-inner">
+          <p class="kicker">alternatefact Studios presents</p>
+          <h1>Eko <span>Rising</span></h1>
+          <p class="tagline">Start with a hoe, a wife and a patch of land by the lagoon. Build Lagos — and decide how the history of a nation goes.</p>
+          <div class="title-grid">
+            <div class="card">
+              <h2>New game</h2>
+              <label>Founder <input id="ng-founder" maxlength="20" value="Àdìó" /></label>
+              <label>Wife <input id="ng-spouse" maxlength="20" value="Àdùkẹ́" /></label>
+              <label>Settlement <input id="ng-name" maxlength="24" value="Èkó" /></label>
+              <label>Map seed <input id="ng-seed" inputmode="numeric" placeholder="random" /></label>
+              <div class="row">
+                <button id="ng-start" class="btn primary big">Begin in Lagos</button>
+                <button id="ng-continue" class="btn big" hidden>Continue</button>
+              </div>
+            </div>
+            <div class="card">
+              <h2>The map of Nigeria</h2>
+              <p class="muted">Chapter one is Lagos. New states open in future updates.</p>
+              <div id="nigeria"></div>
+            </div>
+          </div>
+          <details class="howto">
+            <summary>How to play</summary>
+            <ul>
+              <li><b>Build</b> from the bar at the bottom. Woodcutters, farms, hunters and fishers each need one worker.</li>
+              <li><b>Strangers</b> come when your people are fed and happy. They wait at the campfire (or the town square once you have a palace) until you build them a home — then they move in and go to work.</li>
+              <li><b>Workers</b> fill the most important jobs first. Set a building's priority to <i>High</i> and someone will leave lower-priority work for it.</li>
+              <li><b>Explore</b> with scouts. Other peoples may be friendly — or strong enough to wipe out your soldiers. Befriend them, make them pay tribute, or conquer them and take their wealth.</li>
+              <li><b>History</b> arrives when you are ready for it: Benin, the Portuguese, the French, the British. You decide what happens.</li>
+              <li><b>Controls:</b> drag to move the map, pinch or scroll to zoom. Tap to select. With soldiers selected, tap the ground to move or an enemy to attack. On a computer: right-click to command, Shift-drag to box-select, WASD to scroll.</li>
+            </ul>
+          </details>
+          <p class="foot"><a href="/">← alternatefact Studios</a></p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
