@@ -19,6 +19,7 @@ import { STATES, NEXT_UP } from '../regions/index.js';
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const stars = (n) => `${'★'.repeat(n)}<span style="opacity:.3">${'★'.repeat(5 - n)}</span>`;
 const fmt = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.floor(n)}`);
 
 const ICONS = {
@@ -495,7 +496,7 @@ export class Hud {
     const st = this.st;
     if (!f) return '';
     const alive = garrisonAlive(st, f).length;
-    let h = this.head(esc(f.name), `${'★'.repeat(f.strength)}${'☆'.repeat(5 - f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span>`);
+    let h = this.head(esc(f.name), `${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span>`);
     h += `<p>${esc(f.desc)}</p>`;
     h += this.factionBody(f, alive);
     return h;
@@ -536,7 +537,7 @@ export class Hud {
     if (!known.length) h += '<p class="muted">You have met no one yet. Train a scout at your compound and explore.</p>';
     for (const f of known) {
       const alive = garrisonAlive(st, f).length;
-      h += `<div class="people-card" style="--c:${f.color}"><div class="panel-head"><div><b>${esc(f.name)}</b>${f.major ? '' : ' <span class="muted">(minor)</span>'}<div class="muted">${'★'.repeat(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span></div></div></div>${this.factionBody(f, alive)}</div>`;
+      h += `<div class="people-card" style="--c:${f.color}"><div class="panel-head"><div><b>${esc(f.name)}</b>${f.major ? '' : ' <span class="muted">(minor)</span>'}<div class="muted">${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span></div></div></div>${this.factionBody(f, alive)}</div>`;
     }
     const hidden = st.factions.filter((f) => !f.discovered && f.major).length;
     if (hidden) h += `<p class="muted">${hidden} more major ${hidden > 1 ? 'peoples are' : 'people is'} out there, still unknown.</p>`;
