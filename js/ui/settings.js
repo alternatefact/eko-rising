@@ -1,5 +1,4 @@
-// Player preferences kept in the browser: which graphics to use, and which
-// painted art files ship with the game (so pop-ups only ask for files that exist).
+// Player preferences kept in the browser: which graphics to use.
 
 const GFX_KEY = 'eko-rising:graphics';
 
@@ -17,12 +16,4 @@ export function setGraphicsMode(mode) {
   } catch (err) {
     // Without storage the choice simply doesn't stick.
   }
-}
-
-// Painted illustrations in art/, by name. Story pop-ups fall back to emoji
-// art for anything not listed here.
-export const ART = new Set([]);
-
-export function artUrl(name) {
-  return ART.has(name) ? `art/${name}.webp` : null;
 }

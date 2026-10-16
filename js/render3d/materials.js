@@ -3,6 +3,7 @@
 // fog-of-war that every surface samples so unexplored land stays dark.
 
 import * as THREE from '../vendor/three.module.js';
+import { textureArt } from '../data/art.js';
 
 // Shared fog-of-war uniforms. The texture is W×H, red channel: 1 = visible,
 // ~0.55 = explored but out of sight, 0 = never seen.
@@ -244,16 +245,15 @@ export function texture(name) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   textures.set(name, t);
+  // Swap in the painted texture from art/ once it has loaded.
+  const url = textureArt(name);
+  if (url && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.onload = () => {
+      t.image = img;
+      t.needsUpdate = true;
+    };
+    img.src = url;
+  }
   return t;
-}
-
-// Swap in a richer image (from art/) when one is available.
-export function upgradeTexture(name, url) {
-  const t = texture(name);
-  const img = new Image();
-  img.onload = () => {
-    t.image = img;
-    t.needsUpdate = true;
-  };
-  img.src = url;
 }

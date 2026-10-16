@@ -50,6 +50,7 @@ export function makeApi(st) {
 
 export function eventDef(st, entry) {
   if (entry.id === 'meet') return meetEvent(st, st.factionMap[entry.fid]);
+  if (entry.id === 'age') return ageEvent(st, entry.era);
   return st.region.events.find((e) => e.id === entry.id) || null;
 }
 
@@ -96,6 +97,20 @@ export function chooseEvent(st, index) {
     return;
   }
   choice.apply?.(st, makeApi(st), entry);
+}
+
+// Shown when the town enters a new age.
+function ageEvent(st, era) {
+  const e = ERAS[era];
+  if (!e) return null;
+  const unlocks = Object.values(BUILDINGS).filter((d) => d.era === era && d.buildable !== false).map((d) => d.name);
+  return {
+    id: 'age',
+    title: `A new age: ${e.name} (${e.yo})`,
+    art: '🌅',
+    text: () => `${st.name} has grown into something new.\n\n${e.blurb}${unlocks.length ? `\n\nYou can now build: ${unlocks.join(', ')}.` : ''}`,
+    choices: [{ label: 'Onward' }],
+  };
 }
 
 // The generic "you have met a people" event.
@@ -175,6 +190,7 @@ export function advanceEra(st) {
   st.dirty.territory = true;
   addMood(st, `A new age: ${r.next.name}`, 8, 4);
   notify(st, `🌅 ${st.name} enters the ${r.next.name} era (${r.next.yo}). ${r.next.blurb}`, 'good');
+  st.eventQueue.push({ id: 'age', era: st.era });
   return true;
 }
 

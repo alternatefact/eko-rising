@@ -17,7 +17,8 @@ import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.j
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
 import { buildLocked, canUpgrade } from '../sim/index.js';
 import { STATES, NEXT_UP } from '../regions/index.js';
-import { graphicsMode, setGraphicsMode, artUrl } from './settings.js';
+import { graphicsMode, setGraphicsMode } from './settings.js';
+import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -269,7 +270,7 @@ export class Hud {
       }
       return;
     }
-    const key = `${entry.id}-${entry.fid || ''}-${st.eventQueue.length}-${Math.floor(st.res.cowries)}`;
+    const key = `${entry.id}-${entry.fid || entry.era || ''}-${st.eventQueue.length}-${Math.floor(st.res.cowries)}`;
     if (key === this.modalKey) return;
     this.modalKey = key;
     const ev = eventDef(st, entry);
@@ -279,10 +280,11 @@ export class Hud {
     }
     const text = typeof ev.text === 'function' ? ev.text(st) : ev.text;
     const art = ev.art === 'meet' ? '🤝' : ev.art || '📜';
-    const img = artUrl(entry.id) || (ev.art === 'meet' ? artUrl('meet') : null);
+    const portrait = entry.id === 'meet' ? leaderArt(st.factionMap[entry.fid]) : null;
+    const img = portrait || (entry.id === 'age' ? ageArt(entry.era) : storyArt(entry.id));
     modal.hidden = false;
     modal.innerHTML = `<div class="event" role="dialog" aria-modal="true">
-      <div class="art ${img ? 'painted' : ''}" ${ev.color ? `style="background:radial-gradient(circle at 50% 120%, ${ev.color}, transparent 65%), linear-gradient(180deg,#23356b,#3a2414)"` : ''}>${img ? `<img src="${img}" alt="" onerror="this.parentNode.classList.remove('painted');this.remove()" />` : ''}<span>${art}</span></div>
+      ${this.artHtml(img, art, ev.color, !!portrait)}
       <div class="body">
         <h2>${esc(ev.title)}</h2>
         <div class="text">${esc(text)}</div>
@@ -294,6 +296,13 @@ export class Hud {
           })
           .join('')}</div>
       </div></div>`;
+  }
+
+  // A painted picture, or the emoji art if there is none (or it fails to load).
+  artHtml(img, emoji, color, portrait) {
+    const bg = color ? ` style="background:radial-gradient(circle at 50% 120%, ${color}, transparent 65%), linear-gradient(180deg,#23356b,#3a2414)"` : '';
+    const cls = ['art', img ? 'painted' : '', portrait ? 'portrait' : ''].join(' ');
+    return `<div class="${cls}"${bg}>${img ? `<img src="${img}" alt="" onerror="this.parentNode.classList.remove('painted');this.remove()" />` : ''}<span>${emoji}</span></div>`;
   }
 
   onModalClick(e) {
@@ -310,7 +319,7 @@ export class Hud {
 
   victoryHtml() {
     const st = this.st;
-    return `<div class="event end"><div class="art" style="background:linear-gradient(90deg,#008751 0 33%,#fff 33% 66%,#008751 66%)">🇳🇬</div>
+    return `<div class="event end">${this.artHtml(sceneArt('end_victory'), '🇳🇬')}
       <div class="body"><h2>The New Nigeria</h2>
       <div class="text">In the year ${st.time.year}, in the House of Assembly at ${esc(st.name)}, every people of the land speaks with one voice. What began as ${esc(st.founder)} and ${esc(st.spouse)}'s yam farm by the lagoon is now the heart of a new nation.\n\nChapter one — Lagos — is complete. ${unified(st).length} peoples united, ${population(st)} people in your city, ${st.stats.conquered} villages conquered, ${st.stats.trained} soldiers trained.\n\nThe road north to Ogun, Oyo and beyond opens in a future update.</div>
       <div class="choices"><button class="choice" data-end="continue"><b>Keep building</b><span>Your city is yours to grow.</span></button>
@@ -320,7 +329,7 @@ export class Hud {
 
   defeatHtml() {
     const st = this.st;
-    return `<div class="event end"><div class="art">🕯️</div><div class="body"><h2>The fire goes out</h2>
+    return `<div class="event end">${this.artHtml(sceneArt('end_defeat'), '🕯️')}<div class="body"><h2>The fire goes out</h2>
       <div class="text">${esc(st.gameOver.reason)}\n\nYou lasted until ${st.time.year}. Every great city has fallen and risen again.</div>
       <div class="choices"><button class="choice" data-end="restart"><b>Try again on a new map</b></button>
       <button class="choice" data-end="title"><b>Back to the title</b></button></div></div></div>`;
@@ -528,10 +537,10 @@ export class Hud {
         : Object.values(st.foreign).some((f) => f.trade && !f.hostile)
           ? `The next merchant ship is due around day ${Math.max(st.time.day, st.harbour.next || 0) + 1}.`
           : 'No foreign merchants trade with you yet. Make peace with a foreign power to open the sea trade.';
-      return `<h4>⚓ Harbour</h4><p class="muted">${status} Ships buy palm oil, garri and fish, and sell muskets, cloth, salt, horses, cannon and tools.</p>`;
+      return `<h4>⚓ Harbour</h4><img class="scene" src="${sceneArt('harbour')}" alt="" onerror="this.remove()" /><p class="muted">${status} Ships buy palm oil, garri and fish, and sell muskets, cloth, salt, horses, cannon and tools.</p>`;
     }
     const who = st.foreign[ship.power]?.name || ship.power;
-    let h = `<h4>⛵ ${esc(who)} merchant ship · sails on day ${ship.until + 1}</h4><p class="muted">They buy (lots of 10):</p><div class="trade">`;
+    let h = `<h4>⛵ ${esc(who)} merchant ship · sails on day ${ship.until + 1}</h4><img class="scene" src="${sceneArt('harbour')}" alt="" onerror="this.remove()" /><p class="muted">They buy (lots of 10):</p><div class="trade">`;
     for (const [r, price] of Object.entries(ship.buys)) {
       h += `<span>${RESOURCES[r].icon}</span><span>${RESOURCES[r].name} <span class="muted">${fmt(st.res[r])}</span></span>
         <button class="btn" data-act="shipsell" data-r="${r}" ${st.res[r] >= 1 ? '' : 'disabled'}>Sell +${price * 10}</button><span class="muted">${m.icon} ${price} each</span>`;
@@ -588,7 +597,8 @@ export class Hud {
     if (!f) return '';
     const alive = garrisonAlive(st, f).length;
     let h = this.head(esc(f.name), `${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span>`);
-    if (f.leader) h += `<p class="muted">Ruled by <b>${esc(f.leader)}</b></p>`;
+    const face = leaderArt(f);
+    if (f.leader || face) h += `<div class="leader">${face ? `<img src="${face}" alt="" />` : ''}<span class="muted">${f.leader ? `Ruled by <b>${esc(f.leader)}</b>` : esc(f.people)}</span></div>`;
     h += `<p>${esc(f.desc)}</p>`;
     h += this.factionBody(f, alive);
     return h;
@@ -653,7 +663,8 @@ export class Hud {
     if (!known.length) h += '<p class="muted">You have met no one yet. Train a scout at your compound and explore.</p>';
     for (const f of known) {
       const alive = garrisonAlive(st, f).length;
-      h += `<div class="people-card" style="--c:${f.color}"><div class="panel-head"><div><b>${esc(f.name)}</b>${f.major ? '' : ' <span class="muted">(minor)</span>'}<div class="muted">${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span></div></div></div>${this.factionBody(f, alive)}</div>`;
+      const face = leaderArt(f);
+      h += `<div class="people-card" style="--c:${f.color}"><div class="panel-head">${face ? `<img class="face" src="${face}" alt="" />` : ''}<div class="grow"><b>${esc(f.name)}</b>${f.major ? '' : ' <span class="muted">(minor)</span>'}<div class="muted">${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span></div></div></div>${this.factionBody(f, alive)}</div>`;
     }
     const hidden = st.factions.filter((f) => !f.discovered && f.major).length;
     if (hidden) h += `<p class="muted">${hidden} more major ${hidden > 1 ? 'peoples are' : 'people is'} out there, still unknown.</p>`;
@@ -664,10 +675,13 @@ export class Hud {
     const st = this.st;
     const era = ERAS[st.era];
     let h = this.head(`🌅 ${era.name} era`, `${era.yo} · ${st.time.year}`);
+    const now = ageArt(st.era);
+    if (now) h += `<img class="scene" src="${now}" alt="" onerror="this.remove()" />`;
     h += `<p>${esc(era.blurb)}</p>`;
     const r = eraRequirements(st);
     if (r) {
-      h += `<h4>Next: ${esc(r.next.name)} (${esc(r.next.yo)})</h4><p class="muted">${esc(r.next.blurb)}</p>`;
+      const next = ageArt(st.era + 1);
+      h += `<h4>Next: ${esc(r.next.name)} (${esc(r.next.yo)})</h4>${next ? `<img class="scene small" src="${next}" alt="" onerror="this.remove()" />` : ''}<p class="muted">${esc(r.next.blurb)}</p>`;
       for (const q of r.reqs) h += `<div class="req ${q.met ? 'met' : ''}"><span>${q.met ? '✅' : '⬜'}</span><span>${esc(q.text)}${q.cost ? ` — ${costText(q.cost, st)}` : ''}${q.have !== undefined ? ` (now ${q.have})` : ''}</span></div>`;
       const ok = r.reqs.every((q) => q.met);
       h += `<h4></h4><button class="btn primary big" data-act="advance" ${ok ? '' : 'disabled'}>Advance to the ${esc(r.next.name)} era</button>`;
