@@ -17,7 +17,7 @@ import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.j
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
 import { buildLocked, canUpgrade } from '../sim/index.js';
 import { STATES, NEXT_UP } from '../regions/index.js';
-import { graphicsMode, setGraphicsMode } from './settings.js';
+import { graphicsMode, setGraphicsMode, graphicsStyle, setGraphicsStyle } from './settings.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -744,7 +744,15 @@ export class Hud {
         <button class="btn" data-act="save">💾 Save game</button>
         <button class="btn" data-act="load" ${g.hasSave() ? '' : 'disabled'}>📂 Load last save</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
-        <button class="btn" data-act="graphics">${graphicsMode() === '3d' ? '🖼️ Switch to classic 2D graphics' : '🧊 Switch to 3D graphics'}</button>
+      </div>
+      <h4>Graphics</h4>
+      <div class="seg">
+        ${[['real', '🏰 Realistic 3D'], ['cartoon', '🎨 Cartoon 3D'], ['2d', '🖼️ Classic 2D']].map(([k, label]) => {
+          const on = k === '2d' ? graphicsMode() === '2d' : graphicsMode() === '3d' && graphicsStyle() === k;
+          return `<button class="btn ${on ? 'on' : ''}" data-act="graphics" data-v="${k}">${label}</button>`;
+        }).join('')}
+      </div>
+      <div class="list">
         <button class="btn" data-act="log">📜 Message history</button>
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
@@ -820,11 +828,17 @@ export class Hud {
         if (r && !r.ok && r.reason) this.toast(r.reason);
         break;
       }
-      case 'graphics':
-        setGraphicsMode(graphicsMode() === '3d' ? '2d' : '3d');
+      case 'graphics': {
+        const v = el.dataset.v;
+        if (v === '2d') setGraphicsMode('2d');
+        else {
+          setGraphicsMode('3d');
+          setGraphicsStyle(v);
+        }
         g.save(false);
         window.location.reload();
         return;
+      }
       case 'goto':
         g.centerOn(+el.dataset.x, +el.dataset.y);
         return;

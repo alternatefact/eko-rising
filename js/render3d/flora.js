@@ -6,7 +6,8 @@
 import * as THREE from '../vendor/three.module.js';
 import { T, F } from '../world/terrain.js';
 import { hash2 } from '../core/rng.js';
-import { withFog, withSway, artTexture, toon } from './materials.js';
+import { withFog, withSway, artTexture, REAL } from './materials.js';
+import { natureArt } from '../data/art.js';
 
 const CHUNK = 16;
 
@@ -143,6 +144,37 @@ function canopy(shape, blobs, opts = {}) {
   }
 }
 
+// A life-like crown: photographic leaf clusters on cards set around a dome,
+// each lit as if it were part of one round crown.
+function cardCrown(shape, { center, radius, cards, squash = 1, size = 1, flat = 0, seed = 1 }) {
+  const r = rnd(seed);
+  const c = new THREE.Vector3(...center);
+  const plane = new THREE.PlaneGeometry(1, 1);
+  for (let k = 0; k < cards; k++) {
+    // Spread over the upper part of a sphere, most cards near the top.
+    const u = r() * Math.PI * 2;
+    const v = Math.acos(1 - r() * 1.55);
+    const dir = new THREE.Vector3(Math.sin(v) * Math.cos(u), Math.cos(v) * squash, Math.sin(v) * Math.sin(u)).normalize();
+    const pos = c.clone().add(dir.clone().multiplyScalar(radius * (0.55 + r() * 0.3)));
+    const s = radius * size * (0.95 + r() * 0.5);
+    // Face outward, tipped toward the sky for flat crowns, with a random twist.
+    const face = dir.clone().lerp(new THREE.Vector3(0, 1, 0), flat).normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), face);
+    q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), r() * Math.PI * 2));
+    const m = new THREE.Matrix4().compose(pos, q, new THREE.Vector3(s, s, s));
+    const top = c.y + radius * squash;
+    const bottom = c.y - radius * squash;
+    shape.add(plane, m, {
+      normal: (p, n) => n.copy(p).sub(c).normalize().lerp(new THREE.Vector3(0, 1, 0), 0.25).normalize(),
+      color: (p, col) => {
+        const t = Math.min(1, Math.max(0, (p.y - bottom) / Math.max(0.01, top - bottom)));
+        col.setRGB(0.62 + t * 0.45, 0.62 + t * 0.45, 0.6 + t * 0.4);
+      },
+      sway: (p) => Math.max(0, p.y - bottom * 0.5) * 0.9,
+    });
+  }
+}
+
 function trunk(shape, h, r0, r1, branches = 2, seed = 1) {
   const r = rnd(seed);
   const barkUv = (v, n) => [Math.atan2(n.x, n.z) / Math.PI + 1, v.y * 2.2];
@@ -193,6 +225,49 @@ function frond(shape, angle, droop, len, lift = 0.25) {
 }
 
 function buildTemplates(mobile) {
+  return REAL ? realTemplates(mobile) : cartoonTemplates(mobile);
+}
+
+function realTemplates(mobile) {
+  const T2 = {};
+  const n = (k) => Math.max(5, Math.round(k * (mobile ? 0.6 : 1)));
+  T2.trunk = new Shape();
+  trunk(T2.trunk, 0.8, 0.065, 0.045, 3, 3);
+  T2.crownA = new Shape();
+  cardCrown(T2.crownA, { center: [0, 1.0, 0], radius: 0.48, cards: n(16), seed: 4 });
+  T2.crownB = new Shape();
+  cardCrown(T2.crownB, { center: [0, 1.08, 0], radius: 0.42, cards: n(14), squash: 1.2, seed: 8 });
+  T2.savTrunk = new Shape();
+  trunk(T2.savTrunk, 0.72, 0.05, 0.035, 3, 7);
+  T2.savCrown = new Shape();
+  cardCrown(T2.savCrown, { center: [0, 0.82, 0], radius: 0.62, cards: n(11), squash: 0.3, flat: 0.75, size: 1.05, seed: 6 });
+  T2.roots = new Shape();
+  {
+    const r = rnd(11);
+    trunk(T2.roots, 0.35, 0.05, 0.045, 0, 5);
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2 + r() * 0.5;
+      T2.roots.add(new THREE.TorusGeometry(0.2, 0.014, 3, 6, Math.PI * 0.75), mat(Math.cos(a) * 0.17, 0.02, Math.sin(a) * 0.17, 0, -a + Math.PI / 2, 0), {
+        uv: (v) => [v.x * 3, v.y * 3],
+        color: (v, c) => c.setRGB(0.7, 0.66, 0.6),
+      });
+    }
+  }
+  T2.mangroveCrown = new Shape();
+  cardCrown(T2.mangroveCrown, { center: [0, 0.58, 0], radius: 0.4, cards: n(12), squash: 0.7, seed: 9 });
+  T2.bush = new Shape();
+  cardCrown(T2.bush, { center: [0, 0.16, 0], radius: 0.24, cards: n(6), size: 1.3, seed: 2 });
+  T2.palmTrunk = cartoonPalmTrunk();
+  T2.palmCrown = palmCrown();
+  T2.palmFruit = palmFruit();
+  T2.rocks = rocks();
+  T2.grass = grassTuft();
+  const out = {};
+  for (const [k, s] of Object.entries(T2)) out[k] = s.geometry();
+  return out;
+}
+
+function cartoonTemplates(mobile) {
   const T2 = {};
   const detail = mobile ? 0 : 1;
   // Rainforest trees: a bark trunk and a big puffy crown (two variants).
@@ -226,12 +301,23 @@ function buildTemplates(mobile) {
   // Bush.
   T2.bush = new Shape();
   canopy(T2.bush, [[0, 0.14, 0, 0.17], [0.13, 0.1, 0.05, 0.12], [-0.11, 0.11, -0.04, 0.13]], { detail: 0 });
-  // Oil palm: ringed, slightly curved trunk; a crown of drooping fronds.
-  T2.palmTrunk = new Shape();
+  T2.palmTrunk = cartoonPalmTrunk();
+  T2.palmCrown = palmCrown();
+  T2.palmFruit = palmFruit();
+  T2.rocks = rocks();
+  T2.grass = grassTuft();
+  const out = {};
+  for (const [k, s] of Object.entries(T2)) out[k] = s.geometry();
+  return out;
+}
+
+// Oil palm: ringed, slightly curved trunk; a crown of drooping fronds.
+function cartoonPalmTrunk() {
+  const shape = new Shape();
   {
     const h = 1.05;
     const g = new THREE.CylinderGeometry(0.045, 0.06, h, 8, 10).translate(0, h / 2, 0);
-    T2.palmTrunk.add(g, new THREE.Matrix4(), {
+    shape.add(g, new THREE.Matrix4(), {
       displace: (v) => {
         const t = v.y / h;
         v.x += t * t * 0.12;
@@ -244,7 +330,11 @@ function buildTemplates(mobile) {
       sway: (v) => (v.y / h) * 0.35,
     });
   }
-  T2.palmCrown = new Shape();
+  return shape;
+}
+
+function palmCrown() {
+  const shape = new Shape();
   {
     const r = rnd(5);
     const top = new THREE.Vector3(0.12, 1.05, 0);
@@ -253,31 +343,39 @@ function buildTemplates(mobile) {
     for (let k = 0; k < 3; k++) frond(crown, r() * Math.PI * 2, 0.2, 0.42, 1.0);
     const g = crown.geometry();
     g.translate(top.x, top.y, top.z);
-    T2.palmCrown.add(g, new THREE.Matrix4(), {
+    shape.add(g, new THREE.Matrix4(), {
       color: (v, c) => c.setRGB(0.85, 0.95, 0.8),
       sway: (v) => Math.min(1.6, Math.hypot(v.x - top.x, v.z - top.z) * 1.6 + 0.2),
       normal: (v, n) => n.set(0, 1, 0),
     });
   }
-  T2.palmFruit = new Shape();
+  return shape;
+}
+
+function palmFruit() {
+  const shape = new Shape();
   {
     const ball = new THREE.IcosahedronGeometry(0.035, 0);
     const r = rnd(9);
     for (let k = 0; k < 5; k++) {
       const a = r() * Math.PI * 2;
-      T2.palmFruit.add(ball, mat(0.12 + Math.cos(a) * 0.05, 0.98 + r() * 0.05, Math.sin(a) * 0.05), {
+      shape.add(ball, mat(0.12 + Math.cos(a) * 0.05, 0.98 + r() * 0.05, Math.sin(a) * 0.05), {
         color: (v, c) => c.set(k % 3 ? '#c0392b' : '#e67e22'),
       });
     }
   }
-  // A cluster of three weathered rocks.
-  T2.rocks = new Shape();
+  return shape;
+}
+
+// A cluster of three weathered rocks.
+function rocks() {
+  const shape = new Shape();
   {
     const r = rnd(3);
     for (let k = 0; k < 3; k++) {
       const s = 0.13 + r() * 0.1;
       const c = new THREE.Vector3((r() - 0.5) * 0.5, s * 0.35, (r() - 0.5) * 0.5);
-      T2.rocks.add(new THREE.DodecahedronGeometry(1, 0), mat(c.x, c.y, c.z, r(), r() * 3, r(), s * (1.1 + r() * 0.4), s * 0.75, s), {
+      shape.add(new THREE.DodecahedronGeometry(1, 0), mat(c.x, c.y, c.z, r(), r() * 3, r(), s * (1.1 + r() * 0.4), s * 0.75, s), {
         displace: (v) => v.multiplyScalar(1 + (lump(v, 0.12, 9) - 1)),
         box: 2.2,
         color: (v, cc) => {
@@ -287,8 +385,12 @@ function buildTemplates(mobile) {
       });
     }
   }
-  // A grass tuft: thin blades, dark at the root and light at the tip.
-  T2.grass = new Shape();
+  return shape;
+}
+
+// A grass tuft: thin blades, dark at the root and light at the tip.
+function grassTuft() {
+  const shape = new Shape();
   {
     const r = rnd(21);
     for (let k = 0; k < 7; k++) {
@@ -300,7 +402,7 @@ function buildTemplates(mobile) {
       const tri = new THREE.BufferGeometry();
       tri.setAttribute('position', new THREE.Float32BufferAttribute([-0.014, 0, 0, 0.014, 0, 0, 0, h, 0], 3));
       tri.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
-      T2.grass.add(tri, mat(ox, 0, oz, lean * Math.cos(a), a, lean * Math.sin(a)), {
+      shape.add(tri, mat(ox, 0, oz, lean * Math.cos(a), a, lean * Math.sin(a)), {
         color: (v, c) => {
           const t = Math.min(1, v.y / 0.2);
           c.setRGB(0.55 + t * 0.6, 0.6 + t * 0.55, 0.45 + t * 0.4);
@@ -309,22 +411,31 @@ function buildTemplates(mobile) {
       });
     }
   }
-  const out = {};
-  for (const [k, s] of Object.entries(T2)) out[k] = s.geometry();
-  return out;
+  return shape;
 }
 
 // --- Materials ------------------------------------------------------------------------
 
+let gradient = null;
+function toonGradient() {
+  if (!gradient) {
+    gradient = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 170, 170, 170, 255, 235, 235, 235, 255, 255, 255, 255, 255]), 4, 1, THREE.RGBAFormat);
+    gradient.minFilter = THREE.NearestFilter;
+    gradient.magFilter = THREE.NearestFilter;
+    gradient.needsUpdate = true;
+  }
+  return gradient;
+}
+
 function swayToon(map, opts = {}) {
-  const m = new THREE.MeshToonMaterial({
+  const params = {
     color: '#ffffff',
     vertexColors: true,
     map,
-    gradientMap: toon('#ffffff').gradientMap,
     alphaTest: opts.alphaTest || 0,
     side: opts.double ? THREE.DoubleSide : THREE.FrontSide,
-  });
+  };
+  const m = REAL ? new THREE.MeshLambertMaterial(params) : new THREE.MeshToonMaterial({ ...params, gradientMap: toonGradient() });
   withFog(m, (shader) => {
     withSway(shader);
     if (opts.double) shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);');
@@ -346,23 +457,46 @@ function grassMaterial() {
 
 // Which material and shadow behaviour each template uses.
 function kinds() {
-  const leaves = swayToon(artTexture('art/tex/leaves.webp', '#3f7a2e'), { key: 'leaves' });
-  const bark = swayToon(artTexture('art/tex/bark.webp', '#6b5440'), { key: 'bark' });
-  const frondTex = artTexture('art/tex/frond.webp', '#3c7a32', { repeat: false });
+  const art = (name, color, opts) => artTexture(natureArt(name, REAL), color, opts);
+  const bark = swayToon(art('bark', '#6b5440'), { key: 'bark' });
+  const frondTex = art('frond', '#3c7a32', { repeat: false });
   const fronds = swayToon(frondTex, { key: 'frond', alphaTest: 0.45, double: true });
   const plain = swayToon(null, { key: 'plain' });
-  const rock = swayToon(artTexture('art/ground/rock.webp', '#8a7c68'), { key: 'rock' });
-  const frondDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: frondTex, alphaTest: 0.45 });
+  const rock = swayToon(art('rock', '#8a7c68'), { key: 'rock' });
+  const depth = (t) => new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: t, alphaTest: 0.45 });
+  const frondDepth = depth(frondTex);
   const grass = grassMaterial();
+  // Crowns: leaf-cluster cards for the realistic look, a leafy texture on round crowns for the cartoon one.
+  let leaves;
+  let acacia;
+  let bush;
+  let crownDepth = null;
+  let acaciaDepth = null;
+  let bushDepth = null;
+  if (REAL) {
+    const lt = art('leafcluster', '#3f6a2e', { repeat: false });
+    const at = art('acacia', '#6b7a3a', { repeat: false });
+    const bt = art('bush', '#3f6a2e', { repeat: false });
+    leaves = swayToon(lt, { key: 'leafcard', alphaTest: 0.5, double: true });
+    acacia = swayToon(at, { key: 'acaciacard', alphaTest: 0.45, double: true });
+    bush = swayToon(bt, { key: 'bushcard', alphaTest: 0.5, double: true });
+    crownDepth = depth(lt);
+    acaciaDepth = depth(at);
+    bushDepth = depth(bt);
+  } else {
+    leaves = swayToon(artTexture('art/tex/leaves.webp', '#3f7a2e'), { key: 'leaves' });
+    acacia = leaves;
+    bush = leaves;
+  }
   return {
     trunk: { mat: bark, shadow: true },
-    crownA: { mat: leaves, shadow: true },
-    crownB: { mat: leaves, shadow: true },
+    crownA: { mat: leaves, shadow: true, depth: crownDepth },
+    crownB: { mat: leaves, shadow: true, depth: crownDepth },
     savTrunk: { mat: bark, shadow: true },
-    savCrown: { mat: leaves, shadow: true },
+    savCrown: { mat: acacia, shadow: true, depth: acaciaDepth },
     roots: { mat: bark, shadow: true },
-    mangroveCrown: { mat: leaves, shadow: true },
-    bush: { mat: leaves, shadow: true },
+    mangroveCrown: { mat: leaves, shadow: true, depth: crownDepth },
+    bush: { mat: bush, shadow: true, depth: bushDepth },
     palmTrunk: { mat: bark, shadow: true },
     palmCrown: { mat: fronds, shadow: true, depth: frondDepth },
     palmFruit: { mat: plain, shadow: false },

@@ -75,11 +75,14 @@ export class Minimap {
       ctx.fillRect(s.x - 1, s.y - 1, 2, 2);
     }
 
-    const tl = renderer.screenToTile(0, 0);
-    const br = renderer.screenToTile(renderer.w, renderer.h);
+    // The part of the map on screen (a turned shape in the 3D view).
+    const corners = [[0, 0], [renderer.w, 0], [renderer.w, renderer.h], [0, renderer.h]].map(([x, y]) => renderer.screenToTile(x, y));
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 0.7;
-    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+    ctx.beginPath();
+    corners.forEach((p, k) => (k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+    ctx.stroke();
   }
 
   // Minimap pixel → tile.

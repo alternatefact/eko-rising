@@ -38,9 +38,11 @@ server and open it in a browser:
 npm start            # serves on http://localhost:8080
 ```
 
-The game draws in 3D with three.js (bundled in `js/vendor/`) and falls back to
-a hand-drawn 2D view where WebGL is not available. Players can switch between
-them from the in-game menu.
+The game draws in 3D with three.js (bundled in `js/vendor/`), seen from an
+isometric corner view in the style of the classic castle builders. There are
+three looks, chosen from the in-game menu: **Realistic 3D** (the default, with
+life-like textures and leaf-card trees), **Cartoon 3D**, and **Classic 2D**,
+which is also used where WebGL is not available.
 
 ## Code
 
@@ -51,11 +53,13 @@ js/sim/       the simulation, with no DOM: economy, citizens, military, factions
 js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
 js/regions/   one file per state; lagos.js is chapter one
-js/render3d/  3D cartoon view: ground.js land and water, flora.js trees and grass,
-              models.js buildings, people.js people and soldiers
+js/render3d/  3D view: ground.js land and water, flora.js trees and grass,
+              models.js buildings, walls and towers, people.js people and soldiers,
+              effects.js fire and smoke
 js/render/    2D canvas renderer, hand-drawn sprites, minimap
 js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings
-art/          painted story art, portraits, age pictures, and ground, plant and building textures
+art/          story art, portraits, age pictures; art/ground and art/tex hold the
+              cartoon textures, art/real the life-like ones
 brand/        studio logo and favicon
 tests/        headless simulation tests and a scripted player
 ```

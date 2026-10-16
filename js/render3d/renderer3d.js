@@ -11,9 +11,10 @@ import { PLAYER, ENEMY } from '../render/palette.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
 import { isHostileOwner } from '../sim/military.js';
-import { FOW, toon, toonInstanced, WIND } from './materials.js';
+import { FOW, toon, toonInstanced, WIND, REAL } from './materials.js';
 import { Ground, WATER_Y } from './ground.js';
 import { Flora } from './flora.js';
+import { Effects } from './effects.js';
 import { buildingModel, villageModel, shipModel, mergeModel, disposeModel } from './models.js';
 import { People, Pool } from './people.js';
 
@@ -21,7 +22,11 @@ const HEIGHT = {
   [T.OCEAN]: -0.75, [T.LAGOON]: -0.45, [T.RIVER]: -0.4, [T.FORD]: -0.1, [T.SAND]: 0.03,
   [T.MANGROVE]: -0.02, [T.GRASS]: 0.06, [T.FOREST]: 0.08, [T.SAVANNA]: 0.07, [T.HILL]: 0.45,
 };
-const PITCH = 0.95;
+// The view: an isometric corner view like the classic castle builders,
+// looking from the south-east, tilted down about 35 degrees, no perspective.
+const ELEV = 0.62;
+const YAW = Math.PI / 4;
+const VIEW = 12; // half the view height in world units at zoom 1
 
 export function webglAvailable() {
   try {
@@ -41,19 +46,19 @@ export class Renderer3D {
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.gl.toneMappingExposure = 1.05;
+    this.gl.toneMappingExposure = REAL ? 1.3 : 1.05;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#0c1016');
-    this.camera = new THREE.PerspectiveCamera(35, 1, 0.5, 400);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 400);
     this.cam = { x: 0, y: 0, zoom: 1.3 };
     this.ray = new THREE.Raycaster();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.tmp = new THREE.Vector3();
     this.ndc = new THREE.Vector2();
 
-    this.hemi = new THREE.HemisphereLight('#dff1ff', '#6b5236', 1.25);
+    this.hemi = new THREE.HemisphereLight('#dff1ff', '#6b5236', REAL ? 1.7 : 1.25);
     this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight('#fff0d6', 2.1);
+    this.sun = new THREE.DirectionalLight('#fff0d6', REAL ? 2.5 : 2.1);
     this.sun.castShadow = true;
     const res = this.mobile ? 1024 : 2048;
     this.sun.shadow.mapSize.set(res, res);
@@ -81,6 +86,7 @@ export class Renderer3D {
     }
     this.ground?.dispose();
     this.flora?.dispose();
+    this.effects?.dispose();
     this.people?.pools && Object.values(this.people.pools).forEach((p) => this.scene.remove(p.mesh));
     this.buildingObjs = new Map();
     this.villageObjs = new Map();
@@ -105,6 +111,7 @@ export class Renderer3D {
     this.flora = new Flora(this.scene, st, (x, y) => this.groundAt(x, y), this.mobile);
     this.flora.update(this.ground.wear, Infinity);
     this.wearAt = 0;
+    this.effects = new Effects(this.scene);
     this.people = new People(this.dynRoot);
     this.fx = {
       arrow: new Pool(this.dynRoot, new THREE.CylinderGeometry(0.008, 0.008, 0.35, 4).rotateX(Math.PI / 2), 'arrow', 64, false),
@@ -191,8 +198,7 @@ export class Renderer3D {
     this.overlay.height = Math.round(h * dpr);
     this.overlay.style.width = `${w}px`;
     this.overlay.style.height = `${h}px`;
-    this.camera.aspect = w / Math.max(1, h);
-    this.camera.updateProjectionMatrix();
+    this.aspect = w / Math.max(1, h);
     this.dpr = dpr;
     this.w = w;
     this.h = h;
@@ -200,25 +206,79 @@ export class Renderer3D {
   }
 
   get scale() {
-    return 32 * this.cam.zoom;
+    return this.h / ((2 * VIEW) / this.cam.zoom) || 32 * this.cam.zoom;
+  }
+
+  // What is under a point on screen: a person or soldier near it, else the
+  // building drawn there. Null means "look at the ground instead".
+  pickScreen(sx, sy) {
+    const st = this.st;
+    const px = this.scale;
+    const seen = (x, y) => st.visible[Math.floor(y) * st.W + Math.floor(x)];
+    let best = null;
+    let bestD = Math.max(12, px * 0.42);
+    const test = (e, h) => {
+      const p = this.tileToScreen(e.x + (e.ox || 0), e.y + (e.oy || 0), this.standAt(e.x, e.y) + h);
+      const d = Math.hypot(p.x - sx, p.y - sy);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    };
+    for (const u of st.units) {
+      if (u.dead || (u.owner !== 'player' && !seen(u.x, u.y))) continue;
+      test(u, u.type === 'horseman' ? 0.6 : 0.45);
+    }
+    if (best) return best;
+    for (const c of st.citizens) {
+      if (c.dead || c.hidden || !seen(c.x, c.y)) continue;
+      test(c, 0.45);
+    }
+    if (best) return best;
+    this.ndc.set((sx / this.w) * 2 - 1, -(sy / this.h) * 2 + 1);
+    this.ray.setFromCamera(this.ndc, this.camera);
+    const meshes = [];
+    for (const [, o] of this.buildingObjs) o.group.traverse((m) => m.isMesh && meshes.push(m));
+    const hit = this.ray.intersectObjects(meshes, false)[0];
+    if (hit) {
+      let o = hit.object;
+      while (o && o.userData.bid === undefined) o = o.parent;
+      const b = o && st.byId.get(o.userData.bid);
+      if (b && !b.dead) return b;
+    }
+    return null;
   }
 
   updateCamera() {
-    const d = 34 / this.cam.zoom;
-    this.camera.position.set(this.cam.x, d * Math.sin(PITCH), this.cam.y + d * Math.cos(PITCH));
-    this.camera.lookAt(this.cam.x, 0, this.cam.y);
-    this.camera.updateMatrixWorld();
-    const s = d * 0.85;
+    const half = VIEW / this.cam.zoom;
+    const aspect = this.aspect || 1;
+    const c = this.camera;
+    c.left = -half * aspect;
+    c.right = half * aspect;
+    c.top = half;
+    c.bottom = -half;
+    const dist = 80;
+    c.position.set(
+      this.cam.x + Math.sin(YAW) * Math.cos(ELEV) * dist,
+      Math.sin(ELEV) * dist,
+      this.cam.y + Math.cos(YAW) * Math.cos(ELEV) * dist,
+    );
+    c.lookAt(this.cam.x, 0, this.cam.y);
+    c.updateProjectionMatrix();
+    c.updateMatrixWorld();
+    // The shadow box covers what is on screen, stretched along the view.
+    const s = Math.max(half * aspect, half / Math.sin(ELEV)) * 1.15;
     const sh = this.sun.shadow.camera;
     sh.left = -s;
     sh.right = s;
     sh.top = s;
     sh.bottom = -s;
     sh.near = 1;
-    sh.far = 120;
+    sh.far = 160;
     sh.updateProjectionMatrix();
-    this.sun.position.set(this.cam.x - 14, 30, this.cam.y - 6);
-    this.sun.target.position.set(this.cam.x, 0, this.cam.y + 2);
+    // Sun from the upper left of the screen (the west), shadows to the lower right.
+    this.sun.position.set(this.cam.x - 26, 34, this.cam.y - 4);
+    this.sun.target.position.set(this.cam.x, 0, this.cam.y);
     this.sun.target.updateMatrixWorld();
   }
 
@@ -356,6 +416,7 @@ export class Renderer3D {
           disposeModel(o.group);
         }
         const group = mergeModel(buildingModel(b, st, n));
+        group.userData.bid = b.id;
         const flames = [];
         const flags = [];
         group.traverse((m) => {
@@ -510,6 +571,7 @@ export class Renderer3D {
     ppl.end();
 
     this.drawFx(t);
+    this.effects.update(dt, st, (x, y) => this.groundAt(x, y), (x, y) => inView(x, y) && st.explored[Math.floor(y) * st.W + Math.floor(x)], this.scale * this.dpr, harmattan);
     this.drawGhost(view, t);
     this.updateCamera();
     this.gl.render(this.scene, this.camera);

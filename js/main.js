@@ -426,7 +426,7 @@ class Game {
       return;
     }
     const p = this.renderer.screenToTile(sx, sy);
-    const hit = this.pick(p.x, p.y);
+    const hit = this.renderer.pickScreen?.(sx, sy) || this.pick(p.x, p.y);
     const army = this.myUnits();
 
     if (hit?.kind === 'unit' && hit.owner === 'player' && info.button !== 2) {
@@ -489,12 +489,14 @@ class Game {
   }
 
   boxSelect(x0, y0, x1, y1, add) {
-    const a = this.renderer.screenToTile(Math.min(x0, x1), Math.min(y0, y1));
-    const b = this.renderer.screenToTile(Math.max(x0, x1), Math.max(y0, y1));
+    // Test each soldier where it is drawn on screen, so this works however the view is turned.
+    const [l, r] = [Math.min(x0, x1), Math.max(x0, x1)];
+    const [t, b] = [Math.min(y0, y1), Math.max(y0, y1)];
     if (!add) this.view.selected.clear();
     for (const u of this.st.units) {
       if (u.dead || u.owner !== 'player') continue;
-      if (u.x >= a.x && u.x <= b.x && u.y >= a.y && u.y <= b.y) this.view.selected.add(u.id);
+      const s = this.renderer.tileToScreen(u.x, u.y, this.renderer.standAt ? this.renderer.standAt(u.x, u.y) + 0.4 : 0);
+      if (s.x >= l && s.x <= r && s.y >= t && s.y <= b) this.view.selected.add(u.id);
     }
     if (this.myUnits().length) this.hud.openPanel('units');
   }

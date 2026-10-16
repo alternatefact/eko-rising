@@ -77,6 +77,65 @@ function prism(w, d, h) {
 
 // --- Pieces ---------------------------------------------------------------------
 
+// Stone blocks and towers carry their texture at a fixed size in the world,
+// so a long wall shows many courses of stone rather than one stretched image.
+const STONE_UV = 1.7;
+function stoneBox(group, w, h, d, x, y, z, m = C.stone()) {
+  const b = mesh(box(w, h, d), m, x, y, z);
+  b.userData.boxUV = STONE_UV;
+  group.add(b);
+  return b;
+}
+
+function stoneTower(group, x, z, r, h, m = C.stone()) {
+  const t = mesh(cyl(r, r * 1.06, h, 18), m, x, h / 2, z);
+  t.userData.uvScale = [Math.PI * 2 * r * STONE_UV, h * STONE_UV];
+  group.add(t);
+  merlonRing(group, x, z, r * 0.94, h, Math.max(8, Math.round(r * 18)), m);
+  // Arrow slits.
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    const slit = mesh(box(0.05, 0.18, 0.04), C.dark(), x + Math.cos(a) * r * 1.01, h * 0.62, z + Math.sin(a) * r * 1.01);
+    slit.rotation.y = -a + Math.PI / 2;
+    group.add(slit);
+  }
+}
+
+// Crenellations (merlons) in a ring around a round tower top.
+function merlonRing(group, cx, cz, r, y, n, m = C.stone()) {
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    const mm = mesh(box(0.11, 0.15, 0.1), m, cx + Math.cos(a) * r, y + 0.075, cz + Math.sin(a) * r);
+    mm.rotation.y = -a;
+    mm.userData.boxUV = STONE_UV;
+    group.add(mm);
+  }
+}
+
+// Crenellations along a straight edge from (x0,z0) to (x1,z1).
+function merlonsAlong(group, x0, z0, x1, z1, y, m = C.stone(), step = 0.24) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.max(1, Math.round(len / step));
+  for (let k = 0; k < n; k++) {
+    const t = (k + 0.5) / n;
+    const mm = mesh(box(0.12, 0.16, 0.12), m, x0 + (x1 - x0) * t, y + 0.08, z0 + (z1 - z0) * t);
+    mm.userData.boxUV = STONE_UV;
+    group.add(mm);
+  }
+}
+
+// A square tower with crenellations and arrow slits.
+function squareTower(group, x, z, w, h, m = C.stone()) {
+  stoneBox(group, w, h, w, x, h / 2, z, m);
+  const e = w / 2 - 0.06;
+  merlonsAlong(group, x - e, z - e, x + e, z - e, h, m, 0.22);
+  merlonsAlong(group, x - e, z + e, x + e, z + e, h, m, 0.22);
+  merlonsAlong(group, x - e, z - e + 0.22, x - e, z + e - 0.22, h, m, 0.22);
+  merlonsAlong(group, x + e, z - e + 0.22, x + e, z + e - 0.22, h, m, 0.22);
+  group.add(mesh(box(0.05, 0.18, 0.04), C.dark(), x, h * 0.62, z + w / 2 + 0.01));
+  group.add(mesh(box(0.04, 0.18, 0.05), C.dark(), x + w / 2 + 0.01, h * 0.62, z));
+}
+
 // A doorway: a dark opening in a wooden frame, facing +z.
 function door(group, x, y0, z, w, h, frame = C.wood()) {
   group.add(mesh(box(w, h, 0.05), C.dark(), x, y0 + h / 2, z));
@@ -412,10 +471,22 @@ const BUILD = {
   gate(g, b, st, n) {
     const horiz = n.l || n.r || !(n.u || n.d);
     const inner = new THREE.Group();
-    inner.add(mesh(box(0.1, 0.9, 0.12), C.wood(), 0.05, 0.45, 0));
-    inner.add(mesh(box(0.1, 0.9, 0.12), C.wood(), 0.95, 0.45, 0));
-    inner.add(mesh(box(0.8, 0.55, 0.06), C.planks(), 0.5, 0.35, 0));
-    inner.add(mesh(box(1, 0.08, 0.14), C.wood(), 0.5, 0.88, 0));
+    if (st.era >= 2) {
+      // A stone gatehouse: two short towers, a lintel with crenellations, timber doors.
+      for (const x of [0.12, 0.88]) stoneBox(inner, 0.26, 1.35, 0.72, x, 0.675, 0);
+      stoneBox(inner, 1.0, 0.36, 0.72, 0.5, 1.17, 0);
+      merlonsAlong(inner, 0.04, -0.3, 0.96, -0.3, 1.35);
+      merlonsAlong(inner, 0.04, 0.3, 0.96, 0.3, 1.35);
+      inner.add(mesh(box(0.52, 0.95, 0.05), C.planks(), 0.5, 0.48, 0.02));
+      inner.add(mesh(box(0.54, 0.05, 0.07), C.iron(), 0.5, 0.75, 0.04));
+      inner.add(mesh(box(0.54, 0.05, 0.07), C.iron(), 0.5, 0.28, 0.04));
+    } else {
+      inner.add(mesh(box(0.14, 1.15, 0.16), C.wood(), 0.06, 0.575, 0));
+      inner.add(mesh(box(0.14, 1.15, 0.16), C.wood(), 0.94, 0.575, 0));
+      inner.add(mesh(box(1.08, 0.1, 0.18), C.wood(), 0.5, 1.1, 0));
+      inner.add(mesh(box(0.8, 0.75, 0.06), C.planks(), 0.5, 0.42, 0));
+      for (const x of [0.06, 0.94]) inner.add(mesh(cone(0.09, 0.18, 6), C.wood(), x, 1.24, 0));
+    }
     if (horiz) inner.position.set(0, 0, 0.5);
     else {
       inner.rotation.y = Math.PI / 2;
@@ -479,7 +550,14 @@ const BUILD = {
     for (let k = 0; k < 8; k++) g.add(mesh(ball(0.06, 0), toon(k % 2 ? '#c0392b' : '#e67e22'), 1.55 + (k % 4) * 0.1, 0.06, 0.45 + Math.floor(k / 4) * 0.1));
   },
 
-  watchtower(g) {
+  watchtower(g, b, st) {
+    if (st.era >= 2) {
+      stoneTower(g, 1, 1, 0.72, 2.1);
+      g.add(mesh(cyl(0.66, 0.66, 0.05, 18), C.planks(), 1, 2.06, 1));
+      door(g, 1, 0.02, 1.73, 0.26, 0.42);
+      flag(g, 1.3, 0.8, '#1f8f4e', 3.1);
+      return;
+    }
     for (const [x, z] of [[0.45, 0.45], [1.55, 0.45], [0.45, 1.55], [1.55, 1.55]]) {
       const leg = mesh(cyl(0.05, 0.06, 1.7, 6), C.wood(), x, 0.85, z);
       leg.rotation.x = (z < 1 ? 1 : -1) * 0.06;
@@ -573,7 +651,7 @@ const BUILD = {
 
   port(g, b, st) {
     g.add(mesh(box(2.9, 0.1, 2.9), C.planks(), 1.5, 0.08, 1.5));
-    gableHouse(g, 1.1, 1, 1.8, 1.2, 0.8, { wall: C.plaster(), roof: C.red() });
+    gableHouse(g, 1.1, 1, 1.8, 1.2, 0.8, { wall: C.plaster(), roof: toon('#c25b35', { map: 'tiles' }) });
     for (let k = 0; k < 4; k++) g.add(mesh(cyl(0.13, 0.13, 0.32, 10), toon('#8b5a2b'), 2.3 + (k % 2) * 0.3, 0.26, 0.6 + Math.floor(k / 2) * 0.35));
     for (let k = 0; k < 3; k++) g.add(mesh(box(0.28, 0.28, 0.28), C.planks(), 0.6 + k * 0.35, 0.24, 2.4));
     // A simple crane for unloading.
@@ -585,10 +663,18 @@ const BUILD = {
   },
 
   fort(g) {
-    const wallM = C.stone();
-    for (const [x, z, w, d] of [[1.5, 0.2, 2.9, 0.4], [1.5, 2.8, 2.9, 0.4], [0.2, 1.5, 0.4, 2.9], [2.8, 1.5, 0.4, 2.9]]) g.add(mesh(box(w, 0.8, d), wallM, x, 0.4, z));
-    for (const [x, z] of [[0.2, 0.2], [2.8, 0.2], [0.2, 2.8], [2.8, 2.8]]) g.add(mesh(cyl(0.35, 0.4, 1, 8), wallM, x, 0.5, z));
-    g.add(mesh(box(1.4, 0.6, 1.4), toon('#b4ad9f'), 1.5, 0.3, 1.5));
+    const H = 0.95;
+    // Curtain walls with a walkway and crenellations on both faces.
+    for (const [x, z, w, d] of [[1.5, 0.22, 2.4, 0.38], [0.22, 1.5, 0.38, 2.4], [2.78, 1.5, 0.38, 2.4]]) stoneBox(g, w, H, d, x, H / 2, z);
+    for (const x of [0.75, 2.25]) stoneBox(g, 0.95, H, 0.38, x, H / 2, 2.78);
+    for (const [x0, z0, x1, z1] of [[0.4, 0.08, 2.6, 0.08], [0.4, 0.36, 2.6, 0.36], [0.08, 0.4, 0.08, 2.6], [0.36, 0.4, 0.36, 2.6], [2.92, 0.4, 2.92, 2.6], [2.64, 0.4, 2.64, 2.6], [0.4, 2.92, 1.22, 2.92], [1.78, 2.92, 2.6, 2.92]]) merlonsAlong(g, x0, z0, x1, z1, H);
+    // Gatehouse over the entrance.
+    stoneBox(g, 0.7, 0.32, 0.5, 1.5, 1.02, 2.78);
+    merlonsAlong(g, 1.18, 3.0, 1.82, 3.0, 1.18);
+    g.add(mesh(box(0.46, 0.8, 0.05), C.planks(), 1.5, 0.4, 3.01));
+    // Round towers at the corners and a square keep in the middle.
+    for (const [x, z] of [[0.25, 0.25], [2.75, 0.25], [0.25, 2.75], [2.75, 2.75]]) stoneTower(g, x, z, 0.36, 1.3);
+    squareTower(g, 1.5, 1.35, 0.95, 1.55);
     for (const [x, z, r] of [[1.5, 0.05, 0], [2.95, 1.5, Math.PI / 2], [0.05, 1.5, -Math.PI / 2]]) {
       const c = mesh(cyl(0.06, 0.08, 0.6, 8), C.iron(), x, 0.85, z);
       c.rotation.x = Math.PI / 2;
@@ -663,27 +749,44 @@ function ring(g, cx, cz, r, n, mat, h) {
 }
 
 function wall(g, n, stone) {
-  const m = stone ? C.stone() : C.wood();
-  const h = stone ? 0.7 : 0.75;
+  const arms = [['l', [0, 0.5]], ['r', [1, 0.5]], ['u', [0.5, 0]], ['d', [0.5, 1]]].filter(([k]) => n[k]);
+  const straight = (n.l && n.r && !n.u && !n.d) || (n.u && n.d && !n.l && !n.r);
   if (stone) {
-    g.add(mesh(box(0.42, h + 0.1, 0.42), m, 0.5, (h + 0.1) / 2, 0.5));
-    if (n.l) g.add(mesh(box(0.5, h, 0.32), m, 0.25, h / 2, 0.5));
-    if (n.r) g.add(mesh(box(0.5, h, 0.32), m, 0.75, h / 2, 0.5));
-    if (n.u) g.add(mesh(box(0.32, h, 0.5), m, 0.5, h / 2, 0.25));
-    if (n.d) g.add(mesh(box(0.32, h, 0.5), m, 0.5, h / 2, 0.75));
+    const H = 1.05;
+    const T = 0.6;
+    if (!straight) {
+      // Corners, junctions and ends become towers, square or round.
+      for (const [, [x, z]] of arms) stoneBox(g, x === 0.5 ? T : 0.5, H, z === 0.5 ? T : 0.5, (0.5 + x) / 2, H / 2, (0.5 + z) / 2);
+      if (arms.length !== 2) stoneTower(g, 0.5, 0.5, 0.46, 1.5);
+      else squareTower(g, 0.5, 0.5, 0.82, 1.45);
+      return;
+    }
+    if (n.l) {
+      stoneBox(g, 1.0, H, T, 0.5, H / 2, 0.5);
+      merlonsAlong(g, 0, 0.5 - T / 2 + 0.06, 1, 0.5 - T / 2 + 0.06, H);
+      merlonsAlong(g, 0, 0.5 + T / 2 - 0.06, 1, 0.5 + T / 2 - 0.06, H);
+    } else {
+      stoneBox(g, T, H, 1.0, 0.5, H / 2, 0.5);
+      merlonsAlong(g, 0.5 - T / 2 + 0.06, 0, 0.5 - T / 2 + 0.06, 1, H);
+      merlonsAlong(g, 0.5 + T / 2 - 0.06, 0, 0.5 + T / 2 - 0.06, 1, H);
+    }
     return;
   }
-  const stake = cyl(0.06, 0.07, h, 6);
-  const tip = cone(0.07, 0.15, 6);
+  // Palisade: sharpened logs of uneven height, lashed to a rail.
   const spots = [[0.5, 0.5]];
-  if (n.l) spots.push([0.15, 0.5], [0.32, 0.5]);
-  if (n.r) spots.push([0.68, 0.5], [0.85, 0.5]);
-  if (n.u) spots.push([0.5, 0.15], [0.5, 0.32]);
-  if (n.d) spots.push([0.5, 0.68], [0.5, 0.85]);
-  if (spots.length === 1) spots.push([0.32, 0.5], [0.68, 0.5]);
+  for (const [, [x, z]] of arms) spots.push([0.5 + (x - 0.5) * 0.35, 0.5 + (z - 0.5) * 0.35], [0.5 + (x - 0.5) * 0.7, 0.5 + (z - 0.5) * 0.7], [x, z]);
+  if (spots.length === 1) spots.push([0.25, 0.5], [0.75, 0.5]);
   for (const [x, z] of spots) {
-    g.add(mesh(stake, m, x, h / 2, z));
-    g.add(mesh(tip, m, x, h + 0.07, z));
+    const h = 0.82 + (Math.sin(x * 91 + z * 57) * 0.5 + 0.5) * 0.25;
+    const r = 0.065 + (Math.cos(x * 37 + z * 13) * 0.5 + 0.5) * 0.02;
+    g.add(mesh(cyl(r, r * 1.1, h, 7), C.wood(), x, h / 2, z));
+    g.add(mesh(cone(r, 0.17, 7), C.wood(), x, h + 0.085, z));
+  }
+  for (const [, [x, z]] of arms) {
+    const rail = mesh(cyl(0.025, 0.025, 0.55, 5), C.wood(), (0.5 + x) / 2, 0.42, (0.5 + z) / 2);
+    if (z === 0.5) rail.rotation.z = Math.PI / 2;
+    else rail.rotation.x = Math.PI / 2;
+    g.add(rail);
   }
 }
 
@@ -715,10 +818,36 @@ export function mergeModel(group) {
     const uv = [];
     for (const m of meshes) {
       let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      if (m.userData.uvScale && g.attributes.uv) {
+        const [su, sv] = m.userData.uvScale;
+        const a = g.attributes.uv.array;
+        for (let i = 0; i < a.length; i += 2) {
+          a[i] *= su;
+          a[i + 1] *= sv;
+        }
+      }
       g.applyMatrix4(m.matrixWorld);
       const p = g.attributes.position.array;
       const n = g.attributes.normal ? g.attributes.normal.array : new Float32Array(p.length);
-      const t = g.attributes.uv ? g.attributes.uv.array : new Float32Array((p.length / 3) * 2);
+      let t = g.attributes.uv ? g.attributes.uv.array : new Float32Array((p.length / 3) * 2);
+      if (m.userData.boxUV) {
+        // Project the texture onto each face from its main axis, in world units.
+        const k = m.userData.boxUV;
+        t = new Float32Array((p.length / 3) * 2);
+        for (let i = 0; i < p.length / 3; i += 3) {
+          const ax = Math.abs(n[i * 3]);
+          const ay = Math.abs(n[i * 3 + 1]);
+          const az = Math.abs(n[i * 3 + 2]);
+          for (let j = i; j < i + 3; j++) {
+            const x = p[j * 3];
+            const y = p[j * 3 + 1];
+            const z = p[j * 3 + 2];
+            const [u, v] = ax >= ay && ax >= az ? [z, y] : ay >= az ? [x, z] : [x, y];
+            t[j * 2] = u * k;
+            t[j * 2 + 1] = v * k;
+          }
+        }
+      }
       for (let i = 0; i < p.length; i++) pos.push(p[i]);
       for (let i = 0; i < n.length; i++) nor.push(n[i]);
       for (let i = 0; i < t.length; i++) uv.push(t[i]);

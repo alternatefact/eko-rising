@@ -27,6 +27,11 @@ const STORY = {
 const LEADERS = new Set(['awori', 'egun', 'egba', 'ijebu', 'edo', 'ilaje']);
 const SCENES = new Set(['title', 'harbour', 'end_victory', 'end_defeat']);
 const TEXTURES = new Set(['thatch', 'mud', 'zinc', 'plaster', 'planks', 'soil', 'cloth', 'stone']);
+// Life-like versions for the realistic look.
+const REAL_TEXTURES = {
+  thatch: 'real/tex/thatch', mud: 'real/tex/mud', zinc: 'real/tex/zinc', plaster: 'real/tex/plaster',
+  planks: 'real/tex/planks', stone: 'real/tex/stone', soil: 'real/ground/earth', tiles: 'real/tex/tiles', cloth: 'tex/cloth',
+};
 const AGES = 5;
 
 export function storyArt(id) {
@@ -47,6 +52,14 @@ export function sceneArt(name) {
   return SCENES.has(name) ? `art/${name}.webp` : null;
 }
 
-export function textureArt(name) {
+export function textureArt(name, real = false) {
+  if (real) return REAL_TEXTURES[name] ? `art/${REAL_TEXTURES[name]}.webp` : null;
   return TEXTURES.has(name) ? `art/tex/${name}.webp` : null;
+}
+
+// Painted (cartoon) or life-like (realistic) versions of the land and plant textures.
+export function natureArt(name, real = false) {
+  const ground = ['grass', 'savanna', 'sand', 'earth', 'forest', 'rock', 'mud'];
+  if (ground.includes(name)) return real ? `art/real/ground/${name}.webp` : `art/ground/${name}.webp`;
+  return real ? `art/real/tex/${name}.webp` : `art/tex/${name}.webp`;
 }

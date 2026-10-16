@@ -179,6 +179,7 @@ export function conquer(st, f) {
   f.status = 'conquered';
   f.relation = 0;
   f.capT = 0;
+  f.burning = st.time.t + 20; // the village burns for a while after it falls
   const got = [];
   for (const [k, v] of Object.entries(f.loot)) {
     const n = Math.floor(addRes(st, k, v));

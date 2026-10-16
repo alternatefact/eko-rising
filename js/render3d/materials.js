@@ -4,6 +4,11 @@
 
 import * as THREE from '../vendor/three.module.js';
 import { textureArt } from '../data/art.js';
+import { graphicsStyle } from '../ui/settings.js';
+
+// Life-like look (smooth light, photographic textures) or the cartoon look
+// (stepped toon light, painted textures). Chosen once when the game loads.
+export const REAL = typeof window !== 'undefined' && graphicsStyle() === 'real';
 
 // Shared fog-of-war uniforms. The texture is W×H, red channel: 1 = visible,
 // ~0.55 = explored but out of sight, 0 = never seen.
@@ -62,30 +67,34 @@ function toonGradient() {
 
 const cache = new Map();
 
-// A cel-shaded material in one colour, optionally textured. Cached by key.
+// A material in one colour, optionally textured: cel-shaded for the cartoon
+// look, smoothly lit for the realistic one. Cached by key.
 export function toon(color, opts = {}) {
   const key = `${color}|${opts.map || ''}|${opts.emissive || ''}|${opts.transparent ? opts.opacity : ''}|${opts.side || ''}`;
   if (cache.has(key)) return cache.get(key);
-  const m = new THREE.MeshToonMaterial({
-    color: new THREE.Color(color),
-    gradientMap: toonGradient(),
+  const tint = new THREE.Color(color);
+  // Photographic textures carry their own colour; tints only nudge them.
+  if (REAL && opts.map) tint.lerp(new THREE.Color('#ffffff'), 0.65);
+  const params = {
+    color: tint,
     map: opts.map ? texture(opts.map) : null,
     emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
     emissiveIntensity: opts.emissive ? 1 : 0,
     transparent: !!opts.transparent,
     opacity: opts.opacity ?? 1,
     side: opts.side === 'double' ? THREE.DoubleSide : THREE.FrontSide,
-  });
+  };
+  const m = REAL ? new THREE.MeshLambertMaterial(params) : new THREE.MeshToonMaterial({ ...params, gradientMap: toonGradient() });
   withFog(m);
   cache.set(key, m);
   return m;
 }
 
-// White toon material for instanced meshes that colour each instance.
+// White material for instanced meshes that colour each instance.
 export function toonInstanced(key) {
   const k = `inst|${key}`;
   if (cache.has(k)) return cache.get(k);
-  const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonGradient() });
+  const m = REAL ? new THREE.MeshLambertMaterial({ color: 0xffffff }) : new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonGradient() });
   withFog(m);
   cache.set(k, m);
   return m;
@@ -95,7 +104,7 @@ export function toonInstanced(key) {
 export function toonInstancedMap(key, map) {
   const k = `instmap|${key}`;
   if (cache.has(k)) return cache.get(k);
-  const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonGradient(), map });
+  const m = REAL ? new THREE.MeshLambertMaterial({ color: 0xffffff, map }) : new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonGradient(), map });
   withFog(m);
   m.customProgramCacheKey = () => 'fow-map';
   cache.set(k, m);
@@ -233,6 +242,16 @@ const PAINTERS = {
       }
     }
   },
+  tiles(g, n, r) {
+    g.fillStyle = '#b5532f';
+    g.fillRect(0, 0, n, n);
+    for (let y = 0; y < n; y += 16) {
+      for (let x = (y / 16) % 2 ? 0 : 8; x < n; x += 16) {
+        g.fillStyle = r() < 0.5 ? '#c7643a' : '#a04a2a';
+        g.fillRect(x + 1, y + 1, 14, 14);
+      }
+    }
+  },
   stone(g, n, r) {
     g.fillStyle = '#a39b8f';
     g.fillRect(0, 0, n, n);
@@ -256,8 +275,8 @@ export function texture(name) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   textures.set(name, t);
-  // Swap in the painted texture from art/ once it has loaded.
-  const url = textureArt(name);
+  // Swap in the painted (or life-like) texture from art/ once it has loaded.
+  const url = textureArt(name, REAL);
   if (url && typeof Image !== 'undefined') {
     const img = new Image();
     img.onload = () => {

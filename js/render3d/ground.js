@@ -5,7 +5,8 @@
 
 import * as THREE from '../vendor/three.module.js';
 import { T, isWater } from '../world/terrain.js';
-import { FOW, withFog, artTexture, WIND } from './materials.js';
+import { FOW, withFog, artTexture, WIND, REAL } from './materials.js';
+import { natureArt } from '../data/art.js';
 
 export const WATER_Y = -0.15;
 const SKIRT = 24; // land continues this far past the map edge
@@ -123,7 +124,7 @@ export class Ground {
     g.setAttribute('splatB', this.splatB);
     this.writeSplat();
 
-    const maps = LAYERS.map(([name, color]) => artTexture(`art/ground/${name}.webp`, color));
+    const maps = LAYERS.map(([name, color]) => artTexture(natureArt(name, REAL), color));
     const mat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
     withFog(mat, (shader) => {
       maps.forEach((t, k) => (shader.uniforms[`gTex${k}`] = { value: t }));

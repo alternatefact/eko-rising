@@ -3,7 +3,10 @@
 // InstancedMesh; every frame we pose each figure and write its parts.
 
 import * as THREE from '../vendor/three.module.js';
-import { toonInstanced, toonInstancedMap, artTexture } from './materials.js';
+import { toonInstanced, toonInstancedMap, artTexture, REAL } from './materials.js';
+
+// Life-like figures are smaller beside their houses, as in the classic castle builders.
+const SIZE = REAL ? 1.65 : 2.0;
 import { SKIN, CARRY, FOREIGN_COAT } from '../render/palette.js';
 
 export class Pool {
@@ -188,7 +191,7 @@ export class People {
     const p = t * 9 + c.id;
     const walk = moving ? Math.sin(p) : 0;
     const bob = moving ? Math.abs(Math.sin(p)) * 0.012 : 0;
-    this.setBase(x, ground + bob, y, h, 2.0);
+    this.setBase(x, ground + bob, y, h, SIZE);
     const skin = SKIN[c.id % SKIN.length];
     const carrying = !!c.carry;
     // Legs and arms swing in opposite phase.
@@ -213,6 +216,7 @@ export class People {
 
   // Two dark eyes on the front of the head.
   eyes(y) {
+    if (REAL) return;
     for (const x of [-0.024, 0.024]) {
       this.part('eye', '#f6f1e6', x, y + 0.01, 0.054, 0, 0, 0, 1, 1.15, 0.7);
       this.part('pupil', '#1a1210', x * 0.92, y + 0.009, 0.064);
@@ -251,7 +255,7 @@ export class People {
     const walk = moving ? Math.sin(p) : 0;
     const swing = opts.swing || 0;
     const mounted = u.type === 'horseman';
-    this.setBase(x, ground + (moving ? Math.abs(Math.sin(p)) * 0.01 : 0), y, h, 2.0);
+    this.setBase(x, ground + (moving ? Math.abs(Math.sin(p)) * 0.01 : 0), y, h, SIZE);
     this.part('ring', ownerColor, 0, 0.01, 0);
     let lift = 0;
     if (mounted) {
