@@ -749,7 +749,7 @@ export class Hud {
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
       <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home.</p>
-      <p class="owner">Eko Rising is an original game by <a href="/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
+      <p class="owner">Eko Rising is an original game by <a href="https://alternatefactstudios.com/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
       ${this.panel?.data === 'log' ? `<h4>History</h4><div class="list">${this.st.log.slice().reverse().map((m) => `<div class="item"><span>${esc(m.text)}</span><span class="muted">d${m.day + 1}</span></div>`).join('')}</div>` : ''}`;
   }
 
