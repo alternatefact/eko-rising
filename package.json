@@ -1,0 +1,14 @@
+{
+  "name": "eko-rising",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build Lagos from a farmer's yam plot into a port city and unite the land into The New Nigeria. A browser strategy game by alternatefact Studios.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server . -p 8080 -c-1",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
