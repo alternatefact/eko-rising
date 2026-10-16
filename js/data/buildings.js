@@ -99,12 +99,12 @@ export const BUILDINGS = {
   palisade: {
     name: 'Palisade Wall', yo: 'Odi Igi', cat: 'military', era: 0, w: 1, h: 1,
     cost: { wood: 2 }, hp: 160, place: 'land', wall: true, line: true,
-    desc: 'Sharpened stakes. Drag to build a line. Raiders must hack through it.',
+    desc: 'Sharpened logs lashed to rails. Drag to build a line. Raiders must hack through it.',
   },
   gate: {
-    name: 'Gate', yo: 'Ẹnu Odi', cat: 'military', era: 0, w: 1, h: 1,
+    name: 'Town Gate', yo: 'Bodè', cat: 'military', era: 0, w: 1, h: 1,
     cost: { wood: 6 }, hp: 260, place: 'land', gate: true,
-    desc: 'Your people pass, enemies must break it down.',
+    desc: 'Heavy wooden doors under a thatched roof. Your people pass; enemies must break it down. From the Town age it becomes a mud gatehouse.',
   },
   warcamp: {
     name: 'Training Ground', yo: 'Pápá Ogun', cat: 'military', era: 0, w: 3, h: 3,
@@ -149,7 +149,7 @@ export const BUILDINGS = {
     name: 'Watchtower', yo: 'Ilé Ìṣọ́', cat: 'military', era: 1, w: 2, h: 2,
     cost: { wood: 25, stone: 6, cowries: 15 }, hp: 260, place: 'land', influence: 5, vision: 9,
     tower: { range: 7, dmg: 7, cd: 1.4 },
-    desc: 'Lookouts with bows shoot raiders in range and see far.',
+    desc: 'A tall wooden lookout with a thatched roof. Archers shoot raiders in range and see far.',
   },
   palace: {
     name: 'Ààfin (Palace)', yo: 'Ààfin', cat: 'town', era: 1, w: 4, h: 4,
@@ -177,9 +177,9 @@ export const BUILDINGS = {
     desc: 'Dugout canoes. Your people and soldiers can now cross the lagoon and rivers.',
   },
   stonewall: {
-    name: 'Stone Wall', yo: 'Odi Òkúta', cat: 'military', era: 2, w: 1, h: 1,
+    name: 'Mud Wall', yo: 'Odi Amọ̀', cat: 'military', era: 2, w: 1, h: 1,
     cost: { stone: 3 }, hp: 520, place: 'land', wall: true, line: true,
-    desc: 'Laterite and stone. Much tougher than a palisade.',
+    desc: 'A thick wall of rammed red laterite capped with thatch, like the old town walls of Yorubaland and Sungbo’s Eredo. Corners get lookout posts. Much tougher than a palisade.',
   },
   port: {
     name: 'Port', yo: 'Èbúté', cat: 'town', era: 2, w: 3, h: 3,
@@ -187,10 +187,10 @@ export const BUILDINGS = {
     desc: 'Merchant ships dock here every few days. Sell palm oil, garri and fish for money; buy muskets, cannon, salt, cloth, horses, iron tools and fishing nets.',
   },
   fort: {
-    name: 'Coastal Fort', yo: 'Ilé Olódi', cat: 'military', era: 3, w: 3, h: 3,
+    name: 'Earthwork Fort', yo: 'Ilé Olódi', cat: 'military', era: 3, w: 3, h: 3,
     cost: { stone: 80, cannon: 2, cowries: 120 }, hp: 900, place: 'land', influence: 6, vision: 10,
     tower: { range: 9, dmg: 26, cd: 3.2, cannon: true },
-    desc: 'Stone bastions with imported cannon. Shatters raiding parties.',
+    desc: 'Mud ramparts and thatched bastions around a war chief’s house, with imported cannon behind the walls. Shatters raiding parties.',
   },
   school: {
     name: 'School', yo: 'Ilé Ìwé', cat: 'town', era: 3, w: 3, h: 2,

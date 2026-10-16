@@ -5,7 +5,7 @@
 import * as THREE from '../vendor/three.module.js';
 import { toonInstanced, toonInstancedMap, artTexture, REAL } from './materials.js';
 
-// Life-like figures are smaller beside their houses, as in the classic castle builders.
+// Life-like figures are smaller beside their houses, as in the classic city-builder games.
 const SIZE = REAL ? 1.65 : 2.0;
 import { SKIN, CARRY, FOREIGN_COAT } from '../render/palette.js';
 

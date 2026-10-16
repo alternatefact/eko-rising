@@ -29,7 +29,7 @@ const ICONS = {
   compound: '🏠', hut: '🛖', farm: '🍠', cassava: '🌿', garri: '🥣', woodcutter: '🪓', hunter: '🏹', fisher: '🎣',
   storehouse: '📦', granary: '🌾', palisade: '🪵', gate: '🚪', well: '💧', shrine: '🕯️', market: '🛍️', quarry: '⛏️',
   watchtower: '🗼', warcamp: '⚔️', palace: '👑', palmpress: '🌴', ironmine: '⚒️', blacksmith: '🔨', canoeyard: '🛶',
-  stonewall: '🧱', port: '⚓', fort: '🏰', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
+  stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
   bank: '🏦',
 };
 const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹' };

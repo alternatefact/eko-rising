@@ -54,7 +54,7 @@ js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
 js/regions/   one file per state; lagos.js is chapter one
 js/render3d/  3D view: ground.js land and water, flora.js trees and grass,
-              models.js buildings, walls and towers, people.js people and soldiers,
+              models.js buildings, palisades, mud walls and lookouts, people.js people and soldiers,
               effects.js fire and smoke
 js/render/    2D canvas renderer, hand-drawn sprites, minimap
 js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings

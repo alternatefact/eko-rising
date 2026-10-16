@@ -22,7 +22,7 @@ const HEIGHT = {
   [T.OCEAN]: -0.75, [T.LAGOON]: -0.45, [T.RIVER]: -0.4, [T.FORD]: -0.1, [T.SAND]: 0.03,
   [T.MANGROVE]: -0.02, [T.GRASS]: 0.06, [T.FOREST]: 0.08, [T.SAVANNA]: 0.07, [T.HILL]: 0.45,
 };
-// The view: an isometric corner view like the classic castle builders,
+// The view: an isometric corner view like the classic city-builder games,
 // looking from the south-east, tilted down about 35 degrees, no perspective.
 const ELEV = 0.62;
 const YAW = Math.PI / 4;

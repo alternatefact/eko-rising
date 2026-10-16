@@ -342,7 +342,7 @@ const DRAW = {
   },
 
   stonewall(ctx, b, t, st, n) {
-    wallPiece(ctx, n, '#9c958a', '#77716a', true);
+    wallPiece(ctx, n, '#a65a35', '#6e3a20', true);
   },
 
   gate(ctx, b, t, st, n) {
@@ -539,77 +539,27 @@ const DRAW = {
   },
 
   fort(ctx, b, t) {
+    earthPatch(ctx, -4, -2, 104, 100);
     shadow(ctx, 50, 92, 46, 8);
-    ctx.beginPath();
-    const pts = [[48, 0], [96, 22], [90, 80], [48, 96], [6, 80], [0, 22]];
-    pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-    ctx.fillStyle = '#9c958a';
-    ctx.fill();
-    ctx.strokeStyle = '#6f695f';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    rrect(ctx, 26, 28, 44, 40, 4, '#b4ad9f');
-    for (const [x, y, a] of [[48, 6, -1.57], [90, 26, -0.4], [86, 76, 0.5], [10, 76, 2.6], [6, 26, -2.7]]) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(a);
-      rect(ctx, 0, -2.5, 14, 5, '#222');
-      ctx.restore();
+    // Red earth ramparts with thatch caps, bastions at the corners.
+    ctx.strokeStyle = '#6e3a20';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(10, 10, 76, 76);
+    ctx.strokeStyle = '#a65a35';
+    ctx.lineWidth = 9;
+    ctx.strokeRect(10, 10, 76, 76);
+    ctx.strokeStyle = '#c9a35b';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, 76, 76);
+    rect(ctx, 40, 82, 16, 10, '#5a3a20');
+    for (const [x, y] of [[10, 10], [86, 10], [10, 86], [86, 86]]) {
+      circle(ctx, x, y, 10, '#b06a42');
+      circle(ctx, x, y - 2, 9, '#c9a35b');
     }
-    flag(ctx, 48, 10, PLAYER, t, 1.3);
-  },
-
-  hospital(ctx, b, t) {
-    earthPatch(ctx, -4, -2, 104, 100);
-    shadow(ctx, 50, 86, 44, 8);
-    rrect(ctx, 6, 18, 84, 66, 3, '#f7f7f2');
-    rect(ctx, 4, 12, 88, 10, '#cfd8dc');
-    for (let r = 0; r < 2; r++) for (let k = 0; k < 6; k++) rect(ctx, 12 + k * 13, 30 + r * 20, 7, 10, '#6d9db5');
-    rect(ctx, 40, 66, 16, 18, '#4d6b7a');
-    rect(ctx, 43, 0, 10, 26, '#d93b3b');
-    rect(ctx, 35, 8, 26, 10, '#d93b3b');
-    shadow(ctx, 20, 92, 10, 3);
-    rrect(ctx, 10, 86, 20, 8, 2, '#ffffff', '#d93b3b');
-  },
-
-  factory(ctx, b, t) {
-    earthPatch(ctx, -4, -2, 104, 100);
-    shadow(ctx, 50, 88, 46, 8);
-    rrect(ctx, 6, 34, 84, 52, 2, '#9aa3a8');
-    // Saw-tooth roof.
-    for (let k = 0; k < 4; k++) {
-      ctx.beginPath();
-      ctx.moveTo(6 + k * 21, 34);
-      ctx.lineTo(6 + k * 21, 20);
-      ctx.lineTo(27 + k * 21, 34);
-      ctx.closePath();
-      ctx.fillStyle = k % 2 ? '#c7cdd1' : '#b3bbc0';
-      ctx.fill();
-    }
-    rect(ctx, 70, 0, 10, 36, '#8a4b32');
-    for (let k = 0; k < 4; k++) {
-      const p = (t * 0.4 + k / 4) % 1;
-      circle(ctx, 75 + Math.sin(p * 5 + k) * 4, -4 - p * 30, 4 + p * 7, `rgba(120,120,120,${0.5 * (1 - p)})`);
-    }
-    rect(ctx, 38, 62, 20, 24, '#4a4a4a');
-    for (let k = 0; k < 4; k++) rrect(ctx, 8 + k * 8, 88, 7, 7, 1, '#efe6d2');
-  },
-
-  bank(ctx, b, t) {
-    earthPatch(ctx, -2, 2, 68, 62);
-    shadow(ctx, 32, 58, 28, 6);
-    rrect(ctx, 6, 20, 52, 38, 2, '#f4f1ea');
-    ctx.beginPath();
-    ctx.moveTo(2, 22);
-    ctx.lineTo(32, 6);
-    ctx.lineTo(62, 22);
-    ctx.closePath();
-    ctx.fillStyle = '#0d6b3a';
-    ctx.fill();
-    for (let k = 0; k < 5; k++) rect(ctx, 9 + k * 11, 24, 4, 30, '#ddd6c6');
-    rect(ctx, 4, 54, 56, 5, '#cfc8b8');
-    circle(ctx, 32, 15, 3.5, '#f2b84b');
+    rrect(ctx, 30, 30, 36, 28, 2, MUD);
+    gableRoof(ctx, 28, 26, 40, 16, 0);
+    for (const [x, y] of [[48, 20], [22, 52], [74, 52]]) circle(ctx, x, y, 3.5, '#222');
+    flag(ctx, 86, -4, PLAYER, t);
   },
 
   school(ctx, b, t, st) {
@@ -689,7 +639,14 @@ function wallPiece(ctx, n, color, dark, stone) {
   if (n.d) arm(c, c, c, 32);
   if (!n.l && !n.r && !n.u && !n.d) arm(c - 6, c, c + 6, c);
   if (stone) {
-    rrect(ctx, c - 8, c - 8, 16, 16, 2, '#b2ab9f', dark);
+    // A thatched lookout post where earth walls meet.
+    if (!((n.l && n.r && !n.u && !n.d) || (n.u && n.d && !n.l && !n.r))) {
+      circle(ctx, c, c, 9, '#b06a42');
+      circle(ctx, c, c - 2, 8, '#c9a35b');
+      circle(ctx, c, c - 2, 2, '#8f6c32');
+    } else {
+      line(ctx, c - 16, c - 1, c + 16, c - 1, '#c9a35b', 3);
+    }
   } else {
     for (let k = -1; k <= 1; k++) {
       circle(ctx, c + k * 5, c, 3.4, '#8b6239');
