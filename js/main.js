@@ -7,8 +7,9 @@ import { Renderer } from './render/renderer.js';
 import { Minimap } from './render/minimap.js';
 import { Hud, renderNigeria } from './ui/hud.js';
 import { bindInput } from './ui/input.js';
+import { graphicsMode } from './ui/settings.js';
 
-const SAVE_KEY = 'eko-rising:save:v1';
+const SAVE_KEY = 'eko-rising:save:v2';
 const MAX_STEPS = 12;
 
 const storage = {
@@ -32,7 +33,7 @@ const storage = {
 class Game {
   constructor() {
     this.canvas = document.getElementById('world');
-    this.renderer = new Renderer(this.canvas);
+    this.renderer = null;
     this.minimap = new Minimap(document.getElementById('minimap'));
     this.hud = new Hud(this);
     this.view = { selected: new Set(), selectedFaction: null, ghost: null, box: null, order: null, showTerritory: false };
@@ -197,6 +198,10 @@ class Game {
   // --- Camera -----------------------------------------------------------------------
 
   pan(dx, dy) {
+    if (this.renderer.panBy) {
+      this.renderer.panBy(dx, dy);
+      return;
+    }
     const s = this.renderer.scale;
     this.renderer.cam.x -= dx / s;
     this.renderer.cam.y -= dy / s;
@@ -557,10 +562,36 @@ function hashString(s) {
   return h >>> 0;
 }
 
-function boot() {
+// The 3D view needs WebGL; older phones fall back to the hand-drawn 2D view.
+async function makeRenderer(game) {
+  if (graphicsMode() === '3d') {
+    try {
+      const mod = await import('./render3d/renderer3d.js');
+      if (mod.webglAvailable()) {
+        game.renderer = new mod.Renderer3D(game.canvas);
+        game.renderer.is3d = true;
+        try {
+          const { BUILDINGS } = await import('./data/buildings.js');
+          const types = Object.entries(BUILDINGS).filter(([, d]) => d.buildable !== false);
+          game.hud.thumbs = { ...game.hud.thumbs, ...mod.Renderer3D.thumbnails(types, { era: 0, flags: {} }) };
+        } catch (err) {
+          // Keep the 2D thumbnails.
+        }
+        return;
+      }
+    } catch (err) {
+      console.warn('3D view unavailable, using 2D:', err);
+    }
+  }
+  game.renderer = new Renderer(game.canvas);
+}
+
+async function boot() {
   const game = new Game();
   window.ekoRising = game;
   game.hud.mount();
+  await makeRenderer(game);
+  game.renderer.resize();
   game.keys = bindInput(game, game.canvas, game.minimap);
   window.addEventListener('resize', () => {
     game.renderer.resize();

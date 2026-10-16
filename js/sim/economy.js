@@ -180,7 +180,9 @@ export function dailyUpkeep(st) {
   if (st.flags.britishPartner) st.res.cowries += 10;
 
   // Money makes money.
-  if (hasBuilding(st, 'bank') && st.res.cowries > 0) st.res.cowries += Math.min(60, st.res.cowries * 0.01);
+  const interest = hasBuilding(st, 'bank') && st.res.cowries > 0 ? Math.min(60, st.res.cowries * 0.01) : 0;
+  st.res.cowries += interest;
+  st.stats.lastInterest = interest;
 
   payWages(st);
 

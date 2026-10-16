@@ -134,6 +134,12 @@ function demandLeft(st, f, res) {
   return f.demand[res];
 }
 
+// How much more of a good they will take before the next refill (no side effects).
+export function barterRoom(st, f, res) {
+  if (!f.demand || st.time.day >= f.demandReset || f.demand[res] === undefined) return 5 + f.strength * 3;
+  return f.demand[res];
+}
+
 export function barter(st, fid, res, qty, selling) {
   const f = st.factionMap[fid];
   if (!f || !canBarter(f)) return { ok: false, reason: 'Make a trade agreement first.' };

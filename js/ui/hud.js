@@ -1,21 +1,23 @@
 // Everything on screen that isn't the map: resource bar, goals, messages,
 // the build bar, the side panel and story pop-ups.
 
-import { BUILDINGS, CATEGORIES } from '../data/buildings.js';
+import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ERAS } from '../data/eras.js';
-import { RESOURCES, FOOD, costText } from '../data/resources.js';
+import { RESOURCES, FOOD, costText, money } from '../data/resources.js';
 import { drawBuilding } from '../render/sprites.js';
 import {
   canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season,
-  happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding,
+  happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand,
 } from '../sim/economy.js';
 import { citizenStatus } from '../sim/citizens.js';
 import { canTrain, armyPower } from '../sim/military.js';
-import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors } from '../sim/factions.js';
+import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
-import { buildLocked } from '../sim/index.js';
+import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
+import { buildLocked, canUpgrade } from '../sim/index.js';
 import { STATES, NEXT_UP } from '../regions/index.js';
+import { graphicsMode, setGraphicsMode, artUrl } from './settings.js';
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -23,12 +25,18 @@ const stars = (n) => `${'★'.repeat(n)}<span style="opacity:.3">${'★'.repeat(
 const fmt = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.floor(n)}`);
 
 const ICONS = {
-  compound: '🏠', hut: '🛖', house: '🏘️', farm: '🍠', woodcutter: '🪓', hunter: '🏹', fisher: '🎣', storehouse: '📦',
-  granary: '🌾', palisade: '🪵', gate: '🚪', well: '💧', shrine: '🕯️', market: '🛍️', quarry: '⛏️', watchtower: '🗼',
-  warcamp: '⚔️', palace: '👑', palmpress: '🌴', ironmine: '⚒️', blacksmith: '🔨', canoeyard: '🛶', stonewall: '🧱',
-  tradingpost: '⚓', fort: '🏰', school: '🏫', assembly: '🏛️', campfire: '🔥',
+  compound: '🏠', hut: '🛖', farm: '🍠', cassava: '🌿', garri: '🥣', woodcutter: '🪓', hunter: '🏹', fisher: '🎣',
+  storehouse: '📦', granary: '🌾', palisade: '🪵', gate: '🚪', well: '💧', shrine: '🕯️', market: '🛍️', quarry: '⛏️',
+  watchtower: '🗼', warcamp: '⚔️', palace: '👑', palmpress: '🌴', ironmine: '⚒️', blacksmith: '🔨', canoeyard: '🛶',
+  stonewall: '🧱', port: '⚓', fort: '🏰', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
+  bank: '🏦',
 };
-const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', musketeer: '💥' };
+const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹' };
+// Goods that only show in the top bar once you have some (or reach the age they matter in).
+const TOP_GOODS = [
+  ['wood', 0], ['stone', 0], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
+  ['salt', 9], ['cloth', 9], ['muskets', 9], ['horses', 9], ['cannon', 9],
+];
 
 export class Hud {
   constructor(game) {
@@ -143,17 +151,10 @@ export class Hud {
     const cap = st.cap;
     const food = totalFood(st);
     const chips = [];
-    for (const k of FOOD) {
-      if (st.res[k] < 1 && k !== 'yam') continue;
-      chips.push(`<span class="res" title="${RESOURCES[k].name}">${RESOURCES[k].icon} ${fmt(st.res[k])}</span>`);
-    }
-    chips.push(`<span class="res ${food >= cap.food - 1 ? 'full' : food < population(st) * 2 ? 'low' : ''}" title="Food stored / granary space">🍽️ ${fmt(food)}<small>/${fmt(cap.food)}</small></span>`);
-    for (const k of ['wood', 'stone', 'iron', 'palmoil', 'weapons']) {
-      if (k !== 'wood' && st.res[k] < 1 && st.era < 1 && k !== 'stone') continue;
-      if ((k === 'iron' || k === 'palmoil' || k === 'weapons') && st.res[k] < 1 && st.era < 2) continue;
-      chips.push(`<span class="res ${st.res[k] >= cap.goods - 1 ? 'full' : ''}" title="${RESOURCES[k].name} (storehouse space ${cap.goods})">${RESOURCES[k].icon} ${fmt(st.res[k])}</span>`);
-    }
-    chips.push(`<span class="res" title="Cowries">🐚 ${fmt(st.res.cowries)}</span>`);
+    // Money, people and mood first: they matter most and stay visible on small screens.
+    const m = money(st);
+    const wages = wagesDue(st);
+    chips.push(`<span class="res money ${wages > st.res.cowries ? 'low' : ''}" title="${m.name}${wages ? ` — hired fighters cost ${wages} a day` : ''}">${m.icon} ${fmt(st.res.cowries)}</span>`);
     const pop = residents(st).length;
     const waiting = strangers(st).length;
     chips.push(`<span class="res" title="Residents / homes">👥 ${pop}<small>/${housingCap(st)}</small></span>`);
@@ -163,6 +164,16 @@ export class Hud {
     const face = h >= 70 ? '😄' : h >= 50 ? '🙂' : h >= 35 ? '😐' : '😠';
     const trend = st.happyTarget > st.happy + 0.5 ? '▲' : st.happyTarget < st.happy - 0.5 ? '▼' : '';
     chips.push(`<span class="res ${h < 35 ? 'low' : ''}" title="Happiness — above 50 strangers come, below 35 people leave">${face} ${h}${trend}</span>`);
+    chips.push(`<span class="res ${food >= cap.food - 1 ? 'full' : food < population(st) * 2 ? 'low' : ''}" title="Food stored / granary space">🍽️ ${fmt(food)}<small>/${fmt(cap.food)}</small></span>`);
+    for (const k of FOOD) {
+      if (st.res[k] < 1 && k !== 'yam' && !(k === 'garri' && st.flags.cassava)) continue;
+      chips.push(`<span class="res" title="${RESOURCES[k].name}">${RESOURCES[k].icon} ${fmt(st.res[k])}</span>`);
+    }
+    for (const [k, era] of TOP_GOODS) {
+      if (st.res[k] < 1 && st.era < era) continue;
+      if (k === 'cassava' && !st.flags.cassava && st.res[k] < 1) continue;
+      chips.push(`<span class="res ${st.res[k] >= cap.goods - 1 ? 'full' : ''}" title="${RESOURCES[k].name} (storehouse space ${cap.goods})">${RESOURCES[k].icon} ${fmt(st.res[k])}</span>`);
+    }
     const html = chips.join('');
     if (html !== this.lastTop) {
       $('#resources').innerHTML = html;
@@ -225,11 +236,12 @@ export class Hud {
         const locked = buildLocked(st, type);
         const poor = !canAfford(st, d.cost);
         const cls = ['bcard', locked ? 'locked' : '', poor ? 'poor' : '', this.game.mode.build === type ? 'on' : ''].join(' ');
-        const tip = `${d.name} (${d.yo}) — ${d.desc}${locked ? `\n🔒 ${locked}` : ''}`;
+        const natural = !d.cost.cowries;
+        const tip = `${d.name} (${d.yo}) — ${d.desc}${natural ? '\n🌿 Built from natural materials — no money needed.' : `\n${money(st).icon} Needs money.`}${locked ? `\n🔒 ${locked}` : ''}`;
         return `<div class="${cls}" data-type="${type}" title="${esc(tip)}" role="button" tabindex="0">
           <img src="${this.thumbs[type]}" alt="" />
           <span class="nm">${locked ? '🔒 ' : ''}${esc(d.name)}</span>
-          <span class="cost">${costText(d.cost) || 'free'}</span>
+          <span class="cost">${costText(d.cost, st) || 'free'}</span>
         </div>`;
       })
       .join('');
@@ -267,9 +279,10 @@ export class Hud {
     }
     const text = typeof ev.text === 'function' ? ev.text(st) : ev.text;
     const art = ev.art === 'meet' ? '🤝' : ev.art || '📜';
+    const img = artUrl(entry.id) || (ev.art === 'meet' ? artUrl('meet') : null);
     modal.hidden = false;
     modal.innerHTML = `<div class="event" role="dialog" aria-modal="true">
-      <div class="art" ${ev.color ? `style="background:radial-gradient(circle at 50% 120%, ${ev.color}, transparent 65%), linear-gradient(180deg,#23356b,#3a2414)"` : ''}>${art}</div>
+      <div class="art ${img ? 'painted' : ''}" ${ev.color ? `style="background:radial-gradient(circle at 50% 120%, ${ev.color}, transparent 65%), linear-gradient(180deg,#23356b,#3a2414)"` : ''}>${img ? `<img src="${img}" alt="" onerror="this.parentNode.classList.remove('painted');this.remove()" />` : ''}<span>${art}</span></div>
       <div class="body">
         <h2>${esc(ev.title)}</h2>
         <div class="text">${esc(text)}</div>
@@ -386,13 +399,15 @@ export class Hud {
   buildingHtml(b) {
     const st = this.st;
     const def = BUILDINGS[b.type];
-    let h = this.head(`${ICONS[b.type] || ''} ${esc(def.name)}`, esc(def.yo));
-    h += `<p class="muted">${esc(def.desc)}</p>`;
+    const lvl = b.level || 1;
+    const cur = lvl > 1 ? def.upgrades[lvl - 2] : null;
+    let h = this.head(`${ICONS[b.type] || ''} ${esc(levelName(b))}`, `${esc(cur?.yo || def.yo)}${def.upgrades ? ` · level ${lvl} of ${def.upgrades.length + 1}` : ''}`);
+    h += `<p class="muted">${esc(cur?.desc ? `${cur.desc} ${def.desc}` : def.desc)}</p>`;
     if (b.built < 1) {
       h += `<h4>Building</h4><div class="bar"><i style="width:${Math.round(b.built * 100)}%"></i></div>`;
     }
     if (!def.invulnerable) h += `<h4>Condition</h4><div class="bar"><i style="width:${Math.round((b.hp / b.maxHp) * 100)}%;background:${b.hp / b.maxHp > 0.5 ? '' : '#e2574c'}"></i></div>`;
-    if (b.type === 'farm') h += `<h4>Yams</h4><div class="bar"><i style="width:${Math.round(b.growth * 100)}%;background:#7bbf3f"></i></div><p class="muted">${season(st).name}: crops grow at ×${season(st).farm}.</p>`;
+    if (def.job?.type === 'farm') h += `<h4>${b.type === 'cassava' ? 'Cassava' : 'Yams'}</h4><div class="bar"><i style="width:${Math.round(b.growth * 100)}%;background:#7bbf3f"></i></div><p class="muted">${season(st).name}: crops grow at ×${season(st).farm}.</p>`;
     if (def.workers) {
       h += `<h4>Workers ${b.workers.length}/${def.workers}</h4><div class="list">`;
       for (const id of b.workers) {
@@ -408,7 +423,7 @@ export class Hud {
       h += '<p class="muted">Workers leave lower-priority jobs to fill higher ones. Food jobs get a boost when the granary runs low.</p>';
     }
     if (def.housing) {
-      h += `<h4>Residents ${b.residents.length}/${def.housing}</h4><div class="list">`;
+      h += `<h4>Residents ${b.residents.length}/${stat(b, 'housing')}</h4><div class="list">`;
       for (const id of b.residents) {
         const c = st.byId.get(id);
         if (c) h += `<div class="item click" data-act="citizen" data-id="${c.id}"><span>${esc(c.name)} <span class="muted">· ${esc(c.people)}</span></span><span class="muted">${c.job ? esc(BUILDINGS[st.byId.get(c.job)?.type]?.name || '') : 'no job'}</span></div>`;
@@ -420,7 +435,12 @@ export class Hud {
       h += `<h4>Waiting for a home (${w.length})</h4><div class="list">${w.map((c) => `<div class="item"><span>${esc(c.name)}</span><span class="muted">${esc(c.people)}, from ${esc(c.from)}</span></div>`).join('') || '<div class="item muted">No one is waiting.</div>'}</div>`;
     }
     if (def.storage) {
-      h += `<h4>Storage</h4><p class="muted">Adds room for ${def.storage.food ? `${def.storage.food} food` : ''}${def.storage.food && def.storage.goods ? ' and ' : ''}${def.storage.goods ? `${def.storage.goods} of each good` : ''}.</p>`;
+      const s = stat(b, 'storage');
+      h += `<h4>Storage</h4><p class="muted">Adds room for ${s.food ? `${Math.round(s.food)} food` : ''}${s.food && s.goods ? ' and ' : ''}${s.goods ? `${Math.round(s.goods)} of each good` : ''}.</p>`;
+    }
+    if (def.job?.type === 'craft' && b.built >= 1) {
+      const ins = Object.entries(def.job.inputs).map(([r, n]) => `${RESOURCES[r].icon} ${n} ${RESOURCES[r].name.toLowerCase()}`).join(' + ');
+      h += `<h4>Makes</h4><p class="muted">${ins} → ${RESOURCES[def.job.product].icon} ${def.job.yield} ${RESOURCES[def.job.product].name.toLowerCase()}${def.job.cash ? ` and ${money(st).icon} ${def.job.cash}` : ''}.</p>`;
     }
     if (def.trains && b.built >= 1) {
       h += `<h4>Train (army ${armySize(st)}/${armyCap(st)})</h4><div class="list">`;
@@ -428,7 +448,7 @@ export class Hud {
         const u = UNITS[type];
         const can = canTrain(st, b, type);
         if ((u.era || 0) > st.era + 1) continue;
-        h += `<div class="item"><span>${UNIT_ICON[type]} <b>${esc(u.name)}</b> <span class="muted">${esc(u.yo)}</span><br><span class="muted">${costText(u.cost)}</span></span>
+        h += `<div class="item"><span>${UNIT_ICON[type]} <b>${esc(u.name)}</b> <span class="muted">${esc(u.yo)}</span><br><span class="muted">${costText(u.cost, st)}</span>${can.ok ? '' : `<br><span class="muted warn">${esc(can.reason)}</span>`}</span>
           <button class="btn ${can.ok ? 'primary' : ''}" data-act="train" data-type="${type}" ${can.ok ? '' : `disabled title="${esc(can.reason)}"`}>Train</button></div>`;
       }
       h += '</div>';
@@ -438,21 +458,91 @@ export class Hud {
       }
       h += '<p class="muted">Each recruit is a person: a stranger from the fire, or an idle resident.</p>';
     }
+    if (def.hires && b.built >= 1) h += this.hireHtml();
     if (b.type === 'market' && b.built >= 1) h += this.marketHtml();
+    if (b.type === 'port' && b.built >= 1) h += this.portHtml();
+    if (b.owner === 'player') h += this.upgradeHtml(b);
     if (def.tower) h += `<p class="muted">Shoots enemies within ${def.tower.range} tiles.</p>`;
     if (b.type !== 'compound' && b.type !== 'campfire') h += `<h4></h4><button class="btn danger" data-act="demolish">Pull down</button>`;
     return h;
   }
 
+  upgradeHtml(b) {
+    const st = this.st;
+    const up = nextUpgrade(b);
+    if (!up) return '';
+    const can = canUpgrade(st, b.id);
+    const effects = [];
+    if (up.housing) effects.push(`homes for ${up.housing}`);
+    if (up.storage) effects.push(`×${up.storage} storage`);
+    if (up.yield) effects.push(`×${up.yield} harvest`);
+    if (up.army) effects.push(`+${up.army} army size`);
+    if (up.happiness) effects.push(`+${up.happiness} happiness`);
+    if (up.price) effects.push('better market prices');
+    return `<h4>Upgrade</h4><div class="item upgrade"><span><b>${esc(up.name)}</b>${up.yo ? ` <span class="muted">${esc(up.yo)}</span>` : ''}<br>
+      <span class="muted">${esc(up.desc || '')}${effects.length ? ` (${effects.join(', ')})` : ''}</span><br>
+      <span class="muted">${costText(up.cost, st)}${up.era > st.era ? ` · 🔒 ${esc(ERAS[up.era].name)} age` : ''}</span></span>
+      <button class="btn ${can.ok ? 'primary' : ''}" data-act="upgrade" ${can.ok ? '' : `disabled title="${esc(can.reason || '')}"`}>Upgrade</button></div>`;
+  }
+
+  hireHtml() {
+    const st = this.st;
+    const m = money(st);
+    let h = `<h4>Hire fighters (army ${armySize(st)}/${armyCap(st)})</h4><div class="list">`;
+    for (const o of hireOptions(st)) {
+      const u = UNITS[o.unit];
+      const locked = o.era > st.era;
+      const ok = !locked && st.res.cowries >= o.cost && armySize(st) < armyCap(st);
+      h += `<div class="item"><span>${UNIT_ICON[o.unit] || '⚔️'} <b>${esc(o.name)}</b><br><span class="muted">${m.icon} ${o.cost} now, then ${m.icon} ${o.wage} a day · ${u.hp}♥ ${u.atk}⚔</span>${locked ? `<br><span class="muted">🔒 ${esc(ERAS[o.era].name)} age</span>` : ''}</span>
+        <button class="btn ${ok ? 'primary' : ''}" data-act="hire" data-id="${o.id}" ${ok ? '' : 'disabled'}>Hire</button></div>`;
+    }
+    const wages = wagesDue(st);
+    h += `</div><p class="muted">Hired fighters come at once, but want wages every morning${wages ? ` (now ${m.icon} ${wages} a day)` : ''}. Unpaid, they walk away. Build a Training Ground to train your own.</p>`;
+    return h;
+  }
+
   marketHtml() {
     const st = this.st;
+    const m = money(st);
     let h = '<h4>Trade (lots of 10)</h4><div class="trade">';
     for (const r of TRADEABLE) {
+      if (RESOURCES[r].imported && st.res[r] < 1) continue;
       if (r === 'weapons' && st.era < 2) continue;
-      if ((r === 'iron' || r === 'palmoil') && st.era < 1) continue;
+      if ((r === 'iron' || r === 'palmoil' || r === 'cassava' || r === 'garri') && st.era < 1) continue;
+      const left = marketDemand(st, r);
+      const imp = RESOURCES[r].imported;
       h += `<span>${RESOURCES[r].icon}</span><span>${RESOURCES[r].name} <span class="muted">${fmt(st.res[r])}</span></span>
-        <button class="btn" data-act="sell" data-r="${r}" title="Sell for ${priceOf(st, r, false)} each">Sell +${priceOf(st, r, false) * 10}</button>
-        <button class="btn" data-act="buy" data-r="${r}" title="Buy for ${priceOf(st, r, true)} each">Buy −${priceOf(st, r, true) * 10}</button>`;
+        <button class="btn" data-act="sell" data-r="${r}" title="Sell for ${priceOf(st, r, false)} each · buyers want ${left} more today" ${left ? '' : 'disabled'}>Sell +${priceOf(st, r, false) * Math.min(10, left || 10)}</button>
+        ${imp ? '<span class="muted">ships only</span>' : `<button class="btn" data-act="buy" data-r="${r}" title="Buy for ${priceOf(st, r, true)} each">Buy −${priceOf(st, r, true) * 10}</button>`}`;
+    }
+    return `${h}</div><p class="muted">Local buyers only want so much each day. Prices in ${m.name.toLowerCase()}. For bigger sales, make trade agreements with other kingdoms or sell to merchant ships at a port.</p>`;
+  }
+
+  portHtml() {
+    const st = this.st;
+    const m = money(st);
+    const ship = st.harbour.ship;
+    if (!ship) {
+      const status = st.harbour.sailing
+        ? 'A merchant ship is on its way.'
+        : Object.values(st.foreign).some((f) => f.trade && !f.hostile)
+          ? `The next merchant ship is due around day ${Math.max(st.time.day, st.harbour.next || 0) + 1}.`
+          : 'No foreign merchants trade with you yet. Make peace with a foreign power to open the sea trade.';
+      return `<h4>⚓ Harbour</h4><p class="muted">${status} Ships buy palm oil, garri and fish, and sell muskets, cloth, salt, horses, cannon and tools.</p>`;
+    }
+    const who = st.foreign[ship.power]?.name || ship.power;
+    let h = `<h4>⛵ ${esc(who)} merchant ship · sails on day ${ship.until + 1}</h4><p class="muted">They buy (lots of 10):</p><div class="trade">`;
+    for (const [r, price] of Object.entries(ship.buys)) {
+      h += `<span>${RESOURCES[r].icon}</span><span>${RESOURCES[r].name} <span class="muted">${fmt(st.res[r])}</span></span>
+        <button class="btn" data-act="shipsell" data-r="${r}" ${st.res[r] >= 1 ? '' : 'disabled'}>Sell +${price * 10}</button><span class="muted">${m.icon} ${price} each</span>`;
+    }
+    h += '</div><p class="muted">They sell:</p><div class="list">';
+    for (const [k, o] of Object.entries(ship.sells)) {
+      const once = !!UPGRADE_ITEMS[k];
+      const qty = once ? 1 : Math.min(o.stock, k === 'muskets' || k === 'horses' || k === 'cannon' ? 1 : 10);
+      const ok = o.stock > 0 && st.res.cowries >= o.price * qty;
+      h += `<div class="item"><span>${importIcon(k)} <b>${esc(importName(k))}</b> <span class="muted">${once ? '' : `${o.stock} left`}</span><br><span class="muted">${once ? esc(UPGRADE_ITEMS[k].desc) : `${m.icon} ${o.price} each`}</span></span>
+        <button class="btn ${ok ? 'primary' : ''}" data-act="shipbuy" data-r="${k}" data-n="${qty}" ${ok ? '' : 'disabled'}>Buy${qty > 1 ? ` ${qty}` : ''} −${o.price * qty}</button></div>`;
     }
     return `${h}</div>`;
   }
@@ -498,6 +588,7 @@ export class Hud {
     if (!f) return '';
     const alive = garrisonAlive(st, f).length;
     let h = this.head(esc(f.name), `${stars(f.strength)} ${STRENGTH[f.strength]} · <span class="status ${f.status}">${f.status}</span>`);
+    if (f.leader) h += `<p class="muted">Ruled by <b>${esc(f.leader)}</b></p>`;
     h += `<p>${esc(f.desc)}</p>`;
     h += this.factionBody(f, alive);
     return h;
@@ -505,30 +596,54 @@ export class Hud {
 
   factionBody(f, alive) {
     const st = this.st;
+    const m = money(st);
     let h = `<div class="kv"><span>Relations</span><b class="${f.relation >= 0 ? 'pos' : 'neg'}">${Math.round(f.relation)}</b>
       <span>Their warriors</span><b>${alive}</b>
       <span>Their strength</span><b>${factionPower(st, f)}</b>
-      <span>Your army</span><b>${armyPower(st)}</b></div>`;
-    if (f.status === 'conquered') return `${h}<p class="muted">They pay you tribute every day.</p>`;
+      <span>Your army</span><b>${armyPower(st)}</b>
+      ${f.temperament !== 'bandit' ? `<span>Trade</span><b class="${canBarter(f) ? 'pos' : ''}">${f.status === 'conquered' ? 'Tribute' : canBarter(f) ? 'Open' : 'None'}</b>` : ''}</div>`;
+    if (f.status === 'conquered') return `${h}<p class="muted">Conquered: their stores were yours to take, and they pay a little tribute every day. An agreement would have earned more over time.</p>`;
     if (f.temperament === 'bandit') return `${h}<p class="muted">There is no talking to them. Destroy their warriors and stand in their camp to take it.</p>`;
     const gift = giftCost(st, f);
+    const hasMarket = hasBuilding(st, 'market');
     h += `<h4>Diplomacy</h4><div class="seg">
-      <button class="btn" data-act="diplo" data-f="${f.id}" data-a="gift" ${st.res.cowries >= gift ? '' : 'disabled'}>🎁 Gift (🐚 ${gift})</button>
+      <button class="btn" data-act="diplo" data-f="${f.id}" data-a="gift" ${st.res.cowries >= gift ? '' : 'disabled'}>🎁 Gift (${m.icon} ${gift})</button>
+      ${!f.trade && f.status !== 'hostile' && f.status !== 'allied' ? `<button class="btn" data-act="diplo" data-f="${f.id}" data-a="trade" ${hasMarket ? '' : 'title="Build a Market first"'}>📜 Trade agreement</button>` : ''}
       ${f.status !== 'allied' && f.status !== 'hostile' && f.status !== 'vassal' ? `<button class="btn" data-act="diplo" data-f="${f.id}" data-a="ally">🤝 Propose alliance</button>` : ''}
+      ${f.status === 'allied' ? `<button class="btn" data-act="diplo" data-f="${f.id}" data-a="help" ${f.helpReady > st.time.day ? `disabled title="Ready on day ${f.helpReady + 1}"` : ''}>🛡️ Ask for warriors</button>` : ''}
       ${f.status !== 'allied' && f.status !== 'vassal' ? `<button class="btn" data-act="diplo" data-f="${f.id}" data-a="demand">👑 Demand tribute</button>` : ''}
       ${f.status !== 'hostile' ? `<button class="btn danger" data-act="diplo" data-f="${f.id}" data-a="war">⚔️ Declare war</button>` : ''}
     </div>`;
+    if (canBarter(f)) h += this.barterHtml(f);
     h += `<p class="muted">${
       f.status === 'hostile'
         ? 'At war. Send gifts to make peace, or defeat every warrior and stand in their village to conquer it.'
         : f.status === 'allied'
-          ? 'Your allies. They trade with you each day.'
+          ? 'Your allies. Their caravans bring money each day, and they will send warriors when you ask.'
           : f.status === 'vassal'
             ? 'They pay you tribute each day.'
-            : `Alliance needs relations of ${f.temperament === 'friendly' ? 35 : 55}${f.temperament === 'warlike' ? ' and real strength' : ''}. Tribute needs an army about 1.4× stronger than theirs.`
+            : `${f.trade ? 'Your trade route brings a little money each day. ' : `A trade agreement needs a Market and relations of 20. `}Alliance needs relations of ${f.temperament === 'friendly' ? 35 : 55}${f.temperament === 'warlike' ? ' and real strength' : ''}. Tribute needs an army about 1.4× stronger than theirs.`
     }</p>`;
     h += `<button class="btn" data-act="goto" data-x="${f.x}" data-y="${f.y}">📍 Show on map</button>`;
     return h;
+  }
+
+  barterHtml(f) {
+    const st = this.st;
+    const m = money(st);
+    let h = '<h4>Barter (lots of 10)</h4><div class="trade">';
+    for (const [r, price] of Object.entries(f.wants || {})) {
+      const room = barterRoom(st, f, r);
+      const n = Math.min(10, room, Math.floor(st.res[r]));
+      h += `<span>${RESOURCES[r].icon}</span><span>They want ${RESOURCES[r].name.toLowerCase()} <span class="muted">· you have ${fmt(st.res[r])}</span></span>
+        <button class="btn" data-act="barter" data-f="${f.id}" data-r="${r}" data-sell="1" ${n > 0 ? '' : `disabled title="${room ? 'You have none' : 'They have enough for now'}"`}>Sell +${price * Math.max(n, 1)}</button><span class="muted">${m.icon} ${price} each</span>`;
+    }
+    for (const [r, price] of Object.entries(f.offers || {})) {
+      const ok = st.res.cowries >= price;
+      h += `<span>${RESOURCES[r].icon}</span><span>They sell ${RESOURCES[r].name.toLowerCase()}</span>
+        <button class="btn" data-act="barter" data-f="${f.id}" data-r="${r}" ${ok ? '' : 'disabled'}>Buy −${price * (r === 'horses' ? 1 : 10)}</button><span class="muted">${m.icon} ${price} each</span>`;
+    }
+    return `${h}</div>`;
   }
 
   peoplesHtml() {
@@ -553,7 +668,7 @@ export class Hud {
     const r = eraRequirements(st);
     if (r) {
       h += `<h4>Next: ${esc(r.next.name)} (${esc(r.next.yo)})</h4><p class="muted">${esc(r.next.blurb)}</p>`;
-      for (const q of r.reqs) h += `<div class="req ${q.met ? 'met' : ''}"><span>${q.met ? '✅' : '⬜'}</span><span>${esc(q.text)}${q.cost ? ` — ${costText(q.cost)}` : ''}${q.have !== undefined ? ` (now ${q.have})` : ''}</span></div>`;
+      for (const q of r.reqs) h += `<div class="req ${q.met ? 'met' : ''}"><span>${q.met ? '✅' : '⬜'}</span><span>${esc(q.text)}${q.cost ? ` — ${costText(q.cost, st)}` : ''}${q.have !== undefined ? ` (now ${q.have})` : ''}</span></div>`;
       const ok = r.reqs.every((q) => q.met);
       h += `<h4></h4><button class="btn primary big" data-act="advance" ${ok ? '' : 'disabled'}>Advance to the ${esc(r.next.name)} era</button>`;
       const unlocks = Object.values(BUILDINGS).filter((d) => d.era === st.era + 1 && d.buildable !== false).map((d) => d.name);
@@ -574,7 +689,19 @@ export class Hud {
     h += `</div><p class="muted">Your people eat ${RATIONS[st.rations].eat} food each per day. ${Math.floor(totalFood(st))} food in store.</p>`;
     h += '<h4>Taxes</h4><div class="seg">';
     TAXES.forEach((t, k) => (h += `<button class="btn ${st.tax === k ? 'on' : ''}" data-act="tax" data-v="${k}">${t.name}</button>`));
-    h += `</div><p class="muted">${TAXES[st.tax].per} cowries per resident per day. Last day: +${Math.round(st.stats.lastTax)} 🐚.</p>`;
+    const m = money(st);
+    h += `</div><p class="muted">${TAXES[st.tax].per} ${m.name.toLowerCase()} per resident per day.</p>`;
+    const wages = wagesDue(st);
+    const routes = st.factions.filter((f) => f.trade || f.status === 'allied').filter((f) => f.status !== 'hostile' && f.status !== 'conquered').length;
+    h += `<h4>Treasury ${m.icon} ${fmt(st.res.cowries)}</h4><div class="kv">
+      <span>Taxes (last day)</span><b class="pos">+${Math.round(st.stats.lastTax || 0)}</b>
+      <span>Trade routes (${routes})</span><b class="pos">+${Math.round(st.stats.tradeIncome || 0)}</b>
+      ${st.stats.lastInterest ? `<span>Bank interest</span><b class="pos">+${Math.round(st.stats.lastInterest)}</b>` : ''}
+      <span>Wages for hired fighters</span><b class="${wages ? 'neg' : ''}">${wages ? `−${wages}` : '0'}</b>
+      <span>Earned from sales so far</span><b>${fmt(st.stats.earned || 0)}</b></div>
+      <p class="muted">Sell surplus at the market, to kingdoms you trade with, and to merchant ships at a port. Money pays for new buildings, upgrades, soldiers and hired fighters.</p>`;
+    const lux = ['salt', 'cloth'].filter((k) => st.luxury[k]);
+    if (st.era >= 1) h += `<p class="muted">Luxuries: ${lux.length ? lux.map((k) => `${RESOURCES[k].icon} ${RESOURCES[k].name.toLowerCase()}`).join(', ') : 'none'} — salt and cloth from the ships make people happier while they last.</p>`;
     h += '<h4>Happiness</h4><div class="kv">';
     for (const f of happinessFactors(st)) {
       if (!f.v) continue;
@@ -603,6 +730,7 @@ export class Hud {
         <button class="btn" data-act="save">💾 Save game</button>
         <button class="btn" data-act="load" ${g.hasSave() ? '' : 'disabled'}>📂 Load last save</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
+        <button class="btn" data-act="graphics">${graphicsMode() === '3d' ? '🖼️ Switch to classic 2D graphics' : '🧊 Switch to 3D graphics'}</button>
         <button class="btn" data-act="log">📜 Message history</button>
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
@@ -656,6 +784,33 @@ export class Hud {
         if (r && !r.ok && r.reason) this.toast(r.reason);
         break;
       }
+      case 'upgrade': {
+        const r = g.cmd('upgradeBuilding', sel);
+        if (r && !r.ok && r.reason) this.toast(r.reason);
+        break;
+      }
+      case 'hire': {
+        const r = g.cmd('hire', sel, el.dataset.id);
+        if (r && !r.ok && r.reason) this.toast(r.reason);
+        break;
+      }
+      case 'shipsell':
+      case 'shipbuy': {
+        const r = act === 'shipsell' ? g.cmd('shipSell', el.dataset.r, 10) : g.cmd('shipBuy', el.dataset.r, +el.dataset.n || 1);
+        if (r && !r.ok && r.reason) this.toast(r.reason);
+        break;
+      }
+      case 'barter': {
+        const selling = el.dataset.sell === '1';
+        const r = g.cmd('barter', el.dataset.f, el.dataset.r, el.dataset.r === 'horses' && !selling ? 1 : 10, selling);
+        if (r && !r.ok && r.reason) this.toast(r.reason);
+        break;
+      }
+      case 'graphics':
+        setGraphicsMode(graphicsMode() === '3d' ? '2d' : '3d');
+        g.save(false);
+        window.location.reload();
+        return;
       case 'goto':
         g.centerOn(+el.dataset.x, +el.dataset.y);
         return;

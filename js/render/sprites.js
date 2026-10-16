@@ -166,21 +166,58 @@ const DRAW = {
   },
 
   hut(ctx, b, t, st) {
+    const lvl = b.level || 1;
+    if (lvl >= 4) return storeyBuilding(ctx);
+    if (lvl >= 2) return mudHouse(ctx, lvl >= 3 ? 3 : 0, lvl >= 3 ? '#efe6d2' : MUD);
     earthPatch(ctx, 2, 6, 60, 56);
-    hut(ctx, 32, 30, 22, st.era >= 3 && b.id % 3 === 0 ? { roof: ZINC, roofDark: '#8d969b' } : {});
+    hut(ctx, 32, 30, 22, {});
     circle(ctx, 54, 52, 3.5, '#6b3d22');
   },
 
-  house(ctx, b, t, st) {
+  cassava(ctx, b, t) {
+    rrect(ctx, 3, 3, 90, 90, 6, '#8a5a34');
+    const g = b.growth || 0;
+    // Long ridges, each with a row of cassava stems and their hand-shaped leaves.
+    for (let row = 0; row < 5; row++) {
+      const y = 12 + row * 17;
+      rrect(ctx, 7, y, 82, 9, 4, '#6e4426');
+      line(ctx, 9, y + 2, 87, y + 2, '#8f5d35', 1.5);
+      if (g < 0.06) continue;
+      for (let col = 0; col < 6; col++) {
+        const x = 13 + col * 14 + (row % 2) * 4;
+        const h = 3 + g * 10;
+        line(ctx, x, y + 4, x, y + 4 - h, '#a0522d', 1.3);
+        const r = 2 + g * 3.5;
+        for (let k = 0; k < 5; k++) {
+          const a = -Math.PI / 2 + (k - 2) * 0.62;
+          ellipse(ctx, x + Math.cos(a) * r, y + 4 - h + Math.sin(a) * r, r * 0.55, r * 0.25, g > 0.95 ? '#5c8f2a' : '#3f8f3a');
+        }
+      }
+    }
+    ctx.setLineDash([3, 4]);
+    rrect(ctx, 2, 2, 92, 92, 6, null, '#6b4b2a');
+    ctx.setLineDash([]);
+  },
+
+  garri(ctx, b, t, st) {
     earthPatch(ctx, -2, 2, 68, 62);
-    shadow(ctx, 34, 58, 30, 6);
-    rrect(ctx, 4, 12, 56, 46, 3, MUD);
-    rect(ctx, 22, 28, 20, 16, '#c49a6c');
-    gableRoof(ctx, 2, 6, 60, 18, st.era);
-    gableRoof(ctx, 2, 40, 60, 18, st.era);
-    rect(ctx, 28, 50, 8, 8, '#2b1a10');
-    rect(ctx, 10, 50, 6, 5, '#e8dcc0');
-    rect(ctx, 48, 50, 6, 5, '#e8dcc0');
+    shadow(ctx, 30, 56, 28, 6);
+    // Open shed: posts and a thatch roof over the frying pans.
+    for (const x of [8, 30, 52]) line(ctx, x, 20, x, 54, '#5a3a20', 2.5);
+    gableRoof(ctx, 2, 6, 58, 22, st.era);
+    for (const x of [18, 42]) {
+      circle(ctx, x, 44, 9, '#3a3a3a');
+      circle(ctx, x, 44, 7, '#e9dcae');
+      const f = Math.sin(t * 8 + x) * 1.2;
+      circle(ctx, x, 54, 3 + f * 0.3, '#f39c12');
+    }
+    // Sacks of garri and a heap of peeled tubers.
+    for (let k = 0; k < 3; k++) rrect(ctx, 50 + (k % 2) * 6, 50 + Math.floor(k / 2) * 6, 7, 9, 2, '#efe6d2');
+    for (let k = 0; k < 5; k++) ellipse(ctx, 6 + k * 3, 58 - (k % 2) * 2, 3, 1.6, '#f5ecd7');
+    for (let k = 0; k < 3; k++) {
+      const p = (t * 0.5 + k / 3) % 1;
+      circle(ctx, 30 + Math.sin(p * 5 + k) * 3, 26 - p * 22, 2.5 + p * 3, `rgba(220,220,220,${0.4 * (1 - p)})`);
+    }
   },
 
   farm(ctx, b, t) {
@@ -472,8 +509,15 @@ const DRAW = {
     line(ctx, 52, 6, 58, 30, '#8b5a2b', 2);
   },
 
-  tradingpost(ctx, b, t, st) {
+  port(ctx, b, t, st) {
     earthPatch(ctx, -4, -2, 104, 100);
+    // Jetty and a loading crane.
+    rect(ctx, 70, 60, 26, 10, '#7a5230');
+    for (let x = 72; x < 96; x += 5) line(ctx, x, 60, x, 70, 'rgba(50,30,10,0.4)', 1);
+    line(ctx, 92, 58, 92, 34, '#4a4a4a', 2.5);
+    line(ctx, 92, 34, 76, 40, '#4a4a4a', 2);
+    line(ctx, 78, 40, 78, 52, '#4a4a4a', 1);
+    rect(ctx, 75, 52, 6, 5, '#8b5a2b');
     shadow(ctx, 50, 84, 44, 8);
     rrect(ctx, 8, 24, 80, 56, 2, '#efe8d8');
     // Red-tiled hip roof.
@@ -516,6 +560,58 @@ const DRAW = {
     flag(ctx, 48, 10, PLAYER, t, 1.3);
   },
 
+  hospital(ctx, b, t) {
+    earthPatch(ctx, -4, -2, 104, 100);
+    shadow(ctx, 50, 86, 44, 8);
+    rrect(ctx, 6, 18, 84, 66, 3, '#f7f7f2');
+    rect(ctx, 4, 12, 88, 10, '#cfd8dc');
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 6; k++) rect(ctx, 12 + k * 13, 30 + r * 20, 7, 10, '#6d9db5');
+    rect(ctx, 40, 66, 16, 18, '#4d6b7a');
+    rect(ctx, 43, 0, 10, 26, '#d93b3b');
+    rect(ctx, 35, 8, 26, 10, '#d93b3b');
+    shadow(ctx, 20, 92, 10, 3);
+    rrect(ctx, 10, 86, 20, 8, 2, '#ffffff', '#d93b3b');
+  },
+
+  factory(ctx, b, t) {
+    earthPatch(ctx, -4, -2, 104, 100);
+    shadow(ctx, 50, 88, 46, 8);
+    rrect(ctx, 6, 34, 84, 52, 2, '#9aa3a8');
+    // Saw-tooth roof.
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      ctx.moveTo(6 + k * 21, 34);
+      ctx.lineTo(6 + k * 21, 20);
+      ctx.lineTo(27 + k * 21, 34);
+      ctx.closePath();
+      ctx.fillStyle = k % 2 ? '#c7cdd1' : '#b3bbc0';
+      ctx.fill();
+    }
+    rect(ctx, 70, 0, 10, 36, '#8a4b32');
+    for (let k = 0; k < 4; k++) {
+      const p = (t * 0.4 + k / 4) % 1;
+      circle(ctx, 75 + Math.sin(p * 5 + k) * 4, -4 - p * 30, 4 + p * 7, `rgba(120,120,120,${0.5 * (1 - p)})`);
+    }
+    rect(ctx, 38, 62, 20, 24, '#4a4a4a');
+    for (let k = 0; k < 4; k++) rrect(ctx, 8 + k * 8, 88, 7, 7, 1, '#efe6d2');
+  },
+
+  bank(ctx, b, t) {
+    earthPatch(ctx, -2, 2, 68, 62);
+    shadow(ctx, 32, 58, 28, 6);
+    rrect(ctx, 6, 20, 52, 38, 2, '#f4f1ea');
+    ctx.beginPath();
+    ctx.moveTo(2, 22);
+    ctx.lineTo(32, 6);
+    ctx.lineTo(62, 22);
+    ctx.closePath();
+    ctx.fillStyle = '#0d6b3a';
+    ctx.fill();
+    for (let k = 0; k < 5; k++) rect(ctx, 9 + k * 11, 24, 4, 30, '#ddd6c6');
+    rect(ctx, 4, 54, 56, 5, '#cfc8b8');
+    circle(ctx, 32, 15, 3.5, '#f2b84b');
+  },
+
   school(ctx, b, t, st) {
     earthPatch(ctx, -4, -2, 104, 70);
     shadow(ctx, 50, 58, 44, 6);
@@ -541,6 +637,34 @@ const DRAW = {
     nigeriaFlag(ctx, 48, -16, t);
   },
 };
+
+// A square mud-brick house; plastered with a zinc roof once upgraded again.
+function mudHouse(ctx, era, wall) {
+  earthPatch(ctx, -2, 2, 68, 62);
+  shadow(ctx, 34, 58, 30, 6);
+  rrect(ctx, 4, 12, 56, 46, 3, wall);
+  rect(ctx, 22, 28, 20, 16, '#c49a6c');
+  gableRoof(ctx, 2, 6, 60, 18, era);
+  gableRoof(ctx, 2, 40, 60, 18, era);
+  rect(ctx, 28, 50, 8, 8, '#2b1a10');
+  rect(ctx, 10, 50, 6, 5, era >= 3 ? '#6d9db5' : '#e8dcc0');
+  rect(ctx, 48, 50, 6, 5, era >= 3 ? '#6d9db5' : '#e8dcc0');
+}
+
+// A modern two-storey block with balconies.
+function storeyBuilding(ctx) {
+  earthPatch(ctx, -2, 2, 68, 62);
+  shadow(ctx, 36, 60, 30, 7);
+  rrect(ctx, 6, 0, 52, 58, 2, '#efe6d2');
+  rect(ctx, 4, -2, 56, 6, '#b5532f');
+  for (let r = 0; r < 2; r++) {
+    const y = 10 + r * 24;
+    rect(ctx, 6, y + 12, 52, 3, '#9aa3a8');
+    for (let k = 0; k < 4; k++) rect(ctx, 11 + k * 12, y, 7, 9, '#6d9db5');
+  }
+  rect(ctx, 28, 46, 9, 12, '#5a3a20');
+  rect(ctx, 48, 44, 8, 6, '#1f7a4a');
+}
 
 function wallPiece(ctx, n, color, dark, stone) {
   const c = 16;
