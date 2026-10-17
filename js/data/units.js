@@ -11,8 +11,8 @@ export const UNITS = {
   },
   spearman: {
     name: 'Spearman', yo: 'Ọlọ́kọ̀', era: 0, hp: 70, atk: 8, range: 1.2, cd: 1, speed: 2.2, vision: 5,
-    cost: { wood: 8, food: 10, cowries: 12 }, train: 8,
-    desc: 'Cheap, sturdy and brave. The backbone of an early war band.',
+    cost: { wood: 6, food: 8 }, train: 8,
+    desc: 'A spear cut from the forest and a shield of hide: cheap, sturdy and brave. The backbone of an early war band.',
   },
   archer: {
     name: 'Archer', yo: 'Tafàtafà', era: 1, hp: 45, atk: 7, range: 5, cd: 1.3, speed: 2.2, vision: 6, ranged: true,

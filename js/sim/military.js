@@ -8,7 +8,7 @@ import { createUnit, notify, notifyOnce, removeUnit, removeBuilding, removeCitiz
 import { goTo, stepMove } from './move.js';
 import { findPath } from '../world/path.js';
 import { distToRect, findLanding } from './world.js';
-import { spend, canAfford, armySize, armyCap, addMood, DAY } from './economy.js';
+import { spend, canAfford, armySize, armyCap, addMood, spawnStranger, DAY } from './economy.js';
 
 // --- Who fights whom -----------------------------------------------------------
 
@@ -80,6 +80,8 @@ function nearestPlayerBuilding(st, u) {
   let bestD = Infinity;
   for (const b of st.buildings) {
     if (b.owner !== 'player' || b.dead || BUILDINGS[b.type].invulnerable) continue;
+    // Thieves make for the stores.
+    if (u.steal && b.type !== 'stockpile' && b.type !== 'storehouse' && b.type !== 'granary') continue;
     let d = distToRect(u.x, u.y, b);
     if (b.wall) d += 6; // walls only when they are in the way
     if (d < bestD) {
@@ -112,6 +114,8 @@ export function damage(st, attacker, target, amount) {
     }
   } else if (target.kind === 'citizen') {
     removeCitizen(st, target);
+    st.story = st.story || {};
+    (st.story.raidDead = st.story.raidDead || []).push(target.name);
     notifyOnce(st, 'killed', 6, `⚰️ ${target.name} was killed by raiders.`, 'war', target);
     addMood(st, 'Townsfolk killed', -3, 3);
   } else if (target.kind === 'building') {
@@ -119,6 +123,29 @@ export function damage(st, attacker, target, amount) {
     removeBuilding(st, target);
     if (attacker && attacker.kind === 'unit' && attacker.owner !== 'player') plunder(st, attacker);
   }
+}
+
+// Bandits who reach the stores fill their sacks: between them, about half
+// of everything, and some of the money.
+const STEAL = ['yam', 'garri', 'fish', 'meat', 'wood', 'bricks', 'stone', 'iron', 'palmoil', 'weapons'];
+function steal(st, u) {
+  const share = 0.16;
+  const got = [];
+  for (const k of STEAL) {
+    const n = Math.floor((st.res[k] || 0) * share);
+    if (n <= 0) continue;
+    st.res[k] -= n;
+    got.push([k, n]);
+  }
+  const cw = Math.floor(st.res.cowries * share);
+  st.res.cowries -= cw;
+  u.plunder = 2;
+  u.loot = got;
+  st.story = st.story || {};
+  const all = (st.story.stolen = st.story.stolen || {});
+  for (const [k, n] of got) all[k] = (all[k] || 0) + n;
+  if (cw) all.cowries = (all.cowries || 0) + cw;
+  notifyOnce(st, 'steal', 8, `💰 Bandits are carrying off your stores${got.length ? `: ${got.slice(0, 4).map(([k, n]) => `${n} ${k === 'wood' ? 'planks' : k}`).join(', ')}` : ''}!`, 'war', u);
 }
 
 // A raider who burns a building carries off some of your stores.
@@ -205,7 +232,7 @@ export function updateUnit(st, u, dt) {
   }
 
   if (ord.t === 'raid' && !target) {
-    if (st.time.t - u.raidStart > 130) {
+    if (st.time.t - u.raidStart > (u.patience || 130)) {
       u.order = { t: 'retreat' };
       return;
     }
@@ -230,6 +257,10 @@ export function updateUnit(st, u, dt) {
     const d = distTo(u, target);
     if (d <= def.range + radiusOf(target)) {
       u.path = null;
+      if (u.steal && ord.t === 'raid' && target.kind === 'building' && !u.plunder) {
+        steal(st, u);
+        return;
+      }
       if (u.cd <= 0) attack(st, u, target);
       return;
     }
@@ -368,11 +399,10 @@ export function train(st, b, type) {
   return { ok: true };
 }
 
+// Recruits come from those sitting at the fire with no work.
 function findRecruit(st) {
-  const strangers = st.citizens.filter((c) => c.stranger && !c.dead && (c.state === 'wait' || c.state === 'arrive'));
-  if (strangers.length) return strangers[0];
-  const idle = st.citizens.filter((c) => !c.stranger && !c.dead && !c.job && !c.special && (c.state === 'idle' || c.state === 'movein'));
-  return idle[0] || null;
+  const free = st.citizens.filter((c) => !c.dead && !c.stranger && !c.guest && !c.job && !c.special && (c.state === 'wait' || c.state === 'arrive' || c.state === 'idle' || c.state === 'movein'));
+  return free.find((c) => c.volunteer) || free[0] || null;
 }
 
 export function updateTraining(st, dt) {
@@ -387,10 +417,20 @@ export function updateTraining(st, dt) {
     }
     const recruit = findRecruit(st);
     if (!recruit) {
-      b.trainStatus = 'Waiting for a recruit — strangers at the fire, or idle residents.';
-      notifyOnce(st, 'norecruit', 45, '🛡️ No one to arm. Recruits come from strangers waiting at the fire or idle residents.', 'bad');
+      // Nobody free at the fire: a volunteer walks in from the villages around.
+      const coming = b.volunteer && st.byId.get(b.volunteer);
+      if (!coming || coming.dead) {
+        const v = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+        if (v) {
+          b.volunteer = v.id;
+          v.volunteer = true;
+          notifyOnce(st, 'volunteer', 20, `🛡️ Nobody at the fire is free to train, so ${v.name} is coming from the villages around to join the guard.`, 'info', v);
+        }
+      }
+      b.trainStatus = 'Waiting for a recruit: a volunteer is on the way.';
       continue;
     }
+    b.volunteer = 0;
     b.queue.shift();
     b.trainT = 0;
     b.trainStatus = '';
@@ -427,6 +467,8 @@ export function launchWarBand(st, owner, origin, types, opts = {}) {
     u.origin = { x: origin.x, y: origin.y };
     u.despawnHome = true;
     u.raidStart = st.time.t;
+    if (opts.steal) u.steal = true;
+    if (opts.patience) u.patience = opts.patience;
     ids.push(u.id);
   }
   st.expeditions.push({ owner, ids, onDefeat: opts.onDefeat || null, label: opts.label || '' });

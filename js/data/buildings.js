@@ -5,9 +5,18 @@
 //   rock / iron / palm   needs that resource within `near` tiles
 // Job types drive the worker state machines in sim/citizens.js.
 //
-// Everything is built from wood and mud bricks gathered nearby; stone comes
-// later. Anything grander needs money as well, which comes from taxes, trade
-// with other kingdoms and selling to the ships at the port.
+// The first buildings are wood alone: planks cut from the trees around the
+// house. Mud bricks come later, as an upgrade: once there is a brick shed by
+// a red-mud pit, the kingdom upgrade rebuilds every house and shed in mud
+// (`mud` marks a building that has been rebuilt; `mudCost` is what a new one
+// costs after that). Stone comes later still. Anything grander needs money as
+// well, which comes from taxes, trade with other kingdoms and selling to the
+// ships at the port.
+//
+// Each workplace has room for a set number of workers. Free hands at the
+// campfire fill new workplaces by themselves; otherwise the player moves
+// someone. Sheds and farm land can be moved; houses and anything bigger must
+// be pulled down (half the cost comes back) and built again.
 //
 // Early on, everything your people bring home is stacked on storage floors
 // in front of the compound. Storehouses and granaries come with the Compound
@@ -28,31 +37,31 @@ export const CATEGORIES = [
 export const BUILDINGS = {
   compound: {
     name: "Founder's Compound", yo: 'Ilé Baálé', cat: 'town', era: 0, w: 3, h: 3,
-    cost: {}, hp: 1200, housing: 4, influence: 9,
+    cost: {}, hp: 1200, housing: 5, influence: 11, mudBricks: 6,
     unique: true, buildable: false, trains: ['scout'], hires: true, tower: { range: 5.5, dmg: 5, cd: 1.5 },
     upgrades: [
       { name: 'Extended Compound', era: 1, cost: { wood: 30, bricks: 25, cowries: 20 }, housing: 8, desc: 'More rooms around a second courtyard.' },
     ],
-    desc: 'Where it all began. Houses your family and trains scouts. Hire fighters here for money. Your family shoots at raiders from the walls. If it falls, your story ends.',
+    desc: 'The abandoned house the founders settled in. It sleeps five: the founder, his wife and three more. Trains scouts; hire fighters here for money. If it falls, your story ends.',
   },
   campfire: {
     name: 'Strangers’ Campfire', yo: 'Iná Àlejò', cat: 'town', era: 0, w: 2, h: 2,
     cost: {}, hp: 9999, buildable: false, invulnerable: true,
-    desc: 'Newcomers wait here for a home. Build huts and they will move in and take up work.',
+    desc: 'People with no work sit by the fire. Early on it holds five at most: give them work and they go to it. Newcomers come to the fire first.',
   },
   hut: {
-    name: 'Hut', yo: 'Ahéré', cat: 'housing', era: 0, w: 2, h: 2,
-    cost: { wood: 8, bricks: 10 }, hp: 90, housing: 4, place: 'land',
+    name: 'Plank House', yo: 'Ilé Pákó', cat: 'housing', era: 0, w: 2, h: 2,
+    cost: { wood: 10 }, mudCost: { wood: 4, bricks: 6 }, mudBricks: 4, hp: 90, housing: 2, place: 'land',
     upgrades: [
-      { name: 'Mud-brick House', yo: 'Ilé Amọ̀', era: 1, cost: { wood: 8, bricks: 14, cowries: 10 }, housing: 6, desc: 'Square laterite walls and a thatched gable roof.' },
+      { name: 'Mud House', yo: 'Ilé Amọ̀', era: 0, flag: 'mud', cost: { bricks: 6 }, housing: 4, desc: 'Walls of red mud bricks under a thatched roof.' },
       { name: 'Zinc-roof Bungalow', yo: 'Ilé Páànù', era: 3, cost: { stone: 15, iron: 4, cowries: 40 }, housing: 9, desc: 'Plastered walls and a shining corrugated-zinc roof.' },
       { name: 'Storey Building', yo: 'Ilé Alájà', era: 4, cost: { stone: 30, iron: 10, cowries: 120 }, housing: 14, desc: 'A modern two-storey block with balconies.' },
     ],
-    desc: 'A round hut of mud bricks under a thatch roof. Four strangers can move in and start working. Upgrade it as your town grows.',
+    desc: 'Walls of sawn planks under a thatch roof: a home for two. Once it stands, two newcomers come to live in it and wait at the fire for work. The kingdom upgrade rebuilds it in mud for four.',
   },
   farm: {
     name: 'Yam Farm', yo: 'Oko Iṣu', cat: 'food', era: 0, w: 3, h: 3,
-    cost: { wood: 4, bricks: 2 }, hp: 60, workers: 1, place: 'fertile', flat: true,
+    cost: { wood: 5 }, hp: 60, workers: 2, place: 'fertile', flat: true, movable: true,
     job: { type: 'farm', grow: 38, yield: 12, product: 'yam' },
     upgrades: [{ name: 'Great Yam Farm', era: 1, cost: { wood: 10, cowries: 10 }, yield: 1.5, desc: 'Taller heaps and a yam barn.' }],
     desc: 'Yams grown the Nigerian way, on big heaps of earth with stakes for the vines. Fastest in the rainy season, slowest in the Harmattan.',
@@ -71,27 +80,27 @@ export const BUILDINGS = {
     desc: 'Women peel, grate, press and fry cassava into garri — food that keeps for months and sells well to ships and kingdoms.',
   },
   woodcutter: {
-    name: "Woodcutter's Hut", yo: 'Agégi', cat: 'industry', era: 0, w: 2, h: 2,
-    cost: { wood: 4, bricks: 3 }, hp: 70, workers: 1, place: 'land', needs: 'tree',
-    job: { type: 'gather', source: 'tree', radius: 12, work: 6, yield: 5, process: 3, product: 'wood' },
-    desc: 'Fells trees nearby and splits the logs into planks, which are carried home and stacked on the storage floor. Build it at the forest edge.',
+    name: 'Wood Shed', yo: 'Ilé Agégi', cat: 'industry', era: 0, w: 2, h: 2,
+    cost: { wood: 6 }, mudBricks: 2, hp: 70, workers: 1, place: 'land', needs: 'tree', movable: true,
+    job: { type: 'gather', source: 'tree', radius: 24, work: 6, saw: 3, yield: 4, product: 'wood' },
+    desc: 'A one-man shed. The woodcutter fells the trees closest to it, cuts each one into planks where it falls and carries them, four at a time, to the storage floor. When the trees nearby are gone he moves on to the next nearest. A forest tree gives 12 planks, a savanna or grassland tree 8, a mangrove 6. Tap a woodcutter, then a tree, to choose where he cuts. More wood? Build another shed.',
   },
   brickyard: {
-    name: "Brickmaker's Yard", yo: 'Ibi Amọ̀', cat: 'industry', era: 0, w: 2, h: 2,
-    cost: { wood: 5, bricks: 2 }, hp: 70, workers: 1, place: 'clay', near: 6,
+    name: 'Mud Brick Shed', yo: 'Ibi Amọ̀', cat: 'industry', era: 0, w: 2, h: 2,
+    cost: { wood: 8 }, mudBricks: 2, hp: 70, workers: 2, place: 'clay', near: 6, movable: true, outpost: true, influence: 4,
     job: { type: 'gather', source: 'clay', radius: 10, work: 6, yield: 4, process: 4, product: 'bricks' },
-    desc: 'Red mud is dug from the pit, trodden with water and pressed into wooden moulds, and the blocks dry in the sun. Mud bricks and wood build every house, floor and wall. Build it beside a red-mud pit.',
+    desc: 'Built of planks beside a red-mud pit. Red mud is dug, trodden with water and pressed into wooden moulds, and the blocks dry in the sun. Enough bricks and the kingdom upgrade rebuilds every house and shed in mud.',
   },
   stockpile: {
     name: 'Storage Floor', cat: 'industry', era: 0, w: 2, h: 2,
-    cost: { wood: 2, bricks: 6 }, hp: 80, storage: { food: 40, goods: 40 }, place: 'land', flat: true,
-    desc: 'A floor of laid mud bricks where your people stack what they bring home: planks, bricks, yams and the rest. Build more floors beside it as your stores grow. Storehouses and granaries come with the Compound age.',
+    cost: { wood: 6 }, mudBricks: 1, hp: 80, storage: { food: 60, goods: 60 }, place: 'land', flat: true,
+    desc: 'A swept floor edged with planks where your people stack what they bring home: planks, meat, yams and the rest. Build more floors beside it as your stores grow. Storehouses and granaries come with the Compound age.',
   },
   hunter: {
-    name: "Hunter's Lodge", yo: 'Ilé Ọdẹ', cat: 'food', era: 0, w: 2, h: 2,
-    cost: { wood: 6, bricks: 4 }, hp: 70, workers: 1, place: 'land',
-    job: { type: 'hunt', radius: 18, work: 2, yield: 8, process: 2, product: 'meat' },
-    desc: 'A hunter stalks antelope and bush pig in the forest and savanna.',
+    name: "Hunter's Shed", yo: 'Ilé Ọdẹ', cat: 'food', era: 0, w: 2, h: 2,
+    cost: { wood: 8 }, mudBricks: 2, hp: 70, workers: 1, place: 'land', movable: true,
+    job: { type: 'hunt', radius: 26, work: 5, carry: 5, product: 'meat' },
+    desc: 'The hunter stalks antelope and bush pig, brings each kill home on his shoulders, butchers it at the shed and carries the meat to the storage floor. An antelope gives 10 meat, a bush pig 8.',
   },
   fisher: {
     name: 'Fishing Jetty', yo: 'Èbúté Apẹja', cat: 'food', era: 0, w: 2, h: 2,
@@ -113,8 +122,8 @@ export const BUILDINGS = {
   },
   palisade: {
     name: 'Wooden Fence', yo: 'Odi Igi', cat: 'military', era: 0, w: 1, h: 1,
-    cost: { wood: 3 }, hp: 160, place: 'land', wall: true, line: true,
-    desc: 'Four or five sharpened stakes lashed together with rope, section by section. Drag to build a line around your home. Beasts and raiders must break through it. Later you can pull sections down and rebuild them as a mud wall.',
+    cost: { wood: 2 }, hp: 160, place: 'land', wall: true, line: true,
+    desc: 'Four or five sharpened stakes lashed together with rope, section by section. Drag to build a line between the trees: the forest is a wall of its own. Beasts and raiders must break through. Later you can pull sections down and rebuild them as a mud wall.',
   },
   gate: {
     name: 'Town Gate', yo: 'Bodè', cat: 'military', era: 0, w: 1, h: 1,
@@ -122,11 +131,11 @@ export const BUILDINGS = {
     desc: 'Heavy wooden doors under a thatched roof. Your people pass; enemies must break it down. From the Town age it becomes a mud gatehouse.',
   },
   warcamp: {
-    name: 'Training Ground', yo: 'Pápá Ogun', cat: 'military', era: 0, w: 3, h: 3,
-    cost: { wood: 30, bricks: 20, cowries: 50 }, hp: 260, place: 'land', influence: 5, army: 10,
+    name: 'Guard House', yo: 'Ilé Ẹ̀ṣọ́', cat: 'military', era: 0, w: 3, h: 3,
+    cost: { wood: 40 }, mudBricks: 6, hp: 260, place: 'land', influence: 5, army: 10,
     trains: ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'],
     upgrades: [{ name: 'Barracks', era: 2, cost: { stone: 30, cowries: 80 }, army: 10, desc: 'Room for ten more soldiers.' }],
-    desc: 'Train your own people as fighters — cheaper than hiring, but every recruit costs money for arms and drill. Recruits come from strangers at the fire, then idle residents. +10 army size.',
+    desc: 'A plank barracks where your own people are trained and housed as guards. Recruits come from those sitting at the fire; if nobody is free, a volunteer walks in from the villages around. +10 army size.',
   },
   well: {
     name: 'Well', yo: 'Kànga', cat: 'town', era: 1, w: 1, h: 1,
@@ -234,6 +243,18 @@ export const BUILDINGS = {
     desc: 'Money makes money: your treasury earns 1% interest a day (up to 60 a day).',
   },
 };
+
+// Bricks the kingdom upgrade needs to rebuild a building in mud.
+export function mudBricksFor(b) {
+  return BUILDINGS[b.type].mudBricks || 0;
+}
+
+// What a new building costs now: after the kingdom upgrade, houses go up in
+// mud straight away.
+export function costOf(st, type) {
+  const def = BUILDINGS[type];
+  return st.flags.mud && def.mudCost ? def.mudCost : def.cost;
+}
 
 export const STORAGE_FOR = { food: ['stockpile', 'granary', 'palace'], goods: ['stockpile', 'storehouse', 'palace'] };
 

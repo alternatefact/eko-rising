@@ -9,8 +9,10 @@
 //   partial if the target cannot be reached, return the path to the closest
 //           tile found instead of null
 //   max     node expansion budget
+//
+// Standing trees block everyone: a forest is a wall until it is cut.
 
-import { T, WALK, CANOE_SPEED } from './terrain.js';
+import { T, WALK, CANOE_SPEED, TREE } from './terrain.js';
 
 let cache = null;
 
@@ -44,6 +46,7 @@ export function tileCost(st, i, opts) {
     if (opts.canoe && (t === T.LAGOON || t === T.RIVER)) w = CANOE_SPEED;
     else return Infinity;
   }
+  if (st.trees[i] && st.felled[i] === TREE.STANDING) return Infinity;
   let c = 1 / w;
   const bid = st.occ[i];
   if (bid) {

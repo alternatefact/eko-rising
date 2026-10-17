@@ -10,13 +10,21 @@ import { findPath } from '../js/world/path.js';
 import { eventDef } from '../js/sim/events.js';
 import { supervised } from '../js/sim/citizens.js';
 import { makeBot, run, place } from './bot.mjs';
+import { playStory } from './story.mjs';
+import { TREE, treeBlocks } from '../js/world/terrain.js';
 
-// A game past the intro, with strangers free to come as they would after
-// the opening story (see the opening's own test).
+// A game past the guided opening, with newcomers free to come as they would
+// after it (see the opening's own test), and some planks to build with.
 function fresh(seed = 4242) {
   const st = sim.newGame({ seed });
   sim.chooseEvent(st, 0); // the intro
+  st.tut.done = true;
   st.flags.openingDone = true;
+  st.res.wood = 40;
+  for (const c of st.citizens) {
+    c.path = null;
+    c.state = 'idle';
+  }
   return st;
 }
 
@@ -59,12 +67,12 @@ test('the start has water for fishing and rock for a quarry within reach', () =>
       if (isWater(st.terrain[i]) && st.terrain[i] !== 0) water = Math.min(water, d);
       if (st.feature[i] === 2) rock = Math.min(rock, d);
     }
-    assert.ok(water <= 10, `water ${water} tiles away (seed ${seed})`);
-    assert.ok(rock <= 14, `rock ${rock} tiles away (seed ${seed})`);
+    assert.ok(water <= 12, `water ${water} tiles away (seed ${seed})`);
+    assert.ok(rock <= 20, `rock ${rock} tiles away (seed ${seed})`);
   }
 });
 
-test('a new game starts with just the couple, a storage floor in front of the house and the fire', () => {
+test('a new game starts with just the couple walking up to an abandoned house in a clearing', () => {
   const st = sim.newGame({ seed: 9 });
   assert.equal(st.citizens.length, 2);
   assert.deepEqual(st.citizens.map((c) => c.special).sort(), ['founder', 'spouse']);
@@ -72,116 +80,204 @@ test('a new game starts with just the couple, a storage floor in front of the ho
   const home = st.buildings.find((b) => b.type === 'compound');
   const floor = st.buildings.find((b) => b.type === 'stockpile');
   assert.ok(Math.hypot(floor.x - home.x, floor.y - home.y) <= 5, 'the floor is right by the house');
-  assert.ok(st.res.wood > 0 && st.res.bricks > 0, 'they brought wood and bricks');
+  assert.equal(st.res.wood, 0, 'no planks yet: they come from the trees');
+  assert.equal(st.res.bricks, 0, 'no bricks: mud comes later');
   assert.equal(st.eventQueue[0].id, 'intro');
-  // Red mud for bricks lies a short walk from home.
-  let clay = Infinity;
-  for (let i = 0; i < st.feature.length; i++) if (st.feature[i] === F.CLAY) clay = Math.min(clay, Math.hypot((i % st.W) - st.start.x, Math.floor(i / st.W) - st.start.y));
-  assert.ok(clay <= 12, `red mud ${clay} tiles away`);
-});
-
-test('the opening: two wanderers join, hunger, the wolf, and the fence', () => {
-  const st = sim.newGame({ seed: 4242 });
-  sim.chooseEvent(st, 0);
-  const events = [];
-  const play = (seconds) => {
-    for (let i = 0; i < seconds / sim.STEP; i++) {
-      while (st.eventQueue.length) {
-        events.push(st.eventQueue[0].id);
-        sim.chooseEvent(st, 0);
-      }
-      sim.tick(st);
+  // They come up the path and walk in.
+  for (const c of st.citizens) {
+    assert.equal(c.state, 'movein');
+    assert.ok(c.path?.length > 3, 'walking in');
+  }
+  // Forest closes in around the clearing; lone trees stand near the house.
+  let ring = 0;
+  let lone = 0;
+  for (let dy = -13; dy <= 13; dy++) {
+    for (let dx = -13; dx <= 13; dx++) {
+      const i = (home.y + 1 + dy) * st.W + home.x + 1 + dx;
+      const d = Math.hypot(dx, dy);
+      if (!treeBlocks(st.trees, st.felled, st.terrain, i)) continue;
+      if (d <= 6.5) lone++;
+      else ring++;
     }
-  };
-  play(30);
-  assert.deepEqual(events, ['welcome'], 'the wanderers are welcomed');
-  const newcomers = st.citizens.filter((c) => !c.special);
-  assert.equal(newcomers.length, 2);
-  assert.ok(newcomers.every((c) => !c.stranger && c.home), 'both live in the compound');
-  assert.deepEqual(newcomers.map((c) => c.calling).sort(), ['brickyard', 'woodcutter']);
-  // No other strangers come while the story runs.
-  assert.equal(st.citizens.length, 4);
-  // Put them to work: the brickmaker and the woodcutter take their trades.
-  assert.ok(place(st, 'brickyard', 'clay'), 'brickyard placed');
-  assert.ok(place(st, 'woodcutter', 'trees'), 'woodcutter placed');
-  play(20);
-  for (const c of newcomers) assert.equal(st.byId.get(c.job)?.type, c.calling, `${c.name} works at the ${c.calling}`);
-  assert.equal(st.citizens.find((c) => c.special === 'spouse').job, 0, 'the wife keeps the household');
-  play(60);
-  assert.ok(st.stats.made.bricks > 0, 'bricks were moulded and stacked');
-  assert.ok(st.stats.made.wood > 0, 'planks were stacked');
-  assert.ok(events.includes('hunger'), 'the wife asks for a farm');
-  assert.ok(place(st, 'farm'), 'farm placed');
-  play(24 * 12);
-  assert.ok(events.includes('wolf_slain'), `the wolf came and was killed (events: ${events})`);
-  assert.equal(st.story.victimName, newcomers.find((c) => c.calling === 'brickyard').name, 'the wolf killed the brickmaker');
-  assert.equal(st.story.heroTool, 'axe', 'the woodcutter killed it with his axe');
-  assert.ok(st.flags.needFence);
-  assert.ok(st.objCurrent.includes('fence'), 'fencing in the home is a goal');
-  // A ring of fence and a gate around the compound and its floor closes the goal.
+  }
+  assert.ok(ring >= 60, `forest around the clearing (${ring} trees)`);
+  assert.ok(lone >= 2, `lone trees near the house (${lone})`);
+  // The red-mud pit they passed on the way lies off along the path, unseen.
+  const pit = st.mudPit;
+  const d = Math.hypot(pit.x - home.x, pit.y - home.y);
+  assert.ok(d >= 12 && d <= 28, `mud pit ${d} tiles away`);
+  assert.equal(st.feature[pit.y * st.W + pit.x], F.CLAY);
+  assert.equal(st.explored[pit.y * st.W + pit.x], 0, 'not seen yet');
+  assert.ok(findPath(st, home.x + 1, home.y + 3, pit.x, pit.y, { within: 1.5, max: 20000 }), 'a path leads to it');
+});
+
+test('trees are walls: a forest tree is felled, cut into 12 planks and carried home four at a time', () => {
+  const st = fresh(9);
+  const founder = st.citizens.find((c) => c.special === 'founder');
   const home = st.buildings.find((b) => b.type === 'compound');
-  st.res.wood = 400;
-  const x0 = home.x - 1;
-  const x1 = home.x + 3;
-  const y0 = home.y - 1;
-  const y1 = home.y + 7;
-  for (const b of [...st.buildings]) {
-    if (b.type !== 'compound' && b.type !== 'stockpile' && b.x <= x1 && b.x + b.w > x0 && b.y <= y1 && b.y + b.h > y0) sim.demolish(st, b.id);
+  // A rainforest tree at the edge of the clearing.
+  let tree = -1;
+  for (let r = 4; r < 14 && tree < 0; r++) {
+    for (let k = 0; k < 64 && tree < 0; k++) {
+      const x = Math.round(home.x + 1 + Math.cos((k / 64) * Math.PI * 2) * r);
+      const y = Math.round(home.y + 1 + Math.sin((k / 64) * Math.PI * 2) * r);
+      const i = y * st.W + x;
+      if (st.terrain[i] === 6 && st.trees[i] === 12 && sim.orderTree(st, founder.id, i).ok) tree = i;
+    }
   }
-  for (let x = x0; x <= x1; x++) for (const y of [y0, y1]) {
-    const r = sim.placeBuilding(st, x === home.x + 1 && y === y1 ? 'gate' : 'palisade', x, y);
-    assert.ok(r.ok || /Something/.test(r.reason), `fence at ${x},${y}: ${r.reason}`);
-  }
-  for (let y = y0 + 1; y < y1; y++) for (const x of [x0, x1]) assert.ok(sim.placeBuilding(st, 'palisade', x, y).ok, `fence at ${x},${y}`);
-  play(30);
-  assert.ok(st.objDone.fence, 'the fence goal is done');
-  assert.ok(st.flags.openingDone, 'and strangers may come again');
+  assert.ok(tree >= 0, 'found a forest tree to fell');
+  assert.equal(founder.task.kind, 'chop');
+  assert.equal(findPath(st, home.x + 1, home.y + 3, tree % st.W, Math.floor(tree / st.W), {})?.at(-1) === tree, false, 'nobody walks into a standing tree');
+  const wood0 = st.res.wood;
+  advance(st, 14);
+  assert.equal(st.felled[tree], TREE.FELLED, 'the tree is down');
+  advance(st, 30);
+  assert.ok(st.res.wood - wood0 >= 4, 'planks reached the storage floor');
+  assert.ok(st.trees[tree] < 12 && st.trees[tree] % 4 === 0, 'cut four planks at a time');
+  advance(st, 60);
+  assert.equal(st.trees[tree], 0, 'he went back until it was used up');
+  assert.ok(st.res.wood - wood0 >= 12 - (founder.carry?.n || 0), 'a forest tree gives 12 planks');
+  assert.equal(st.felled[tree], TREE.STUMP);
+  assert.ok(st.reach[tree], 'the ground is open now');
 });
 
-test('strangers move into a new hut and go to work', () => {
+test('the guided opening plays from the abandoned house to a town of red mud', () => {
+  const st = sim.newGame({ seed: 4242 });
+  const seen = [];
+  const at = {};
+  const { seen: steps, bot } = playStory(st, 24 * 90, (id) => {
+    seen.push(id);
+    at[id] = {
+      pop: st.citizens.filter((c) => !c.dead && !c.stranger).length,
+      jobs: Object.fromEntries(['woodcutter', 'hunter', 'farm'].map((t) => [t, st.citizens.filter((c) => !c.dead && st.byId.get(c.job)?.type === t).length])),
+    };
+  });
+  assert.ok(!st.gameOver, st.gameOver?.reason);
+  const want = ['arrive', 'select', 'chop', 'planks', 'stack', 'strangers', 'woodshed', 'cutters', 'antelope', 'hunt', 'fire', 'farm', 'farming', 'wolves', 'fence', 'settle', 'bandits', 'recover', 'guardhouse', 'soldiers', 'camp', 'mudpit', 'brickshed', 'bricks', 'upgrade', 'end', null];
+  assert.deepEqual(seen, want, `steps: ${seen.join(' ')}\n${bot.log.slice(-8).join('\n')}`);
+  assert.ok(st.tut.done);
+  // The wood shed is one man's work; the other newcomer took up the bow.
+  assert.deepEqual(at.antelope.jobs, { woodcutter: 1, hunter: 0, farm: 0 });
+  assert.deepEqual(at.fire.jobs, { woodcutter: 1, hunter: 1, farm: 0 });
+  // The two at the fire went to the farm, and the wolves killed them; the
+  // woodcutter and the hunter killed two wolves each.
+  assert.deepEqual(at.wolves.jobs, { woodcutter: 1, hunter: 1, farm: 2 });
+  assert.equal(st.story.victims.length, 2);
+  assert.ok(st.story.victims.every((v) => v.job === 'farm'), 'the farmers were killed');
+  assert.deepEqual(st.story.heroes.map((h) => [h.tool, h.kills]).sort(), [['axe', 2], ['bow', 2]]);
+  // Bandits stole from the stores; the camp was cleared.
+  assert.ok(Object.values(st.story.stolen || {}).some((n) => n > 0), 'bandits stole from the stores');
+  assert.equal(st.factionMap.bandits1.status, 'conquered');
+  // Everything is rebuilt in mud; houses sleep four.
+  assert.ok(st.flags.mud);
+  const huts = st.buildings.filter((b) => b.type === 'hut' && !b.dead && b.built >= 1);
+  assert.ok(huts.length && huts.every((h) => h.mud && h.level === 2));
+  const { stat } = awaitData();
+  assert.equal(stat(huts[0], 'housing'), 4);
+  assert.ok(st.flags.openingDone);
+  // The guide has handed over to the ordinary goals.
+  assert.ok(st.objCurrent.length > 0);
+});
+
+test('the opening is played step by step: nothing moves on until the player acts', () => {
+  const st = sim.newGame({ seed: 77 });
+  advance(st, 20);
+  assert.equal(sim.currentStep(st).id, 'select');
+  advance(st, 60);
+  assert.equal(sim.currentStep(st).id, 'select', 'waits for the player to select the founder');
+  assert.equal(st.citizens.length, 2, 'nobody else arrives meanwhile');
+  const founder = st.citizens.find((c) => c.special === 'founder');
+  sim.signal(st, 'select', founder.id);
+  advance(st, 2);
+  assert.equal(sim.currentStep(st).id, 'chop');
+  advance(st, 60);
+  assert.equal(sim.currentStep(st).id, 'chop', 'waits for a tree to be picked');
+  assert.equal(st.units.length, st.units.filter((u) => u.owner !== 'player' && u.home).length, 'no raiders while the guide runs');
+});
+
+test('a new plank house brings two newcomers, who sit by the fire until there is work', () => {
   const st = fresh(11);
-  st.res.bricks += 20;
-  assert.ok(place(st, 'woodcutter', 'trees'), 'woodcutter placed');
-  assert.ok(place(st, 'brickyard', 'clay'), 'brickyard placed');
-  assert.ok(place(st, 'hut'), 'hut placed');
-  advance(st, 90);
-  const working = st.citizens.filter((c) => !c.stranger && c.job);
-  assert.ok(working.length >= 2, `only ${working.length} working`);
+  st.migrateT = 1e9;
+  assert.ok(place(st, 'hut'), 'plank house placed');
+  advance(st, 20);
   const hut = st.buildings.find((b) => b.type === 'hut');
-  assert.ok(hut.residents.length >= 1, 'someone moved into the hut');
-  assert.ok(st.stats.made.wood > 0, 'wood was cut and stored');
+  assert.equal(hut.built, 1);
+  advance(st, 40);
+  const newcomers = st.citizens.filter((c) => !c.special && !c.dead);
+  assert.equal(newcomers.length, 2, 'two came');
+  assert.ok(newcomers.every((c) => !c.stranger && !c.job && c.state === 'wait'), 'sitting by the fire');
+  assert.ok(newcomers.every((c) => c.home), 'and they have beds');
+  assert.ok(place(st, 'woodcutter', 'trees'), 'wood shed placed');
+  advance(st, 30);
+  const working = newcomers.filter((c) => st.byId.get(c.job)?.type === 'woodcutter');
+  assert.equal(working.length, 1, 'a wood shed takes one pair of hands');
+  advance(st, 60);
+  assert.ok(st.stats.made.wood > 0, 'planks were cut and stacked');
 });
 
-test('workers leave low-priority jobs for high-priority ones', () => {
+test('nobody leaves a job by themselves; the player moves people', () => {
   const st = fresh(12);
   st.migrateT = 1e9;
-  st.fired.hunger = 0; // no story nudging food jobs up the list here
-  advance(st, 30); // the two wanderers arrive and are welcomed
-  place(st, 'woodcutter', 'trees');
-  advance(st, 10);
-  // Keep only the woodcutter (and the founder and his wife, who take no jobs).
-  const cutter = st.buildings.find((b) => b.type === 'woodcutter');
-  for (const c of st.citizens) {
-    if (!c.special && !cutter.workers.includes(c.id)) c.dead = true;
-  }
-  st.dirty.cleanup = true;
-  advance(st, 3);
-  assert.equal(cutter.workers.length, 1, 'one worker, at the woodcutter');
-  assert.ok(place(st, 'hunter', 'trees'));
+  const { spawnStranger } = awaitEconomy();
+  const a = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  advance(st, 20);
+  const shed = st.buildings.find((b) => b.type === 'woodcutter');
+  assert.deepEqual(shed.workers, [a.id]);
+  assert.ok(place(st, 'hunter', 'home'));
   const lodge = st.buildings.find((b) => b.type === 'hunter');
-  advance(st, 15);
-  assert.equal(lodge.workers.length, 0, 'equal priority: nobody is pulled away');
   sim.setPriority(st, lodge.id, 2);
+  advance(st, 20);
+  assert.equal(lodge.workers.length, 0, 'high priority, but nobody is pulled away');
+  const r = sim.assignWorker(st, a.id, lodge.id);
+  assert.ok(r.ok);
   advance(st, 2);
-  assert.equal(lodge.workers.length, 1, 'high priority: someone moved to the lodge');
-  assert.equal(cutter.workers.length, 0, 'and left their old job');
+  assert.deepEqual(lodge.workers, [a.id], 'the player sent them to hunt');
+  assert.equal(shed.workers.length, 0);
+  // The founder takes no job.
+  const founder = st.citizens.find((c) => c.special === 'founder');
+  assert.equal(sim.assignWorker(st, founder.id, shed.id).ok, false);
+  // A full workplace sends its worker back to the fire.
+  const b = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  advance(st, 2);
+  assert.ok(b.job === shed.id, 'the newcomer took the empty shed');
+  assert.ok(sim.assignWorker(st, b.id, lodge.id).ok);
+  advance(st, 1);
+  assert.deepEqual(lodge.workers, [b.id]);
+  assert.equal(a.job === lodge.id, false, 'the hunter was sent back to the fire');
+});
+
+test('sheds and farm land can be moved; houses must be pulled down for half their cost', () => {
+  const st = fresh(13);
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  assert.ok(place(st, 'hut'));
+  advance(st, 20);
+  const shed = st.buildings.find((b) => b.type === 'woodcutter');
+  const hut = st.buildings.find((b) => b.type === 'hut');
+  let moved = false;
+  for (let dy = -6; dy <= 6 && !moved; dy++) {
+    for (let dx = -6; dx <= 6 && !moved; dx++) {
+      if (Math.abs(dx) + Math.abs(dy) < 3) continue;
+      moved = sim.moveBuilding(st, shed.id, shed.x + dx, shed.y + dy).ok;
+    }
+  }
+  assert.ok(moved, 'the wood shed moved');
+  assert.equal(st.occ[shed.y * st.W + shed.x], shed.id);
+  assert.equal(sim.moveBuilding(st, hut.id, hut.x + 3, hut.y).ok, false, 'houses do not move');
+  const wood = st.res.wood;
+  assert.ok(sim.demolish(st, hut.id).ok);
+  assert.equal(st.res.wood - wood, 5, 'half the planks back');
 });
 
 test('the founder takes no job and walks the town as a supervisor', () => {
   const st = fresh(12);
   st.migrateT = 1e9;
+  const { spawnStranger } = awaitEconomy();
+  spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
   place(st, 'woodcutter', 'trees');
-  advance(st, 30);
+  advance(st, 60);
   const founder = st.citizens.find((c) => c.special === 'founder');
   assert.ok(!founder.job, 'no job for the founder');
   assert.equal(founder.state, 'supervise');
@@ -193,6 +289,22 @@ test('the founder takes no job and walks the town as a supervisor', () => {
   assert.equal(supervised(st, worker), true);
   worker.x = founder.x + 30;
   assert.equal(supervised(st, worker), false);
+});
+
+test('hungry or homeless, people grumble first and then leave', () => {
+  const st = fresh(14);
+  st.migrateT = 1e9;
+  const { spawnStranger } = awaitEconomy();
+  for (let k = 0; k < 5; k++) spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  st.res.yam = 0;
+  st.res.meat = 0;
+  const before = st.citizens.filter((c) => !c.dead && !c.special).length;
+  advance(st, 24 * 2.2);
+  assert.ok(st.log.some((m) => /will leave us/.test(m.text)), 'a complaint first');
+  advance(st, 24 * 2);
+  assert.ok(st.log.some((m) => /has left/.test(m.text)), 'then someone left');
+  assert.ok(st.citizens.filter((c) => !c.dead && !c.special && c.state !== 'leave').length < before);
 });
 
 test('hunger and heavy taxes drive people away', () => {
@@ -332,21 +444,23 @@ test('a scripted player can grow a town through the eras without errors', () => 
   assert.ok(st.flags.metEuropeans, 'the Portuguese arrived');
 });
 
-test('your own soldiers need a Training Ground and money; the compound only trains scouts', () => {
+test('your own soldiers train at a Guard House from people at the fire; the compound only trains scouts', () => {
   const st = fresh(30);
+  st.migrateT = 1e9;
   const compound = st.buildings.find((b) => b.type === 'compound');
   assert.equal(sim.train(st, compound.id, 'spearman').ok, false);
   st.res.cowries = 0;
   assert.match(sim.train(st, compound.id, 'scout').reason, /money/);
-  st.res.cowries = 200;
   st.res.wood = 200;
-  st.res.bricks = 40;
   assert.ok(place(st, 'warcamp'));
   advance(st, 15);
   const camp = st.buildings.find((b) => b.type === 'warcamp');
-  const before = st.res.cowries;
-  assert.ok(sim.train(st, camp.id, 'spearman').ok);
-  assert.equal(st.res.cowries, before - 12);
+  const before = st.res.wood;
+  assert.ok(sim.train(st, camp.id, 'spearman').ok, 'spears and shields of wood, and food');
+  assert.equal(st.res.wood, before - 6);
+  // Nobody at the fire: a volunteer walks in to be trained.
+  advance(st, 60);
+  assert.equal(st.units.filter((u) => u.owner === 'player' && u.type === 'spearman').length, 1);
 });
 
 test('mercenaries are hired for money, paid daily, and leave when unpaid', () => {
@@ -437,22 +551,31 @@ test('the local market only buys so much of a good each day', () => {
   assert.equal(sim.trade(st, 'wood', 10, false).ok, false);
 });
 
-test('a hut upgrades to a mud-brick house that takes more people', () => {
+test('the kingdom upgrade rebuilds everything in mud, and houses sleep four', () => {
   const st = fresh(36);
-  st.era = 1;
   st.res.wood = 100;
-  st.res.bricks = 60;
-  st.res.stone = 50;
-  st.res.cowries = 100;
   assert.ok(place(st, 'hut'));
   advance(st, 15);
   const hut = st.buildings.find((b) => b.type === 'hut');
-  assert.ok(sim.upgradeBuilding(st, hut.id).ok);
-  assert.equal(hut.level, 2);
-  advance(st, 15);
   const { stat } = awaitData();
-  assert.equal(stat(hut, 'housing'), 6);
-  assert.equal(sim.upgradeBuilding(st, hut.id).ok, false, 'zinc roofs wait for the Port City age');
+  assert.equal(stat(hut, 'housing'), 2, 'a plank house sleeps two');
+  assert.equal(sim.upgradeBuilding(st, hut.id).ok, false, 'mud waits for the kingdom upgrade');
+  const cost = sim.mudUpgradeCost(st);
+  assert.ok(cost > 0);
+  st.res.bricks = cost - 1;
+  assert.equal(sim.mudUpgrade(st).ok, false);
+  st.res.bricks = cost;
+  assert.ok(sim.mudUpgrade(st).ok);
+  assert.equal(st.res.bricks, 0);
+  assert.equal(hut.level, 2);
+  assert.ok(hut.mud && st.buildings.find((b) => b.type === 'compound').mud);
+  assert.equal(stat(hut, 'housing'), 4);
+  // New houses now go up in mud.
+  st.res.bricks = 20;
+  assert.ok(place(st, 'hut'));
+  const fresh2 = st.buildings.filter((b) => b.type === 'hut').at(-1);
+  assert.equal(fresh2.level, 2);
+  assert.ok(fresh2.mud);
 });
 
 test('an ally lends warriors who go home again', () => {
@@ -491,4 +614,8 @@ function awaitRes() {
 import * as military from '../js/sim/military.js';
 function awaitImport() {
   return military;
+}
+import * as economy from '../js/sim/economy.js';
+function awaitEconomy() {
+  return economy;
 }

@@ -4,20 +4,22 @@
 
 import { REGIONS } from '../regions/index.js';
 import { generateWorld, reachable } from '../world/generate.js';
-import { T, F, WALK, isWater } from '../world/terrain.js';
+import { T, F, WALK, TREE, isWater, treePlanks } from '../world/terrain.js';
 import { Rng } from '../core/rng.js';
-import { BUILDINGS, nextUpgrade } from '../data/buildings.js';
+import { BUILDINGS, nextUpgrade, costOf, mudBricksFor } from '../data/buildings.js';
 import { ERAS } from '../data/eras.js';
 import { UNITS } from '../data/units.js';
 import { ORIGINS } from '../data/names.js';
 import { FOOD, GOODS } from '../data/resources.js';
 import { createBuilding, createCitizen, removeBuilding, cleanup, notify } from './entities.js';
+import { goTo } from './move.js';
 import { computeTerritory, computeVisibility, revealAround, adjacentToWater } from './world.js';
 import {
   DAY, capacity, canAfford, spend, dailyUpkeep, updateHappiness, updateMigration, population,
-  hasBuilding, trade as marketTrade,
+  hasBuilding, trade as marketTrade, invite, addMood,
 } from './economy.js';
-import { assignJobs, houseStrangers, updateCitizen, dailyCitizens } from './citizens.js';
+import { assignJobs, houseHomeless, updateCitizen, dailyCitizens, assignTo, orderTree as treeOrder, orderWalk as walkOrder } from './citizens.js';
+import { updateStory, tutSignal } from './story.js';
 import { updateAnimal, spawnAnimals, replenishAnimals } from './animals.js';
 import { updateUnit, updateTowers, updateTraining, updateShips, updateExpeditions, train as trainUnit, isHostileOwner } from './military.js';
 import { initFaction, updateFactions, dailyFactions, updatePois, diplomacy } from './factions.js';
@@ -34,7 +36,7 @@ export function newGame(opts = {}) {
   const world = generateWorld(region, seed);
   const n = world.W * world.H;
   const st = {
-    version: 3,
+    version: 4,
     regionId: region.id,
     region,
     seed,
@@ -42,6 +44,7 @@ export function newGame(opts = {}) {
     H: world.H,
     terrain: world.terrain,
     trees: world.trees,
+    felled: new Uint8Array(n),
     feature: world.feature,
     amount: world.amount,
     occ: new Int32Array(n),
@@ -50,10 +53,12 @@ export function newGame(opts = {}) {
     territory: new Uint8Array(n),
     reach: world.reach,
     start: world.start,
+    arrival: world.arrival,
+    mudPit: world.mudPit,
     rng: new Rng(seed ^ 0x9e3779b9),
     time: { t: 0, day: 0, dayT: 0, year: ERAS[0].year },
     era: 0,
-    res: { ...Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])), yam: 24, wood: 20, bricks: 14, cowries: 50 },
+    res: { ...Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])), yam: 24, cowries: 50 },
     harbour: { ship: null, next: 0, sailing: false },
     tech: {},
     luxury: {},
@@ -99,7 +104,7 @@ export function newGame(opts = {}) {
     spouse: (opts.spouse || 'Àdùkẹ́').slice(0, 20),
     nextId: 1,
     byId: new Map(),
-    dirty: { territory: true, jobs: true, cleanup: false },
+    dirty: { territory: true, jobs: true, cleanup: false, reach: false },
     changedTiles: [],
     territoryVersion: 0,
     fogVersion: 0,
@@ -110,42 +115,60 @@ export function newGame(opts = {}) {
   };
   for (const [k, v] of Object.entries(region.foreign)) st.foreign[k] = { name: v.name, color: v.color, hostile: false, trade: false };
 
-  // Home: the compound, a storage floor of mud bricks in front of it with
-  // what the couple carried here stacked on it, and the strangers' fire.
+  // Home: an abandoned house in a clearing, a swept storage floor in front
+  // of it with what the couple carried here, and a fire for those who come
+  // after them.
   const sx = world.start.x;
   const sy = world.start.y;
   const compound = createBuilding(st, 'compound', sx - 1, sy - 1, { instant: true });
   const floorSpot = [[sx - 1, sy + 3], [sx, sy + 3], [sx + 3, sy], [sx - 4, sy], [sx - 1, sy - 4]].map(([x, y]) => ({ x, y })).find((p) => footprintOk(st, 'stockpile', p.x, p.y, true).ok)
     || findSpot(st, 'stockpile', sx, sy, 3, 6) || { x: sx - 1, y: sy + 3 };
   createBuilding(st, 'stockpile', floorSpot.x, floorSpot.y, { instant: true });
-  const fireSpot = findSpot(st, 'campfire', sx, sy, 6, 10) || { x: sx - 6, y: sy + 3 };
+  const fireSpot = findSpot(st, 'campfire', sx, sy, 4, 6) || findSpot(st, 'campfire', sx, sy, 3, 8) || { x: sx - 5, y: sy + 3 };
   createBuilding(st, 'campfire', fireSpot.x, fireSpot.y, { instant: true });
 
-  // Just the two of them. Strangers come soon (see the region's opening).
+  // Just the two of them, walking in up the path. Strangers come later (see
+  // the region's story).
   const awori = ORIGINS[0];
-  const founder = createCitizen(st, sx, sy + 1, { origin: awori, female: false, name: st.founder, stranger: false, state: 'idle', special: 'founder', cloth: '#2f4a8a' });
-  const spouse = createCitizen(st, sx, sy + 1, { origin: awori, female: true, name: st.spouse, stranger: false, state: 'idle', special: 'spouse', cloth: '#c0392b' });
+  const way = world.arrival.length ? world.arrival[Math.min(world.arrival.length - 1, 9)] : sy * st.W + sx;
+  const ax = way % st.W;
+  const ay = Math.floor(way / st.W);
+  const founder = createCitizen(st, ax, ay, { origin: awori, female: false, name: st.founder, stranger: false, state: 'movein', special: 'founder', cloth: '#2f4a8a' });
+  const spouse = createCitizen(st, ax, ay, { origin: awori, female: true, name: st.spouse, stranger: false, state: 'movein', special: 'spouse', cloth: '#c0392b' });
   for (const c of [founder, spouse]) {
     c.home = compound.id;
     compound.residents.push(c.id);
   }
+  spouse.x -= 0.6;
+  goTo(st, founder, sx + 0.5, sy + 2.5, { max: 4000 });
+  goTo(st, spouse, sx - 0.5, sy + 2.5, { max: 4000 });
   st.flags.opening = true;
+  st.tut = { i: 0, entered: false, t: 0 };
 
   region.factions.forEach((def, k) => initFaction(st, def, world.factionSpots[k]));
   region.pois.forEach((p, k) => {
     st.pois.push({ id: k + 1, kind: p.kind, name: p.name, text: p.text, reward: p.reward, x: world.poiSpots[k].x, y: world.poiSpots[k].y, found: false, claimed: false });
   });
 
-  spawnAnimals(st, st.animalTarget, 9);
+  spawnAnimals(st, st.animalTarget, 13);
   st.cap = capacity(st);
   computeTerritory(st);
   st.dirty.territory = false;
-  revealAround(st, sx, sy, 11);
+  revealAround(st, sx, sy, 10);
+  for (const i of world.arrival.slice(0, 10)) revealAround(st, i % st.W, Math.floor(i / st.W), 3);
   computeVisibility(st);
   st.mods.push({ label: 'A fresh start on new land', v: 8, until: 30 });
-  st.eventQueue.push({ id: 'intro' });
+  updateStory(st);
   st.objCurrent = objectives(st).map((o) => o.id);
   return st;
+}
+
+// Things that happen when a building is finished.
+function onBuilt(st, b) {
+  const def = BUILDINGS[b.type];
+  // A new house brings two newcomers to live in it, once the story is past
+  // its opening.
+  if (b.owner === 'player' && def.housing && b.type !== 'compound' && st.flags.openingDone) invite(st, 2, b);
 }
 
 function findSpot(st, type, cx, cy, minR, maxR) {
@@ -181,6 +204,7 @@ export function tick(st, dt = STEP) {
         st.dirty.jobs = true;
         st.dirty.territory = true;
         st.cap = capacity(st);
+        onBuilt(st, b);
       }
     }
   }
@@ -229,6 +253,10 @@ function computeThreats(st) {
 
 function everySecond(st) {
   st.cap = capacity(st);
+  if (st.dirty.reach) {
+    st.dirty.reach = false;
+    st.reach = reachable(st.terrain, st.W, st.H, st.start.x, st.start.y, st.trees, st.felled);
+  }
   computeThreats(st);
   for (const b of st.buildings) {
     if (b.owner === 'player' && b.built >= 1 && b.hp < b.maxHp && st.time.t - (b.hitT || 0) > 12) b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.02);
@@ -240,7 +268,7 @@ function everySecond(st) {
       if (u.owner === 'player' && !u.dead && u.hp < u.maxHp && Math.hypot(u.x - hospital.x - 1.5, u.y - hospital.y - 1.5) < 7) u.hp = Math.min(u.maxHp, u.hp + 4);
     }
   }
-  houseStrangers(st);
+  houseHomeless(st);
   st.dirty.jobs = true;
   updatePort(st);
   expireAllies(st);
@@ -248,6 +276,7 @@ function everySecond(st) {
   updatePois(st);
   updateExpeditions(st);
   checkEvents(st);
+  updateStory(st);
   st.objCurrent = objectives(st).map((o) => o.id);
   st.timers.animals += 1;
   if (st.timers.animals >= 20) {
@@ -289,15 +318,18 @@ function footprintOk(st, type, x, y, ignoreTerritory) {
       if (tx < 1 || ty < 1 || tx >= W - 1 || ty >= st.H - 1) return { ok: false, reason: 'Too close to the edge of the map.' };
       const i = ty * W + tx;
       if (!st.explored[i] && !ignoreTerritory) return { ok: false, reason: 'You have not explored there.' };
-      if (!ignoreTerritory && st.territory[i] !== 1) {
+      // Outposts (a brick shed by a far-off pit) may go on land nobody holds.
+      if (!ignoreTerritory && st.territory[i] !== 1 && !(def.outpost && st.territory[i] === 0)) {
         return { ok: false, reason: st.territory[i] === 2 ? 'That land belongs to another people.' : 'Outside your territory. Expand with a palace, towers or war camps.' };
       }
       if (st.occ[i]) return { ok: false, reason: 'Something is already built there.' };
       const t = st.terrain[i];
       if (isWater(t) || t === T.FORD) return { ok: false, reason: 'You cannot build on water.' };
-      if (t === T.MANGROVE && def.place !== 'shore') return { ok: false, reason: 'Too swampy. Only jetties and canoe yards sit in the mangroves.' };
+      // Stakes can be driven into the swamp; nothing else stands there but jetties.
+      if (t === T.MANGROVE && def.place !== 'shore' && !def.wall && !def.gate) return { ok: false, reason: 'Too swampy. Only jetties, canoe yards and fences go in the mangroves.' };
       if (st.feature[i] === F.ROCK || st.feature[i] === F.IRON) return { ok: false, reason: 'Rock is in the way.' };
       if (st.feature[i] === F.CLAY) return { ok: false, reason: 'A red-mud pit is in the way. Build beside it.' };
+      if (st.trees[i] > 0) return { ok: false, reason: st.felled[i] ? 'Planks are still lying there. Let the woodcutters finish.' : 'Trees are in the way. Have them cut down first.' };
       if (def.place === 'fertile' && !(t === T.GRASS || t === T.SAVANNA || t === T.FOREST)) return { ok: false, reason: 'Yams need fertile soil.' };
       if (adjacentToWater(st, i)) shore = true;
     }
@@ -338,15 +370,20 @@ export function canPlace(st, type, x, y) {
   if (locked) return { ok: false, reason: locked };
   const fp = footprintOk(st, type, x, y, false);
   if (!fp.ok) return fp;
-  if (!canAfford(st, BUILDINGS[type].cost)) return { ok: false, reason: 'Not enough resources.', fits: true };
+  if (!canAfford(st, costOf(st, type))) return { ok: false, reason: 'Not enough resources.', fits: true };
   return { ok: true };
 }
 
 export function placeBuilding(st, type, x, y) {
   const can = canPlace(st, type, x, y);
   if (!can.ok) return can;
-  spend(st, BUILDINGS[type].cost);
+  spend(st, costOf(st, type));
   const b = createBuilding(st, type, x, y);
+  // After the kingdom upgrade, new houses and sheds go up in mud.
+  if (st.flags.mud && BUILDINGS[type].mudBricks) {
+    b.mud = true;
+    if (type === 'hut') b.level = 2;
+  }
   st.stats.built = (st.stats.built || 0) + 1;
   return { ok: true, building: b };
 }
@@ -391,9 +428,139 @@ export function demolish(st, id) {
   const b = st.byId.get(id);
   if (!b || b.owner !== 'player') return { ok: false };
   if (b.type === 'compound' || b.type === 'campfire') return { ok: false, reason: 'This cannot be pulled down.' };
-  const cost = BUILDINGS[b.type].cost;
-  for (const [k, v] of Object.entries(cost)) if (k !== 'food') st.res[k] += Math.floor(v * (b.built >= 1 ? 0.4 : 1));
+  // Half of what it cost comes back (all of it, if it was never finished).
+  const cost = b.mud && BUILDINGS[b.type].mudCost ? BUILDINGS[b.type].mudCost : BUILDINGS[b.type].cost;
+  const back = [];
+  for (const [k, v] of Object.entries(cost)) {
+    if (k === 'food') continue;
+    const n = Math.floor(v * (b.built >= 1 ? 0.5 : 1));
+    st.res[k] += n;
+    if (n) back.push(`${n} ${k === 'wood' ? 'planks' : k}`);
+  }
   removeBuilding(st, b);
+  return { ok: true, back };
+}
+
+// --- Moving sheds and farm land -----------------------------------------------------
+
+export function canMove(st, id, x, y) {
+  const b = st.byId.get(id);
+  if (!b || b.dead || b.owner !== 'player') return { ok: false, reason: 'Nothing to move.' };
+  if (!BUILDINGS[b.type].movable) return { ok: false, reason: 'Only sheds and farm land can be moved. Pull this down and build again instead.' };
+  const own = [];
+  for (let dy = 0; dy < b.h; dy++) {
+    for (let dx = 0; dx < b.w; dx++) {
+      const i = (b.y + dy) * st.W + b.x + dx;
+      if (st.occ[i] === b.id) {
+        st.occ[i] = 0;
+        own.push(i);
+      }
+    }
+  }
+  const r = footprintOk(st, b.type, x, y, false);
+  for (const i of own) st.occ[i] = b.id;
+  return r;
+}
+
+export function moveBuilding(st, id, x, y) {
+  const can = canMove(st, id, x, y);
+  if (!can.ok) return can;
+  const b = st.byId.get(id);
+  for (let dy = 0; dy < b.h; dy++) for (let dx = 0; dx < b.w; dx++) {
+    const i = (b.y + dy) * st.W + b.x + dx;
+    if (st.occ[i] === b.id) st.occ[i] = 0;
+  }
+  b.x = x;
+  b.y = y;
+  const def = BUILDINGS[b.type];
+  for (let dy = 0; dy < b.h; dy++) for (let dx = 0; dx < b.w; dx++) {
+    const i = (y + dy) * st.W + x + dx;
+    st.occ[i] = b.id;
+    if (st.terrain[i] === T.FOREST || (def.flat && st.terrain[i] === T.SAVANNA)) st.terrain[i] = T.GRASS;
+    if (st.feature[i] === F.PALM || st.feature[i] === F.PATH) st.feature[i] = F.NONE;
+    st.changedTiles.push(i);
+  }
+  // A moved farm is planted again; the workers follow.
+  if (def.job?.type === 'farm') b.growth = 0;
+  b.meat = 0;
+  for (const cid of b.workers) {
+    const c = st.byId.get(cid);
+    if (!c || c.dead) continue;
+    c.site = null;
+    c.src = -1;
+    c.carcass = null;
+    if (c.prey) {
+      const a = st.byId.get(c.prey);
+      if (a) a.reserved = 0;
+      c.prey = 0;
+    }
+    if (!c.carry) {
+      c.state = 'towork';
+      c.path = null;
+    }
+  }
+  st.dirty.territory = true;
+  st.dirty.jobs = true;
+  notify(st, `🚚 The ${def.name.toLowerCase()} has been moved.`, 'info', { x: x + b.w / 2, y: y + b.h / 2 });
+  return { ok: true };
+}
+
+// --- Workers and the founder -----------------------------------------------------------
+
+// Send one of your people to work at a building.
+export function assignWorker(st, cid, bid) {
+  return assignTo(st, st.byId.get(cid), st.byId.get(bid));
+}
+
+// Send the founder (or a woodcutter) to fell the tree on tile i.
+export function orderTree(st, cid, i) {
+  const r = treeOrder(st, st.byId.get(cid), i);
+  if (r.ok) tutSignal(st, 'tree', cid);
+  return r;
+}
+
+// Send the founder somewhere on the map.
+export function orderWalk(st, cid, x, y) {
+  return walkOrder(st, st.byId.get(cid), x, y);
+}
+
+// The interface tells the story what the player has done (selected someone,
+// opened a menu) so the guide can move on.
+export const signal = tutSignal;
+
+// What a tree on tile i gives.
+export function treeInfo(st, i) {
+  if (!(st.trees[i] > 0)) return null;
+  const kind = { [T.FOREST]: 'Rainforest tree', [T.SAVANNA]: 'Savanna tree', [T.GRASS]: 'Shade tree', [T.MANGROVE]: 'Mangrove' }[st.terrain[i]] || 'Tree';
+  return { kind, planks: st.trees[i], full: treePlanks(st.terrain[i]), felled: st.felled[i] === TREE.FELLED };
+}
+
+// --- The kingdom upgrade: rebuild in mud ---------------------------------------------------
+
+export function mudUpgradeCost(st) {
+  let n = 0;
+  for (const b of st.buildings) if (b.owner === 'player' && !b.dead && b.built >= 1 && !b.mud) n += mudBricksFor(b);
+  return n;
+}
+
+export function mudUpgrade(st) {
+  if (st.flags.mud) return { ok: false, reason: 'Your houses are already built of mud.' };
+  const cost = mudUpgradeCost(st);
+  if (st.res.bricks < cost) return { ok: false, reason: `Not enough mud bricks: you need ${cost}.` };
+  st.res.bricks -= cost;
+  st.flags.mud = true;
+  for (const b of st.buildings) {
+    if (b.owner !== 'player' || b.dead || b.built < 1 || !mudBricksFor(b)) continue;
+    b.mud = true;
+    b.maxHp = Math.round(b.maxHp * 1.6);
+    b.hp = b.maxHp;
+    if (b.type === 'hut' && (b.level || 1) < 2) b.level = 2;
+  }
+  st.cap = capacity(st);
+  st.dirty.jobs = true;
+  addMood(st, 'Houses of red mud', 8, 8);
+  notify(st, '🧱 The whole settlement is rebuilt in red mud: stronger walls, and every house now sleeps four.', 'good');
+  tutSignal(st, 'mud', 1);
   return { ok: true };
 }
 
@@ -486,6 +653,7 @@ export function canUpgrade(st, id) {
   if (!up) return { ok: false, reason: 'Fully upgraded.' };
   if (b.built < 1) return { ok: false, reason: 'Still being built.' };
   if (up.era > st.era) return { ok: false, reason: `Needs the ${ERAS[up.era].name} age.`, up };
+  if (up.flag && !st.flags[up.flag]) return { ok: false, reason: 'Needs the kingdom upgrade to mud first.', up };
   if (!canAfford(st, up.cost)) return { ok: false, reason: 'Not enough resources.', up };
   return { ok: true, up };
 }
@@ -517,7 +685,7 @@ export const proclaim = proclaimNation;
 
 // --- Saving -------------------------------------------------------------------------
 
-const TYPED = ['terrain', 'trees', 'feature', 'amount', 'occ', 'explored'];
+const TYPED = ['terrain', 'trees', 'felled', 'feature', 'amount', 'occ', 'explored'];
 
 function toB64(arr) {
   const bytes = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
@@ -543,12 +711,12 @@ export function serialize(st) {
   return JSON.stringify(out);
 }
 
-const CTOR = { terrain: Uint8Array, trees: Uint8Array, feature: Uint8Array, amount: Uint16Array, occ: Int32Array, explored: Uint8Array };
+const CTOR = { terrain: Uint8Array, trees: Uint8Array, felled: Uint8Array, feature: Uint8Array, amount: Uint16Array, occ: Int32Array, explored: Uint8Array };
 
 export function deserialize(json) {
   const data = JSON.parse(json);
   const region = REGIONS[data.regionId];
-  if (!region || data.version !== 3) throw new Error('This save is from an older version of the game. Please start a new game.');
+  if (!region || data.version !== 4) throw new Error('This save is from an older version of the game. Please start a new game.');
   const st = { ...data };
   delete st.arrays;
   delete st.rngState;
@@ -557,7 +725,7 @@ export function deserialize(json) {
   const n = st.W * st.H;
   st.visible = new Uint8Array(n);
   st.territory = new Uint8Array(n);
-  st.reach = reachable(st.terrain, st.W, st.H, st.start.x, st.start.y);
+  st.reach = reachable(st.terrain, st.W, st.H, st.start.x, st.start.y, st.trees, st.felled);
   st.rng = new Rng(0);
   st.rng.s = data.rngState >>> 0;
   st.fx = [];
@@ -567,7 +735,7 @@ export function deserialize(json) {
   for (const list of [st.buildings, st.citizens, st.units, st.animals]) for (const e of list) st.byId.set(e.id, e);
   st.factionMap = {};
   for (const f of st.factions) st.factionMap[f.id] = f;
-  st.dirty = { territory: false, jobs: false, cleanup: false };
+  st.dirty = { territory: false, jobs: false, cleanup: false, reach: false };
   st.territoryVersion = 0;
   st.fogVersion = 0;
   st.visVersion = 0;
@@ -579,3 +747,4 @@ export function deserialize(json) {
 }
 
 export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK };
+export { currentStep, stepText, storyRunning } from './story.js';

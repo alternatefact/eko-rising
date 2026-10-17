@@ -96,16 +96,10 @@ export function removeBuilding(st, b) {
     const c = st.byId.get(id);
     if (c) releaseFromJob(st, c);
   }
+  // Its people keep their work but sleep out until there is another bed.
   for (const id of b.residents) {
     const c = st.byId.get(id);
-    if (c) {
-      c.home = 0;
-      c.stranger = true;
-      c.state = 'arrive';
-      c.path = null;
-      c.homelessDays = 0;
-      if (c.job) releaseFromJob(st, c);
-    }
+    if (c) c.home = 0;
   }
   b.workers = [];
   b.residents = [];
@@ -123,6 +117,9 @@ export function releaseFromJob(st, c) {
   if (b) b.workers = b.workers.filter((id) => id !== c.id);
   c.job = 0;
   c.carry = null;
+  c.carcass = null;
+  c.site = null;
+  c.src = -1;
   c.state = 'idle';
   c.path = null;
   c.timer = 0;
@@ -153,8 +150,14 @@ export function createCitizen(st, x, y, opts = {}) {
   const female = opts.female ?? st.rng.chance(0.5);
   // A name nobody in town already has, if one can be found.
   const taken = new Set(st.citizens.filter((x) => !x.dead).map((x) => x.name));
+  taken.add(st.founder);
+  taken.add(st.spouse);
   let name = opts.name;
-  for (let k = 0; !name || (!opts.name && taken.has(name) && k < 12); k++) name = st.rng.pick(female ? origin.female : origin.male);
+  for (let k = 0; !name || (!opts.name && taken.has(name) && k < 40); k++) {
+    // After a while, borrow a name from any people of the land.
+    const from = k < 20 ? origin : st.rng.pick(ORIGINS);
+    name = st.rng.pick(female ? from.female : from.male);
+  }
   const c = {
     id: newId(st),
     kind: 'citizen',
@@ -184,6 +187,9 @@ export function createCitizen(st, x, y, opts = {}) {
     oy: st.rng.range(-0.22, 0.22),
     homelessDays: 0,
     special: opts.special || null,
+    src: -1,
+    task: null,
+    site: null,
   };
   st.citizens.push(c);
   st.byId.set(c.id, c);
@@ -255,7 +261,7 @@ export function createAnimal(st, x, y, type) {
     y: y + 0.5,
     px: x + 0.5,
     py: y + 0.5,
-    hp: 1,
+    hp: type === 'antelope' || type === 'pig' ? 2 : 1,
     path: null,
     pi: 0,
     wanderT: st.rng.range(1, 6),

@@ -8,8 +8,9 @@ import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStrang
 import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction } from './factions.js';
 import { sendShip, launchWarBand, armyPower, declareWar } from './military.js';
 import { findLanding } from './world.js';
-import { spawnWolf } from './animals.js';
-import { takeIn } from './citizens.js';
+import { spawnPack, herdNear } from './animals.js';
+import { takeIn, assignTo } from './citizens.js';
+import { revealAround } from './world.js';
 import { DAY } from './economy.js';
 
 // Helpers handed to region event code, so regions never reach into internals.
@@ -34,8 +35,24 @@ export function makeApi(st) {
     },
     // One newcomer walking in from the bush: { female, calling, guest, near, quiet }.
     wanderer: (opts) => spawnStranger(st, null, undefined, undefined, opts),
-    wolf: () => spawnWolf(st),
+    // A pack of wolves out of the bush (see animals.js).
+    pack: (n) => spawnPack(st, n),
+    // Antelope grazing near the house.
+    herd: (n) => herdNear(st, n),
     welcome: (ids) => ids.forEach((id) => takeIn(st, st.byId.get(id))),
+    reveal: (x, y, r) => revealAround(st, x, y, r),
+    // Move someone from one kind of workplace to a building.
+    reassign: (fromType, to) => {
+      const c = st.citizens.find((p) => !p.dead && !p.special && st.byId.get(p.job)?.type === fromType && !p.carry);
+      const any = c || st.citizens.find((p) => !p.dead && !p.special && st.byId.get(p.job)?.type === fromType);
+      return any ? assignTo(st, any, to).ok && any : null;
+    },
+    // A band of raiders from a people's camp; `steal` makes for the stores.
+    raid: (fid, types, opts = {}) => {
+      const f = st.factionMap[fid];
+      if (!f) return [];
+      return launchWarBand(st, fid, { x: f.x + 0.5, y: f.y + 0.5 }, types, opts);
+    },
     faction: (def, at) => {
       const i = findLanding(st, at[0] * st.W, at[1] * st.H, 0, null);
       const spot = i >= 0 ? { x: i % st.W, y: Math.floor(i / st.W) } : { x: Math.floor(at[0] * st.W), y: Math.floor(at[1] * st.H) };
@@ -62,8 +79,10 @@ export function eventDef(st, entry) {
 
 export function checkEvents(st) {
   const api = makeApi(st);
+  // While the guided opening runs, only it decides what happens.
+  const guided = st.tut && !st.tut.done;
   for (const ev of st.region.events) {
-    if (!ev.when) continue;
+    if (!ev.when || (guided && !ev.story)) continue;
     // Repeating events (festivals, caravans) may come back after `repeat` days.
     const last = st.fired[ev.id];
     if (last !== undefined && (!ev.repeat || st.time.day - last < ev.repeat)) continue;
@@ -226,11 +245,12 @@ export function proclaim(st) {
 export function objectives(st) {
   const list = st.region.objectives;
   const out = [];
+  // The guide gives the goals until the opening is over.
+  if (st.tut && !st.tut.done) return out;
   for (const o of list) {
     if (st.objDone[o.id]) continue;
-    // Some goals only appear once the story reaches them; during the opening
-    // story, only its own goals show.
-    if (o.when ? !o.when(st) : st.flags.opening && !st.flags.openingDone) continue;
+    // Some goals only appear once the story reaches them.
+    if (o.when && !o.when(st)) continue;
     let done = false;
     try {
       done = o.done(st);

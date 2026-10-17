@@ -3,9 +3,14 @@
 // Resources follow the land: trees in forest and mangrove, palms by the
 // water, rock and iron in the hills. What a player can make depends on what
 // they find.
+//
+// Standing trees are walls: the home clearing sits inside a ring of forest,
+// open toward the water, and footpaths worn through the bush join it to the
+// other peoples, the places worth finding and the red-mud pit the founders
+// passed on their way in.
 
 import { Rng, fbm, hash2 } from '../core/rng.js';
-import { T, F, WALK, isWater } from './terrain.js';
+import { T, F, WALK, isWater, treePlanks } from './terrain.js';
 
 export function generateWorld(region, seed) {
   const W = region.width;
@@ -84,10 +89,10 @@ export function generateWorld(region, seed) {
     const x = i % W;
     const y = (i / W) | 0;
     const r = hash2(x, y, seed + 21);
-    if (t === T.FOREST) trees[i] = 28 + Math.floor(r * 30);
-    else if (t === T.MANGROVE) trees[i] = r < 0.7 ? 16 + Math.floor(r * 20) : 0;
-    else if (t === T.SAVANNA) trees[i] = r < 0.16 ? 14 + Math.floor(r * 40) : 0;
-    else if (t === T.GRASS) trees[i] = r < 0.07 ? 12 + Math.floor(r * 80) : 0;
+    if (t === T.FOREST) trees[i] = treePlanks(t);
+    else if (t === T.MANGROVE) trees[i] = r < 0.7 ? treePlanks(t) : 0;
+    else if (t === T.SAVANNA) trees[i] = r < 0.16 ? treePlanks(t) : 0;
+    else if (t === T.GRASS) trees[i] = r < 0.07 ? treePlanks(t) : 0;
 
     if (trees[i] === 0 && (t === T.SAND || t === T.GRASS) && nearCoast[i] > 0 && nearCoast[i] <= 6) {
       const p = t === T.SAND ? 0.22 : 0.1;
@@ -129,33 +134,80 @@ export function generateWorld(region, seed) {
   }
 
   // --- The player's starting land --------------------------------------
-  // A clearing for the homestead, wider on the side the camera looks from so
-  // the house and its storage floor are never hidden behind trees.
+  // An abandoned house in a clearing. Forest closes in on the landward
+  // side, a natural wall; toward the water the land is open, and that is
+  // where a fence will be needed. A few lone trees stand near the house.
   const start = findStart(terrain, W, H, tp.start, rng);
-  for (let dy = -7; dy <= 8; dy++) {
-    for (let dx = -7; dx <= 8; dx++) {
+  let wx = 0;
+  let wy = 0;
+  for (let dy = -12; dy <= 12; dy++) {
+    for (let dx = -12; dx <= 12; dx++) {
       const x = start.x + dx;
       const y = start.y + dy;
-      if (x < 0 || y < 0 || x >= W || y >= H) continue;
-      const i = idx(x, y);
+      if (x < 0 || y < 0 || x >= W || y >= H || (!dx && !dy) || !isWater(terrain[idx(x, y)])) continue;
       const d2 = dx * dx + dy * dy;
-      const front = dx >= -2 && dy >= 1;
+      wx += dx / d2;
+      wy += dy / d2;
+    }
+  }
+  const waterAng = wx || wy ? Math.atan2(wy, wx) : rng.range(0, Math.PI * 2);
+  const forestAng = waterAng + Math.PI;
+  for (let dy = -15; dy <= 15; dy++) {
+    for (let dx = -15; dx <= 15; dx++) {
+      const x = start.x + dx;
+      const y = start.y + dy;
+      if (x < 1 || y < 1 || x >= W - 1 || y >= H - 1) continue;
+      const i = idx(x, y);
       if (isWater(terrain[i])) continue;
-      if (d2 <= 20 || (front && d2 <= 42)) {
+      const d = Math.hypot(dx, dy);
+      let diff = Math.abs(Math.atan2(dy, dx) - forestAng) % (Math.PI * 2);
+      if (diff > Math.PI) diff = Math.PI * 2 - diff;
+      const wob = fbm(x * 0.35, y * 0.35, seed + 41, 2);
+      const inner = 7.4 + wob * 1.8;
+      const outer = 12 + wob * 3.5;
+      if (d <= inner) {
         terrain[i] = T.GRASS;
         trees[i] = 0;
         feature[i] = F.NONE;
-      } else if (d2 <= 49 && terrain[i] === T.FOREST && rng.chance(0.6)) {
+      } else if (d <= outer && diff < 1.75 + (wob - 0.5) * 0.4) {
+        terrain[i] = T.FOREST;
+        trees[i] = treePlanks(T.FOREST);
+        feature[i] = F.NONE;
+      } else if (d <= outer + 1 && diff < 2.25) {
+        // The forest thins out into savanna toward the water.
+        terrain[i] = T.SAVANNA;
+        trees[i] = hash2(x, y, seed + 43) < 0.42 ? treePlanks(T.SAVANNA) : 0;
+        feature[i] = F.NONE;
+      } else if (d <= outer + 1 && (terrain[i] === T.FOREST || terrain[i] === T.HILL)) {
         terrain[i] = T.GRASS;
-        trees[i] = rng.chance(0.3) ? 20 : 0;
+        trees[i] = hash2(x, y, seed + 44) < 0.08 ? treePlanks(T.GRASS) : 0;
+        feature[i] = F.NONE;
       }
     }
+  }
+  // Lone trees near the house, on the forest side, for the first planks.
+  let lone = 0;
+  for (let k = 0; k < 80 && lone < 4; k++) {
+    const a = forestAng + rng.range(-1.3, 1.3);
+    const r = rng.range(4.2, 6.4);
+    const x = Math.round(start.x + 0.5 + Math.cos(a) * r);
+    const y = Math.round(start.y + 0.5 + Math.sin(a) * r);
+    const i = idx(x, y);
+    if (isWater(terrain[i]) || trees[i]) continue;
+    // Never in front of the house, where the storage floor goes.
+    if (x - start.x >= -2 && y - start.y >= 1 && x - start.x <= 3) continue;
+    let near = false;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (trees[idx(x + ox, y + oy)]) near = true;
+    if (near) continue;
+    terrain[i] = lone === 0 ? T.FOREST : T.SAVANNA;
+    trees[i] = treePlanks(terrain[i]);
+    lone++;
   }
 
   // A rocky outcrop within a short walk, so every start can quarry stone.
   for (let k = 0; k < 40; k++) {
     const a = rng.range(0, Math.PI * 2);
-    const r = rng.range(8, 12);
+    const r = rng.range(14, 18);
     const ox = Math.round(start.x + Math.cos(a) * r);
     const oy = Math.round(start.y + Math.sin(a) * r);
     if (ox < 3 || oy < 3 || ox >= W - 3 || oy >= H - 3 || isWater(terrain[idx(ox, oy)])) continue;
@@ -195,37 +247,21 @@ export function generateWorld(region, seed) {
       }
     }
   };
-  for (let k = 0; k < 60; k++) {
-    const a = rng.range(0, Math.PI * 2);
-    const r = rng.range(8.5, 10.5);
-    const ox = Math.round(start.x + Math.cos(a) * r);
-    const oy = Math.round(start.y + Math.sin(a) * r);
-    if (ox < 4 || oy < 4 || ox >= W - 4 || oy >= H - 4) continue;
-    let ok = true;
-    for (let dy = -2; dy <= 2 && ok; dy++) {
-      for (let dx = -2; dx <= 2 && ok; dx++) {
-        const t = terrain[idx(ox + dx, oy + dy)];
-        if (isWater(t) || t === T.HILL || feature[idx(ox + dx, oy + dy)] === F.ROCK) ok = false;
-      }
-    }
-    if (!ok) continue;
-    clayPit(ox, oy, 2);
-    break;
-  }
   for (let i = 0; i < n; i++) {
     const t = terrain[i];
     if ((t !== T.GRASS && t !== T.SAVANNA) || nearCoast[i] < 1 || nearCoast[i] > 2 || feature[i]) continue;
     const x = i % W;
     const y = (i / W) | 0;
-    if (hash2(x, y, seed + 31) < 0.012 && Math.hypot(x - start.x, y - start.y) > 12) clayPit(x, y, rng.int(1, 2));
+    if (hash2(x, y, seed + 31) < 0.012 && Math.hypot(x - start.x, y - start.y) > 18) clayPit(x, y, rng.int(1, 2));
   }
 
-  // Everything that matters must be reachable on foot from home.
-  const reach = reachable(terrain, W, H, start.x, start.y);
+  // Everything that matters must be reachable on foot from home (once a
+  // path is worn to it).
+  const walkable = reachable(terrain, W, H, start.x, start.y);
   const snap = (fx, fy, clear = 2) => {
     const tx = Math.floor(fx * W);
     const ty = Math.floor(fy * H);
-    return nearestTile(terrain, W, H, tx, ty, (t, i) => reach[i] && clearAround(terrain, W, H, i, clear));
+    return nearestTile(terrain, W, H, tx, ty, (t, i) => walkable[i] && clearAround(terrain, W, H, i, clear));
   };
 
   const factionSpots = region.factions.map((f) => {
@@ -256,7 +292,162 @@ export function generateWorld(region, seed) {
     return { x: i % W, y: (i / W) | 0 };
   });
 
-  return { W, H, terrain, trees, feature, amount, start, factionSpots, poiSpots, reach };
+  // --- Footpaths --------------------------------------------------------
+  // Paths fan out from home along the easiest ground: to every people, to
+  // every place worth finding, and the way the founders came in, from the
+  // north. Trees along them are long gone.
+  const from = paths(terrain, trees, W, H, start.x, start.y);
+  const trail = (tx, ty) => {
+    let i = idx(tx, ty);
+    if (from.cost[i] === Infinity) return [];
+    const out = [];
+    while (i >= 0 && i !== from.start) {
+      out.push(i);
+      i = from.prev[i];
+    }
+    return out.reverse();
+  };
+  const wear = (tiles) => {
+    for (const i of tiles) {
+      for (const j of [i, i + 1]) {
+        if (j % W === 0 || isWater(terrain[j])) continue;
+        trees[j] = 0;
+        if (terrain[j] === T.FOREST) terrain[j] = T.GRASS;
+        if (feature[j] === F.NONE && j !== idx(start.x, start.y)) feature[j] = F.PATH;
+      }
+    }
+  };
+  for (const f of factionSpots) wear(trail(f.x, f.y));
+  for (const [k, p] of poiSpots.entries()) if (!region.pois[k].water) wear(trail(p.x, p.y));
+  // The way in: from the north edge, or the nearest land to it.
+  let gate = -1;
+  for (let r = 0; r < W && gate < 0; r++) {
+    for (const x of [start.x - r, start.x + r]) {
+      for (let y = 1; y < 6 && gate < 0; y++) {
+        if (x > 0 && x < W - 1 && from.cost[idx(x, y)] < Infinity) gate = idx(x, y);
+      }
+    }
+  }
+  const arrival = gate >= 0 ? trail(gate % W, (gate / W) | 0) : [];
+  wear(arrival);
+
+  // The red-mud pit they passed on the way in: beside the path, well
+  // outside the clearing, where nobody will see it until they go back.
+  let mudPit = null;
+  for (let k = 0; k < arrival.length && !mudPit; k++) {
+    const i = arrival[k];
+    const px = i % W;
+    const py = (i / W) | 0;
+    const d = Math.hypot(px - start.x, py - start.y);
+    if (d < 15 || d > 24) continue;
+    for (const [ox, oy] of [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 2], [-3, -2]]) {
+      const cx = px + ox;
+      const cy = py + oy;
+      if (cx < 4 || cy < 4 || cx >= W - 4 || cy >= H - 4) continue;
+      let ok = true;
+      for (let dy = -1; dy <= 1 && ok; dy++) {
+        for (let dx = -1; dx <= 1 && ok; dx++) {
+          const j = idx(cx + dx, cy + dy);
+          if (isWater(terrain[j]) || terrain[j] === T.HILL || terrain[j] === T.MANGROVE || feature[j] === F.PATH) ok = false;
+        }
+      }
+      if (!ok) continue;
+      clayPit(cx, cy, 2);
+      // Clear the ground between the path and the pit.
+      for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const j = idx(cx + dx, cy + dy);
+          if (dx * dx + dy * dy > 10 || isWater(terrain[j])) continue;
+          trees[j] = 0;
+          if (terrain[j] === T.FOREST) terrain[j] = T.GRASS;
+        }
+      }
+      mudPit = { x: cx, y: cy };
+      break;
+    }
+  }
+  if (!mudPit) {
+    // No path long enough: any open ground at that distance will do.
+    for (let k = 0; k < 200 && !mudPit; k++) {
+      const a = rng.range(0, Math.PI * 2);
+      const cx = Math.round(start.x + Math.cos(a) * 17);
+      const cy = Math.round(start.y + Math.sin(a) * 17);
+      if (cx < 4 || cy < 4 || cx >= W - 4 || cy >= H - 4 || isWater(terrain[idx(cx, cy)]) || from.cost[idx(cx, cy)] === Infinity) continue;
+      clayPit(cx, cy, 2);
+      wear(trail(cx, cy));
+      mudPit = { x: cx, y: cy };
+    }
+  }
+
+  const reach = reachable(terrain, W, H, start.x, start.y, trees);
+  return { W, H, terrain, trees, feature, amount, start, factionSpots, poiSpots, reach, arrival, mudPit };
+}
+
+// Cheapest ways out from home over open ground (4-way steps, so a path is
+// never pinched shut between two trees). Trees cost the most to go through.
+function paths(terrain, trees, W, H, sx, sy) {
+  const n = W * H;
+  const cost = new Float32Array(n).fill(Infinity);
+  const prev = new Int32Array(n).fill(-1);
+  const start = sy * W + sx;
+  cost[start] = 0;
+  // A small binary heap keyed on cost.
+  const heap = [];
+  const push = (i) => {
+    heap.push(i);
+    let k = heap.length - 1;
+    while (k > 0) {
+      const p = (k - 1) >> 1;
+      if (cost[heap[p]] <= cost[heap[k]]) break;
+      [heap[p], heap[k]] = [heap[k], heap[p]];
+      k = p;
+    }
+  };
+  const pop = () => {
+    const top = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let k = 0;
+      for (;;) {
+        const l = k * 2 + 1;
+        const r = l + 1;
+        let m = k;
+        if (l < heap.length && cost[heap[l]] < cost[heap[m]]) m = l;
+        if (r < heap.length && cost[heap[r]] < cost[heap[m]]) m = r;
+        if (m === k) break;
+        [heap[m], heap[k]] = [heap[k], heap[m]];
+        k = m;
+      }
+    }
+    return top;
+  };
+  const done = new Uint8Array(n);
+  push(start);
+  while (heap.length) {
+    const i = pop();
+    if (done[i]) continue;
+    done[i] = 1;
+    const x = i % W;
+    const y = (i / W) | 0;
+    for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + ox;
+      const ny = y + oy;
+      if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
+      const j = ny * W + nx;
+      const t = terrain[j];
+      if (WALK[t] === 0) continue;
+      let c = 1 / WALK[t];
+      if (trees[j]) c += 7;
+      const g = cost[i] + c;
+      if (g < cost[j]) {
+        cost[j] = g;
+        prev[j] = i;
+        push(j);
+      }
+    }
+  }
+  return { cost, prev, start };
 }
 
 function landCover(nx, ny, seed, tp) {
@@ -373,7 +564,9 @@ function findStart(terrain, W, H, at, rng) {
   return { x: best % W, y: (best / W) | 0 };
 }
 
-export function reachable(terrain, W, H, sx, sy) {
+// Every tile a person on foot can get to from (sx, sy). With `trees`,
+// standing trees are walls; `felled` marks the cut ones.
+export function reachable(terrain, W, H, sx, sy, trees, felled) {
   const seen = new Uint8Array(W * H);
   const stack = [sy * W + sx];
   seen[stack[0]] = 1;
@@ -387,6 +580,7 @@ export function reachable(terrain, W, H, sx, sy) {
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const j = ny * W + nx;
       if (seen[j] || WALK[terrain[j]] === 0) continue;
+      if (trees && trees[j] && !(felled && felled[j])) continue;
       seen[j] = 1;
       stack.push(j);
     }

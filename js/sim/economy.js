@@ -1,7 +1,7 @@
 // Stocks, storage, food, taxes, happiness and the flow of strangers.
 
 import { RESOURCES, FOOD, GOODS } from '../data/resources.js';
-import { BUILDINGS, stat } from '../data/buildings.js';
+import { BUILDINGS, stat, levelName } from '../data/buildings.js';
 import { HIRES } from '../data/units.js';
 import { F, WALK } from '../world/terrain.js';
 import { createCitizen, notify, notifyOnce, removeCitizen } from './entities.js';
@@ -106,8 +106,18 @@ export function residents(st) {
   return st.citizens.filter((c) => !c.stranger && !c.dead);
 }
 
+// Everyone at the fire: newcomers walking in, and anyone with no work.
 export function strangers(st) {
-  return st.citizens.filter((c) => c.stranger && !c.dead && c.state !== 'leave');
+  return st.citizens.filter((c) => !c.dead && !c.special && !c.job && c.state !== 'leave' && (c.stranger || c.state === 'wait' || c.state === 'arrive' || c.state === 'idle'));
+}
+
+// How many can sit at the fire with no work before newcomers stop coming.
+export function fireCap(st) {
+  return st.era < 2 ? 5 : 4 + st.era * 3;
+}
+
+export function homeless(st) {
+  return st.citizens.filter((c) => !c.dead && !c.stranger && !c.special && !c.home && c.state !== 'leave').length;
 }
 
 export function housingCap(st) {
@@ -227,8 +237,10 @@ export function happinessFactors(st) {
   if (st.bonusHappy) out.push({ label: 'Blessings found', v: st.bonusHappy });
   if (st.flags.colonized && !st.flags.independent) out.push({ label: 'Foreign rule', v: -6 });
   if (st.flags.beninTribute) out.push({ label: 'Tribute to Benin', v: -2 });
-  const homeless = strangers(st).length;
-  if (homeless > 6) out.push({ label: 'Crowded campfire', v: -Math.min(8, homeless - 6) });
+  const out_ = homeless(st);
+  if (out_) out.push({ label: 'Sleeping in the open', v: -Math.min(10, out_ * 2) });
+  const idle = strangers(st).length;
+  if (idle > fireCap(st)) out.push({ label: 'Crowded campfire', v: -Math.min(8, idle - fireCap(st)) });
   for (const m of st.mods) out.push({ label: m.label, v: m.v });
   return out;
 }
@@ -256,28 +268,33 @@ export function addMood(st, label, v, days) {
 
 // --- Strangers arriving and leaving -----------------------------------------------
 
+// Newcomers come to the fire while people are content, there is room at the
+// fire and a bed for them. People who are unhappy grumble and leave (see
+// dailyCitizens in citizens.js).
 export function updateMigration(st, dt) {
   // During the opening story, newcomers arrive only when the story sends them.
   if (st.flags.opening && !st.flags.openingDone) return;
   st.migrateT -= dt;
   if (st.migrateT > 0) return;
   const h = st.happy;
-  const waiting = strangers(st).length;
-  const cap = 4 + st.era * 3;
+  const atFire = strangers(st).length;
   const school = (hasBuilding(st, 'school') ? 0.75 : 1) * (hasBuilding(st, 'hospital') ? 0.8 : 1);
-  st.migrateT = Math.max(9, 42 - (h - 50) * 0.7) * school;
+  st.migrateT = Math.max(12, 45 - (h - 50) * 0.7) * school;
+  const beds = housingCap(st) - residents(st).length;
+  if (h >= 50 && atFire < fireCap(st) && beds > 0 && !st.gameOver) spawnStranger(st, null, undefined, undefined, { near: true });
+}
 
-  if (h >= 50 && waiting < cap && !st.gameOver) {
-    spawnStranger(st);
-  } else if (h < 35 || st.starveDays >= 2) {
-    st.migrateT = Math.max(12, 10 + h * 0.5);
-    const pool = residents(st).filter((c) => c.state !== 'leave' && !c.special);
-    if (!pool.length) return;
-    const jobless = pool.filter((c) => !c.job);
-    const who = jobless.length ? st.rng.pick(jobless) : st.rng.pick(pool);
-    sendAway(st, who);
-    notify(st, `😞 ${who.name} has packed up and left ${st.name}. Your people are unhappy.`, 'bad', who);
+// A new house brings newcomers: they move in and sit at the fire until
+// there is work.
+export function invite(st, n, b) {
+  const room = Math.max(0, fireCap(st) - strangers(st).length);
+  const names = [];
+  for (let k = 0; k < Math.min(n, room); k++) {
+    const c = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+    if (c) names.push(c.name);
   }
+  if (names.length) notify(st, `👋 Word of the new ${b ? levelName(b).toLowerCase() : 'house'} spreads: ${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} coming to live in it.`, 'good', b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null);
+  return names.length;
 }
 
 export function spawnStranger(st, origin, nearX, nearY, opts = {}) {

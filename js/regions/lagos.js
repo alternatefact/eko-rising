@@ -16,45 +16,103 @@ const majorCount = (st) => st.factions.filter((f) => f.major).length;
 const many = (type, n) => Array.from({ length: n }, () => type);
 
 // --- The opening: a household of two becomes a community -----------------------
+// A guided story, one step at a time (see sim/story.js): the couple settle in
+// an abandoned house; the founder fells the first tree; strangers come and a
+// wood shed goes up; antelope and a hunter; a plank house and a farm; wolves;
+// a fence between the trees; bandits and a guard house; the red-mud pit and
+// the kingdom rebuilt in mud.
 
+const founderOf = (st) => st.citizens.find((c) => c.special === 'founder' && !c.dead);
+const spouseOf = (st) => st.citizens.find((c) => c.special === 'spouse' && !c.dead);
 const guests = (st) => (st.flags.wanderers || []).map((id) => st.byId.get(id)).filter((c) => c && !c.dead);
 const his = (female) => (female ? 'her' : 'his');
+const building = (st, type) => st.buildings.find((b) => b.type === type && b.owner === 'player' && !b.dead);
+const workersOf = (st, type) => st.citizens.filter((c) => !c.dead && st.byId.get(c.job)?.type === type);
+const names = (list) => list.map((c) => c.name).join(' and ');
+// Bricks the kingdom upgrade needs for everything standing now.
+const mudCost = (st) => st.buildings.reduce((n, b) => n + (b.owner === 'player' && !b.dead && b.built >= 1 && !b.mud ? BUILDINGS[b.type].mudBricks || 0 : 0), 0);
+const near = (c, x, y, r) => c && Math.hypot(c.x - x, c.y - y) <= r;
+const homeAt = (st) => {
+  const h = building(st, 'compound');
+  return h ? { x: h.x + 1.5, y: h.y + 1.5 } : { x: st.start.x + 0.5, y: st.start.y + 0.5 };
+};
 
-// Is the compound closed in by fences, gates and water? A walk outward from
-// the compound must not get far.
-export function fenced(st) {
-  const home = st.buildings.find((b) => b.type === 'compound' && !b.dead);
-  if (!home) return false;
+// The standing tree nearest the house that someone can get to.
+function treeNearHome(st) {
+  const p = homeAt(st);
+  let best = -1;
+  let bestD = Infinity;
+  for (let dy = -12; dy <= 12; dy++) {
+    for (let dx = -12; dx <= 12; dx++) {
+      const x = Math.floor(p.x) + dx;
+      const y = Math.floor(p.y) + dy;
+      if (x < 0 || y < 0 || x >= st.W || y >= st.H) continue;
+      const i = y * st.W + x;
+      if (!(st.trees[i] > 0) || st.felled[i] || st.occ[i]) continue;
+      const d = Math.hypot(dx, dy);
+      if (d < bestD && st.explored[i]) {
+        bestD = d;
+        best = i;
+      }
+    }
+  }
+  return best < 0 ? null : { x: (best % st.W) + 0.5, y: Math.floor(best / st.W) + 0.5, tree: true };
+}
+
+// Is the home closed in? A walk outward from the compound must not get far:
+// fences, gates, standing trees and water stop it. It must take in the
+// storage floor, have room inside, and a gate to get out by.
+export function fenceState(st) {
+  const home = building(st, 'compound');
+  if (!home) return { closed: false };
   const cx = home.x + 1;
   const cy = home.y + 1;
   const W = st.W;
   const seen = new Uint8Array(W * st.H);
   const queue = [cy * W + cx];
   seen[queue[0]] = 1;
+  let gate = false;
+  let sections = 0;
+  const walls = new Set();
   for (let k = 0; k < queue.length; k++) {
     const i = queue[k];
     const x = i % W;
     const y = (i / W) | 0;
-    if (x <= 0 || y <= 0 || x >= W - 1 || y >= st.H - 1 || Math.max(Math.abs(x - cx), Math.abs(y - cy)) > 22 || queue.length > 2500) return false;
+    if (x <= 0 || y <= 0 || x >= W - 1 || y >= st.H - 1 || Math.max(Math.abs(x - cx), Math.abs(y - cy)) > 24 || queue.length > 2500) return { closed: false };
     for (const j of [i - 1, i + 1, i - W, i + W]) {
       if (seen[j]) continue;
-      seen[j] = 1;
       const b = st.byId.get(st.occ[j]);
-      if (b && !b.dead && b.owner === 'player' && (b.wall || b.gate) && b.built >= 1) continue;
+      if (b && !b.dead && b.owner === 'player' && (b.wall || b.gate) && b.built >= 1) {
+        if (b.gate) gate = true;
+        else if (!walls.has(b.id)) {
+          walls.add(b.id);
+          sections++;
+        }
+        continue;
+      }
+      seen[j] = 1;
       const t = st.terrain[j];
       if (t === 0 || t === 1 || t === 2) continue; // ocean, lagoon, river
+      if (st.trees[j] > 0 && !st.felled[j]) continue; // standing trees
       queue.push(j);
     }
   }
-  return true;
+  const floor = building(st, 'stockpile');
+  const floorIn = !floor || seen[floor.y * W + floor.x];
+  return { closed: true, area: queue.length, gate, sections, floorIn };
+}
+
+export function fenced(st) {
+  const f = fenceState(st);
+  return f.closed && f.gate && f.area >= 40 && f.floorIn;
 }
 
 function finishOpening(st, api) {
   if (st.flags.openingDone) return;
   st.flags.openingDone = true;
   st.flags.feedFirst = false;
-  st.migrateT = 12;
-  api.notify('🔥 Word spreads of a safe household by the lagoon. More strangers will come and wait by the fire: build huts for them.', 'good');
+  st.migrateT = 10;
+  api.notify('🔥 Word spreads of a safe settlement by the lagoon. Newcomers will come and sit by the fire: give them work and beds.', 'good');
 }
 
 function resolveForeign(st) {
@@ -179,40 +237,27 @@ export const LAGOS = {
   events: [
     {
       id: 'intro',
+      story: true,
       title: 'Ẹ káàbọ̀ — the land by the lagoon',
       art: '🌅',
       text: (st) =>
-        `${st.founder} and ${st.spouse} have walked south from Ìsẹ́rí with a hoe, a cutlass and a basket of seed yams. Here, where the forest meets the great lagoon, the soil is dark and the fish are plenty.\n\nThey have raised a compound, and laid a floor of mud bricks in front of it where everything they gather will be stacked. Red mud for bricks lies a short walk away, and the trees give wood. Every house, floor and fence is built from the two.\n\nFor now it is just the two of them. One day this could be the greatest city in Africa — and what it becomes is up to you.`,
-      choices: [{ label: 'Begin', hint: 'Someone is already coming up the path.' }],
-    },
-    {
-      id: 'wanderers',
-      silent: true,
-      when: (st) => !!st.flags.opening && st.time.t >= 5,
-      apply: (st, api) => {
-        const a = api.wanderer({ female: true, calling: 'brickyard', guest: true, near: true, quiet: true });
-        const b = api.wanderer({ female: false, calling: 'woodcutter', guest: true, near: true, quiet: true });
-        st.flags.wanderers = [a, b].filter(Boolean).map((c) => c.id);
-        st.flags.wanderersT = st.time.t;
-        if (a || b) api.notify('🚶 Two travellers are coming up the path towards your compound.', 'good', a || b);
-      },
+        `${st.founder} and ${st.spouse} have walked for days, south from Ìsẹ́rí, with a cutlass, a hoe and a basket of seed yams. Where the forest meets the great lagoon they find a house standing alone in a clearing: empty, its owners long gone.\n\n“Let’s settle in the abandoned house,” says ${st.founder}. “Let’s build a community here.”\n\nThe forest all around is a wall, and the trees are all the wood you need. One day this could be the greatest city in Africa — and what it becomes is up to you.`,
+      choices: [{ label: 'Settle here', hint: 'Take it one step at a time: the guide at the top left shows what to do next.' }],
     },
     {
       id: 'welcome',
-      when: (st) => !!st.flags.wanderers?.length && (guests(st).every((c) => c.state === 'wait') || st.time.t - st.flags.wanderersT > 40),
-      title: 'Strangers at the gate',
+      story: true,
+      title: 'Strangers at the door',
       art: '👋',
       text: (st) => {
-        const [a, b] = guests(st);
-        const who = [a, b].filter(Boolean);
+        const who = guests(st);
         const intro = who.map((c) => `${c.name}, a ${c.female ? 'woman' : 'man'} of the ${c.people} from ${c.from}`).join(', and ');
-        const trades = who.map((c) => `${c.name} ${c.calling === 'brickyard' ? `has moulded mud bricks since ${c.female ? 'she was a girl' : 'he was a boy'}` : 'cuts wood'}`).join('; ');
-        return `${who.length === 1 ? 'A traveller has' : 'Two travellers have'} come up the path to your compound: ${intro}. ${trades}.\n\n${st.founder} goes out to meet them. “Welcome, strangers, to our household. My wife and I are building a community here in Eko. Will you join us?”\n\n“Yes,” ${who.length === 1 ? 'comes the answer' : 'they answer together'}. “We will.”`;
+        return `${who.length === 1 ? 'A traveller has' : 'Two travellers have'} come up the path: ${intro}. They are looking for a place to live.\n\n${st.founder} puts down his cutlass and goes out to meet them. “Welcome, strangers, to our household. My wife and I are building a community here in Eko. Will you join us?”\n\n“Yes,” ${who.length === 1 ? 'comes the answer' : 'they answer together'}. “We will.”`;
       },
       choices: [
         {
           label: 'Welcome them home',
-          hint: 'They move into your compound. Build a Brickmaker’s Yard by the red mud and a Woodcutter’s Hut by the trees, and they will go to work.',
+          hint: 'The house sleeps five: the two of you and three more. They sit by the fire until there is work for them.',
           apply: (st, api) => {
             api.welcome(guests(st).map((c) => c.id));
             st.flags.welcomed = true;
@@ -221,77 +266,48 @@ export const LAGOS = {
       ],
     },
     {
-      id: 'hunger',
-      when: (st) => !!st.flags.welcomed && !has(st, 'farm') && (st.time.day >= 2 || totalFood(st) < pop(st) * 3),
-      title: 'An empty pot',
-      art: '🍲',
-      text: (st) =>
-        `${st.spouse} sets down an empty cooking pot in front of ${st.founder}.\n\n“The yams we carried here are nearly gone,” she says. “We cannot eat bricks and planks. Someone must plant a farm, or this whole household will go hungry.”`,
-      choices: [
-        {
-          label: 'Plant a yam farm',
-          hint: 'Build a Yam Farm on good soil. With nobody free, one of your workers will leave their work for it: food comes first.',
-          apply: (st) => {
-            st.flags.feedFirst = true;
-            st.dirty.jobs = true;
-          },
-        },
-      ],
-    },
-    {
-      // The first danger: a wolf out of the bush, once the yard, the woodcutter
-      // and the farm have gathered enough for a new hut and food for everyone.
-      id: 'wolf',
-      silent: true,
-      when: (st) => {
-        if (!st.flags.welcomed || st.flags.wolfSent) return false;
-        // Gathered since the start, not the stock they arrived with: enough
-        // wood and bricks for a hut, and a first harvest in.
-        const made = st.stats.made;
-        const ready = has(st, 'brickyard') && has(st, 'woodcutter') && has(st, 'farm') && made.wood + made.bricks >= 18 && made.yam >= 12;
-        const late = st.time.day >= 9 && has(st, 'brickyard');
-        return (ready || late) && st.citizens.some((c) => !c.dead && !c.stranger && !c.special && c.job);
-      },
-      apply: (st, api) => {
-        if (api.wolf()) st.flags.wolfSent = true;
-        else delete st.fired.wolf;
-      },
-    },
-    {
-      id: 'wolf_slain',
+      id: 'wolves_slain',
+      story: true,
       title: 'A fence around us',
       art: '🐺',
       text: (st) => {
         const s = st.story || {};
-        const where = s.victimJob === 'brickyard' ? 'at the red-mud pit' : 'while at work';
-        return `${s.victimName || 'One of your people'} is dead, taken by the wolf ${where}. ${s.heroName || 'Another'} stood ${his(s.heroFemale)} ground and killed the beast${s.heroTool ? ` with ${his(s.heroFemale)} ${s.heroTool}` : ''}.\n\nThat night ${st.founder} sits by the fire with ${st.spouse}. “We have lost one of our own,” he says. “There are wolves in this bush, and worse than wolves. We must build a fence around us to protect ourselves.”`;
+        const dead = (s.victims || []).map((v) => v.name);
+        const heroes = (s.heroes || []).map((h) => `${h.name} killed ${h.kills === 1 ? 'one' : h.kills === 2 ? 'two' : h.kills} with ${his(h.female)} ${h.tool || 'bare hands'}`);
+        return `${dead.length ? `${dead.join(' and ')} ${dead.length > 1 ? 'are' : 'is'} dead, taken by the wolves in the field.` : 'The wolves are dead.'} ${heroes.length ? `${heroes.join('; ')}.` : ''}\n\nThat night ${st.founder} and ${st.spouse} come out of the house and sit by the fire. “We have lost our own,” he says. “The forest is a wall no wolf gets through. We will close the gaps between the trees with a fence, and leave a gate for ourselves.”`;
       },
-      choices: [
-        {
-          label: 'Build a fence',
-          hint: 'Every section of wooden fence needs wood. Put more hands to woodcutting.',
-          apply: (st) => {
-            st.flags.needFence = true;
-            st.flags.wanderer3At = st.time.t + 10;
-          },
-        },
-      ],
+      choices: [{ label: 'Build a fence', hint: 'Trees are a natural wall. Fence the open ground between them, and the water does the rest.', apply: (st) => (st.flags.needFence = true) }],
     },
     {
-      id: 'wanderer3',
-      silent: true,
-      when: (st) => !!st.flags.needFence && st.time.t >= st.flags.wanderer3At,
-      apply: (st, api) => {
-        const c = api.wanderer({ female: false, calling: 'woodcutter', near: true, quiet: true });
-        if (c) api.notify(`👋 ${c.name}, a man of the ${c.people} from ${c.from}, heard of your household and has come to join you. He cuts wood.`, 'good', c);
-      },
+      id: 'settled',
+      story: true,
+      title: 'Safe behind the fence',
+      art: '🛡️',
+      text: (st) =>
+        `The last stake is lashed in place and the gate swings shut. For the first time since they came, ${st.founder} and ${st.spouse} sleep through the night.\n\nWord travels along the paths: there is a safe place by the lagoon. Newcomers will come and sit by the fire, up to five at a time. Each new Plank House brings two more. Put them to work.\n\nBut keep them fed and give them beds: hungry or sleeping in the open, people grumble — and then they leave.`,
+      choices: [{ label: 'Let them come', apply: (st, api) => finishOpening(st, api) }],
     },
     {
-      // If the player never finishes the fence, the town still opens up.
-      id: 'opening_end',
-      silent: true,
-      when: (st) => !!st.flags.opening && !st.flags.openingDone && st.time.day >= 30,
-      apply: (st, api) => finishOpening(st, api),
+      id: 'bandits_gone',
+      story: true,
+      title: 'Bandits!',
+      art: '🏴',
+      text: (st) => {
+        const s = st.story || {};
+        const dead = s.raidDead || [];
+        const stolen = Object.entries(s.stolen || {}).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k === 'wood' ? 'planks' : k === 'cowries' ? 'cowries' : k}`);
+        return `The bandits broke through the fence${dead.length ? `, killed ${dead.join(' and ')}` : ''}${stolen.length ? ` and carried off ${stolen.slice(0, 5).join(', ')}` : ''}. Then they were gone, back into the bush to their camp in the far corner of the forest.\n\n${st.founder} walks the broken fence with ${st.spouse}. “They are four, and they will come again,” he says. “We need a guard house and men to match them. And stronger houses. But first, we must fill the stores again.”`;
+      },
+      choices: [{ label: 'We will be ready', apply: (st) => (st.flags.raided = true) }],
+    },
+    {
+      id: 'chapter_one',
+      story: true,
+      title: 'A town of red mud',
+      art: '🧱',
+      text: (st) =>
+        `Where a single empty house once stood in a clearing, there is now a settlement of red-mud houses behind a fence, with a guard house, sheds, a farm and a fire where newcomers sit.\n\n“When we came,” says ${st.spouse}, “there was nothing here but trees.”\n\nThe guided opening is over. From here, grow ${st.name} as you choose: more people, the Compound age, the peoples of the land — and, one day, the ships from across the sea.`,
+      choices: [{ label: 'Onward', hint: 'Goals now appear at the top left.' }],
     },
     {
       id: 'harmattan',
@@ -745,22 +761,341 @@ export const LAGOS = {
     },
   ],
 
+  // The guided opening, one step at a time (see sim/story.js). `who` is
+  // whose face shows: 'founder', 'spouse' or 'guide'.
+  story: [
+    {
+      id: 'arrive',
+      enter: (st, api) => api.queue('intro'),
+      who: 'founder',
+      say: (st) => `“Let’s settle in this abandoned house, ${st.spouse}. Let’s build a community here.”`,
+      task: 'Watch them walk up to the house',
+      hint: 'Drag the map to look around. Scroll or pinch to zoom.',
+      point: (st) => founderOf(st) && { id: founderOf(st).id },
+      min: 3,
+      done: (st) => founderOf(st)?.state !== 'movein',
+    },
+    {
+      id: 'select',
+      who: 'guide',
+      say: (st) => `Everything here starts with wood, and wood starts with a tree. ${st.founder} will cut the first one himself.`,
+      task: (st) => `Click ${st.founder} to select him`,
+      hint: 'He wears the blue wrapper. The arrow shows where he is.',
+      point: (st) => founderOf(st) && { id: founderOf(st).id },
+      done: (st) => st.tut.sig.select === founderOf(st)?.id || founderOf(st)?.task?.kind === 'chop',
+    },
+    {
+      id: 'chop',
+      who: 'founder',
+      say: '“That tree will give us our first planks.”',
+      task: (st) => `With ${st.founder} selected, click a tree near the house`,
+      hint: 'A rainforest tree gives 12 planks, a savanna or shade tree 8, a mangrove 6. He fells it, then cuts it into planks where it lies.',
+      point: (st) => treeNearHome(st),
+      done: (st) => founderOf(st)?.task?.kind === 'chop',
+    },
+    {
+      id: 'planks',
+      who: 'guide',
+      say: (st) => `${st.founder} is felling the tree. When it is down he cuts it into planks where it lies, and carries them home, four at a time.`,
+      task: 'Watch him bring the first planks to the storage floor',
+      hint: 'The storage floor is the swept ground in front of the house. Everything your people bring home is stacked there.',
+      point: (st) => founderOf(st) && { id: founderOf(st).id },
+      done: (st) => st.stats.made.wood >= 4,
+    },
+    {
+      id: 'stack',
+      who: 'guide',
+      say: 'There: planks stacked on the storage floor. He goes back to the same tree until it is used up, then on to the next nearest.',
+      task: 'Gather 12 planks',
+      hint: (st) => `Planks so far: ${Math.floor(st.res.wood)}. Tap a tree any time to see how many planks are left in it.`,
+      point: (st) => building(st, 'stockpile') && { id: building(st, 'stockpile').id },
+      done: (st) => st.res.wood >= 12,
+    },
+    {
+      id: 'strangers',
+      enter: (st, api) => {
+        const a = api.wanderer({ female: false, calling: 'woodcutter', guest: true, near: true, quiet: true });
+        const b = api.wanderer({ female: true, calling: 'woodcutter', guest: true, near: true, quiet: true });
+        st.flags.wanderers = [a, b].filter(Boolean).map((c) => c.id);
+        if (a || b) api.notify('🚶 Two travellers are coming up the path.', 'good', a || b);
+      },
+      who: 'spouse',
+      say: (st) => `“${st.founder}, look: two people are coming up the path.”`,
+      task: 'Wait for the travellers to reach the house',
+      point: (st) => guests(st)[0] && { id: guests(st)[0].id },
+      done: (st, api) => {
+        if (!guests(st).length || guests(st).every((c) => c.state === 'wait') || st.time.t - st.tut.t > 45) {
+          if (!st.flags.welcomeAsked) {
+            st.flags.welcomeAsked = true;
+            api.queue('welcome');
+          }
+          return st.flags.welcomed;
+        }
+        return false;
+      },
+    },
+    {
+      id: 'woodshed',
+      who: 'founder',
+      say: '“The house sleeps five: the two of us and three more. We need no new house yet. What we need is wood.”',
+      task: 'Build a Wood Shed by the forest',
+      hint: 'Open 🔨 Build → Industry and pick the Wood Shed (6 planks). Place it near the trees: its woodcutters fell the trees closest to the shed first, then the next nearest.',
+      point: () => ({ build: 'woodcutter' }),
+      done: (st) => !!building(st, 'woodcutter') && building(st, 'woodcutter').built >= 1,
+    },
+    {
+      id: 'cutters',
+      enter: (st) => (st.tut.wood0 = st.stats.made.wood),
+      who: 'guide',
+      say: (st) => {
+        const w = workersOf(st, 'woodcutter')[0];
+        const idle = guests(st).concat(st.citizens.filter((c) => (st.flags.wanderers || []).includes(c.id))).find((c) => c && !c.dead && !c.job);
+        return `${w ? w.name : 'One of them'} has taken up the axe at the shed${idle ? `; ${idle.name} sits by the fire, because a wood shed takes one pair of hands` : ''}. Every tree cleared opens more ground to build on — and, one day, the way through the forest to other peoples.`;
+      },
+      task: 'Let the woodcutter bring in 8 planks',
+      hint: (st) => `Brought in so far: ${Math.max(0, Math.floor(st.stats.made.wood - (st.tut.wood0 || 0)))} of 8. Tap the woodcutter to follow what he is doing.`,
+      point: (st) => building(st, 'woodcutter') && { id: building(st, 'woodcutter').id },
+      min: 15,
+      done: (st) => st.stats.made.wood - (st.tut.wood0 || 0) >= 8,
+    },
+    {
+      id: 'antelope',
+      enter: (st, api) => {
+        const herd = api.herd(3);
+        st.flags.herd = herd.map((a) => a.id);
+      },
+      who: 'spouse',
+      say: (st) => `“${st.founder}, the yams we carried are nearly gone. But look — antelope are grazing just past the house. A hunter could feed us.”`,
+      task: 'Build a Hunter’s Shed near the antelope',
+      hint: '🔨 Build → Food → Hunter’s Shed (8 planks). Whoever sits by the fire will take it on, change into hunting clothes and take up the bow.',
+      point: (st) => {
+        const a = (st.flags.herd || []).map((id) => st.byId.get(id)).find((x) => x && !x.dead);
+        return building(st, 'hunter') ? { id: building(st, 'hunter').id } : a ? { id: a.id } : { build: 'hunter' };
+      },
+      done: (st) => !!building(st, 'hunter') && building(st, 'hunter').built >= 1,
+      exit: (st, api) => {
+        // Nobody free? Then the woodcutter goes: food comes first.
+        const shed = building(st, 'hunter');
+        if (shed && !shed.workers.length && !st.citizens.some((c) => !c.dead && !c.special && !c.job && !c.stranger)) {
+          const c = api.reassign('woodcutter', shed);
+          if (c) api.notify(`🏹 ${c.name} puts down the axe, changes into hunting clothes and takes up the bow.`, 'good', c);
+        }
+      },
+    },
+    {
+      id: 'hunt',
+      who: 'guide',
+      say: (st) => {
+        const h = workersOf(st, 'hunter')[0];
+        return `${h ? h.name : 'The hunter'} stalks the herd and shoots. The kill is carried home on the shoulders, butchered at the shed, and the meat goes to the storage floor. An antelope gives 10 meat, a bush pig 8.`;
+      },
+      task: 'Bring home the first meat',
+      point: (st) => workersOf(st, 'hunter')[0] && { id: workersOf(st, 'hunter')[0].id },
+      done: (st) => st.stats.made.meat >= 5,
+    },
+    {
+      id: 'fire',
+      enter: (st, api) => {
+        const a = api.wanderer({ near: true, quiet: true });
+        const b = api.wanderer({ near: true, quiet: true, female: !a?.female });
+        st.flags.firePair = [a, b].filter(Boolean).map((c) => c.id);
+        if (a || b) api.notify(`👋 ${names([a, b].filter(Boolean))} have come to join you. They sit by the fire: there is no work for them yet.`, 'good', a || b);
+      },
+      who: 'spouse',
+      say: '“Two more have come. They are sitting by the fire with nothing to do — and the house is full.”',
+      task: 'Build a Plank House',
+      hint: '🔨 Build → Homes → Plank House (10 planks). It sleeps two. Mud bricks come later: for now we build in wood.',
+      point: () => ({ build: 'hut' }),
+      done: (st) => st.buildings.some((b) => b.type === 'hut' && b.owner === 'player' && !b.dead && b.built >= 1),
+    },
+    {
+      id: 'farm',
+      who: 'founder',
+      say: '“Meat alone will not keep us. Let us clear ground and plant yams.”',
+      task: 'Plant a Yam Farm',
+      hint: '🔨 Build → Food → Yam Farm (5 planks), on open ground. The two by the fire will go and work it. Each workplace takes its own hands: when nobody at the fire is free, tap a worker and then the place you want them.',
+      point: () => ({ build: 'farm' }),
+      done: (st) => !!building(st, 'farm') && building(st, 'farm').built >= 1,
+    },
+    {
+      id: 'farming',
+      who: 'guide',
+      say: (st) => {
+        const f = workersOf(st, 'farm');
+        return `${f.length ? names(f) : 'The farmers'} heap the earth into mounds and plant the seed yams. Yams grow fastest in the rains, slowest in the Harmattan.`;
+      },
+      task: 'Let the farmers get to work',
+      point: (st) => building(st, 'farm') && { id: building(st, 'farm').id },
+      min: 25,
+      done: (st) => workersOf(st, 'farm').some((c) => c.state === 'farm'),
+    },
+    {
+      id: 'wolves',
+      enter: (st, api) => {
+        st.flags.packSent = !!api.pack(4);
+      },
+      who: 'spouse',
+      say: (st) => `“Wolves! ${st.founder}, get inside!”`,
+      task: 'Wolves are attacking!',
+      hint: 'There is nothing to do but watch. The woodcutter has his axe, and the hunter his bow.',
+      point: (st) => {
+        const w = st.animals.find((a) => a.type === 'wolf' && !a.dead && !a.carcass);
+        return w && { id: w.id };
+      },
+      done: (st, api) => {
+        if (!st.flags.packSent) st.flags.packSent = !!api.pack(4);
+        return !!st.flags.wolvesSlain && st.flags.needFence;
+      },
+    },
+    {
+      id: 'fence',
+      who: 'founder',
+      say: '“The forest is a wall no wolf gets through. We close the gaps between the trees with a fence, and leave a gate.”',
+      task: 'Fence in your home, with a gate',
+      hint: (st) => {
+        const f = fenceState(st);
+        const state = !f.closed ? 'Not closed yet: there is still a way out between the trees.' : !f.gate ? 'Closed in! Now put a Gate in the fence so your people can get out.' : !f.floorIn ? 'The storage floor is outside the fence.' : f.area < 40 ? 'Too small: fence in more ground.' : '';
+        return `🔨 Build → Defence → Wooden Fence (2 planks a section): drag it from tree to tree, or down to the water. ${state} Short of wood? Tap the hunter, then the Wood Shed, to make him a woodcutter — or build a second shed. Tap a woodcutter and then a tree to choose where he cuts.`;
+      },
+      point: (st) => (fenceState(st).closed && !fenceState(st).gate ? { build: 'gate' } : { build: 'palisade' }),
+      done: (st) => fenced(st),
+    },
+    {
+      id: 'settle',
+      enter: (st, api) => {
+        api.queue('settled');
+        // Newcomers to take the places of the dead.
+        const lost = (st.story?.victims || []).length || 2;
+        const come = [];
+        for (let k = 0; k < lost; k++) {
+          const c = api.wanderer({ near: true, quiet: true, calling: 'farm' });
+          if (c) come.push(c);
+        }
+        if (come.length) api.notify(`👋 ${names(come)} heard there is a safe place by the lagoon, and have come to take the places of those we lost.`, 'good', come[0]);
+      },
+      who: 'spouse',
+      say: '“New people are arriving at the fire. Let us put them to work: the more hands, the faster we grow.”',
+      task: 'Grow to 9 people',
+      hint: 'Newcomers come while everyone is fed and happy and there are beds. Each new Plank House brings two. Put people to work: a new workplace takes whoever is at the fire.',
+      point: (st) => building(st, 'campfire') && { id: building(st, 'campfire').id },
+      done: (st) => pop(st) >= 9 || (st.time.t - st.tut.t > 24 * 8 && pop(st) >= 6),
+    },
+    {
+      id: 'bandits',
+      enter: (st, api) => {
+        st.story = { ...(st.story || {}), raidDead: [], stolen: {} };
+        const ids = api.raid('bandits1', ['bandit', 'bandit', 'bandit', 'bandit'], { steal: true, patience: 110, label: 'bandit raid', onDefeat: 'bandits_gone' });
+        st.flags.raidSent = ids.length > 0;
+        if (ids.length) api.notify('🏴 Bandits are coming out of the forest along the path!', 'war', st.byId.get(ids[0]));
+      },
+      who: 'founder',
+      say: '“Bandits! Everyone inside!”',
+      task: 'Bandits are raiding the settlement',
+      hint: 'Your people run indoors. Watch what the bandits do.',
+      point: (st) => {
+        const u = st.units.find((x) => x.owner === 'bandits1' && !x.dead && x.order?.t !== 'guard');
+        return u && { id: u.id };
+      },
+      done: (st) => !!st.flags.raided || !st.flags.raidSent,
+    },
+    {
+      id: 'recover',
+      who: 'founder',
+      say: '“First we fill the stores again. Then we build a guard house.”',
+      task: 'Refill the stores: 30 food and 40 planks',
+      hint: (st) => `Food ${Math.floor(totalFood(st))} of 30, planks ${Math.floor(st.res.wood)} of 40. A second farm or wood shed helps; the woodcutters can also mend the fence.`,
+      done: (st) => totalFood(st) >= 30 && st.res.wood >= 40,
+    },
+    {
+      id: 'guardhouse',
+      who: 'founder',
+      say: '“A guard house, where our own men train and live.”',
+      task: 'Build a Guard House',
+      hint: '🔨 Build → Defence → Guard House (40 planks).',
+      point: () => ({ build: 'warcamp' }),
+      done: (st) => !!building(st, 'warcamp') && building(st, 'warcamp').built >= 1,
+    },
+    {
+      id: 'soldiers',
+      who: 'guide',
+      say: 'Spearmen are trained from people sitting by the fire. If nobody is free, a volunteer walks in from the villages around.',
+      task: 'Train 5 spearmen',
+      hint: (st) => `Select the Guard House and press Train. Each spearman costs 6 planks and 8 food. Spearmen: ${st.units.filter((u) => u.owner === 'player' && u.type === 'spearman' && !u.dead).length} of 5.`,
+      point: (st) => building(st, 'warcamp') && { id: building(st, 'warcamp').id },
+      done: (st) => st.units.filter((u) => u.owner === 'player' && u.type === 'spearman' && !u.dead).length >= 5,
+    },
+    {
+      id: 'camp',
+      enter: (st, api) => {
+        const f = st.factionMap.bandits1;
+        if (f) api.reveal(f.x, f.y, 4);
+      },
+      who: 'founder',
+      say: '“Their camp is in the far corner of the forest. Four of them. Go and clear it.”',
+      task: 'Clear the bandit camp',
+      hint: 'Press 🛡️ Army at the top to select your soldiers, then tap the bandit camp to attack it.',
+      point: (st) => st.factionMap.bandits1 && { x: st.factionMap.bandits1.x + 0.5, y: st.factionMap.bandits1.y + 0.5 },
+      done: (st) => !st.factionMap.bandits1 || st.factionMap.bandits1.status === 'conquered',
+    },
+    {
+      id: 'mudpit',
+      who: 'founder',
+      say: (st) => `“On our way here we passed a pit of red mud. With mud we can make bricks, and build houses no bandit can burn so easily. Let me go and find it again.”`,
+      task: (st) => `Click ${st.founder}, then click the marked place to send him there`,
+      hint: 'It is off along the path you came in by. With him selected, tap anywhere on the ground to send him there.',
+      point: (st) => st.mudPit && { x: st.mudPit.x + 0.5, y: st.mudPit.y + 0.5 },
+      done: (st, api) => {
+        const f = founderOf(st);
+        if (!st.mudPit || near(f, st.mudPit.x + 0.5, st.mudPit.y + 0.5, 3.5)) {
+          if (st.mudPit) api.reveal(st.mudPit.x, st.mudPit.y, 4);
+          return true;
+        }
+        return false;
+      },
+    },
+    {
+      id: 'brickshed',
+      who: 'founder',
+      say: '“Here it is: red mud, as much as we will ever need.”',
+      task: 'Build a Mud Brick Shed beside the red mud',
+      hint: '🔨 Build → Industry → Mud Brick Shed (8 planks). The shed itself is wood; its workers dig the mud, press it into moulds and dry the bricks in the sun.',
+      point: (st) => (building(st, 'brickyard') ? { id: building(st, 'brickyard').id } : { build: 'brickyard' }),
+      done: (st) => !!building(st, 'brickyard') && building(st, 'brickyard').built >= 1,
+    },
+    {
+      id: 'bricks',
+      who: 'guide',
+      say: 'With enough mud bricks, every house and shed can be rebuilt in mud at once: the kingdom upgrade.',
+      task: (st) => `Make ${mudCost(st)} mud bricks`,
+      hint: (st) => `Bricks: ${Math.floor(st.res.bricks)} of ${mudCost(st)}. More hands at the brick shed make them faster.`,
+      point: (st) => building(st, 'brickyard') && { id: building(st, 'brickyard').id },
+      done: (st) => st.res.bricks >= mudCost(st),
+    },
+    {
+      id: 'upgrade',
+      who: 'founder',
+      say: '“Enough bricks. Let us rebuild everything in mud.”',
+      task: 'Press 🧱 Kingdom upgrade at the top',
+      hint: 'Every house and shed is rebuilt in red mud at once: tougher, and each house sleeps four instead of two.',
+      point: () => ({ ui: '#mud-btn' }),
+      done: (st) => !!st.flags.mud,
+    },
+    {
+      id: 'end',
+      enter: (st, api) => api.queue('chapter_one'),
+      who: 'spouse',
+      say: '“When we came, there was nothing here but trees.”',
+      task: 'The opening is complete',
+      done: () => true,
+    },
+  ],
+
   objectives: [
-    { id: 'yard', text: 'Build a Brickmaker’s Yard', hint: 'Put it beside the red-mud pit near home (Industry tab). A newcomer will dig the mud and mould it into bricks, which are stacked on your storage floor.', when: (st) => !!st.flags.welcomed, done: (st) => has(st, 'brickyard') },
-    { id: 'wood', text: 'Build a Woodcutter’s Hut', hint: 'At the edge of the trees. Logs are split into planks and stacked on your storage floor. Every building needs wood and mud bricks.', when: (st) => !!st.flags.welcomed, done: (st) => has(st, 'woodcutter') },
-    { id: 'farm', text: 'Plant a yam farm', hint: 'The yams you brought will not last. With nobody free, one of your workers will leave their work for the farm: food comes first.', when: (st) => !!st.flags.welcomed && (st.fired.hunger !== undefined || st.time.day >= 1), done: (st) => has(st, 'farm'), reward: { yam: 6 } },
-    { id: 'wood2', text: 'Build a second Woodcutter’s Hut', hint: 'A fence takes a lot of wood. With two huts, two people can cut it.', when: (st) => !!st.flags.needFence, done: (st) => count(st, 'woodcutter') >= 2 },
-    { id: 'fence', text: 'Fence in your home', hint: 'Choose the Wooden Fence (Defence tab) and drag it all the way around your compound with no gaps. Add a Town Gate so your people can get out to work. Each section needs 3 wood.', when: (st) => !!st.flags.needFence, done: (st) => fenced(st), then: (st, api) => finishOpening(st, api), reward: { yam: 10 } },
-    { id: 'floor', text: 'Expand your storage floor', hint: 'Build another Storage Floor beside the first (Industry tab), so there is room to stack more.', when: (st) => !!st.flags.welcomed, done: (st) => count(st, 'stockpile') >= 2 },
-    { id: 'hut', text: 'Build a hut', hint: 'Gather 8 wood and 10 mud bricks for a home of its own: newcomers need somewhere to sleep.', when: (st) => !!st.flags.welcomed, done: (st) => has(st, 'hut') },
-    { id: 'food2', text: 'Add fish or meat to the diet', hint: 'Build a Fishing Jetty by the water or a Hunter’s Lodge near the forest.', when: (st) => !!st.flags.welcomed, done: (st) => has(st, 'fisher') || has(st, 'hunter') },
-    { id: 'pop8', text: 'Grow to 8 people', hint: 'Keep people fed and happy and more will come. Build huts for them.', when: (st) => !!st.flags.openingDone, done: (st) => pop(st) >= 8 },
-    { id: 'army', text: 'Raise 3 fighters', hint: 'Hire fighters at your compound for money, or build a Training Ground and train your own people (cheaper, but it costs money to build).', when: (st) => !!st.flags.openingDone, done: (st) => st.units.filter((u) => u.owner === 'player' && u.type !== 'scout' && !u.dead).length >= 3 },
-    { id: 'scout', text: 'Explore the land with a scout', hint: 'Select your compound and train a scout. Then tap the map to send them.', when: (st) => !!st.flags.openingDone, done: (st) => st.stats.explored >= 1800, reward: { cowries: 20 } },
-    { id: 'era1', text: 'Advance to the Compound age', hint: 'Open the Era panel (🌅) at the top.', when: (st) => !!st.flags.openingDone, done: (st) => st.era >= 1, reward: { cowries: 30 } },
+    { id: 'pop8', text: 'Grow to 16 people', hint: 'Keep people fed and happy and more will come. Each new house brings two.', done: (st) => pop(st) >= 16 },
+    { id: 'scout', text: 'Explore the land with a scout', hint: 'Select your compound and train a scout. Then tap the map to send them along the paths.', done: (st) => st.stats.explored >= 1800, reward: { cowries: 20 } },
+    { id: 'era1', text: 'Advance to the Compound age', hint: 'Open the Era panel (🌅) at the top.', done: (st) => st.era >= 1, reward: { cowries: 30 } },
     { id: 'store', text: 'Build a Storehouse and a Granary', hint: 'Room beyond the storage floors, and shorter walks for your workers.', when: (st) => st.era >= 1, done: (st) => has(st, 'storehouse') && has(st, 'granary') },
     { id: 'mudwall', text: 'Rebuild part of your fence as a mud wall', hint: 'Pull down a few fence sections (🔨 Pull down) and build a Mud Wall in their place. Mud walls are far tougher.', when: (st) => st.era >= 1, done: (st) => count(st, 'stonewall') >= 4 },
-    { id: 'upgrade', text: 'Upgrade a hut into a mud-brick house', hint: 'Select a hut and tap Upgrade. More people fit in.', done: (st) => st.buildings.some((b) => b.type === 'hut' && (b.level || 1) >= 2 && !b.dead) },
     { id: 'tradeagree', text: 'Make a trade agreement with a kingdom', hint: 'Trade brings money every day, and they buy what they lack. Meet a people with a scout, then use the Peoples panel (🤝).', done: (st) => st.factions.some((f) => f.trade || f.status === 'allied') },
     { id: 'subdue1', text: 'Subdue a kingdom', hint: 'Conquer one, or frighten it into paying tribute. No town grows past the Compound age without it.', done: (st) => st.factions.some((f) => f.temperament !== 'bandit' && (f.status === 'conquered' || f.status === 'vassal')) },
     { id: 'palace', text: 'Build the Ààfin and become a Town', hint: 'Then advance to the Town age.', done: (st) => st.era >= 2 },

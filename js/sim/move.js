@@ -2,7 +2,7 @@
 // centre at (x + 0.5, y + 0.5).
 
 import { findPath } from '../world/path.js';
-import { WALK, CANOE_SPEED, T } from '../world/terrain.js';
+import { WALK, CANOE_SPEED, T, treeBlocks } from '../world/terrain.js';
 
 export function pathOpts(st, e, extra) {
   const enemy = e.owner && e.owner !== 'player';
@@ -75,7 +75,8 @@ export function wander(st, e, ax, ay, r) {
     const x = Math.floor(ax + st.rng.range(-r, r));
     const y = Math.floor(ay + st.rng.range(-r, r));
     if (x < 0 || y < 0 || x >= st.W || y >= st.H) continue;
-    if (WALK[st.terrain[y * st.W + x]] === 0) continue;
+    const i = y * st.W + x;
+    if (WALK[st.terrain[i]] === 0 || treeBlocks(st.trees, st.felled, st.terrain, i)) continue;
     if (goTo(st, e, x, y, { max: 600 })) return true;
   }
   return false;

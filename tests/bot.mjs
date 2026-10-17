@@ -11,16 +11,16 @@ import { armyPower } from '../js/sim/military.js';
 import { stat } from '../js/data/buildings.js';
 
 const BUILD_ORDER = [
-  ['brickyard', 'clay'],
   ['woodcutter', 'trees'],
   ['farm', 'home'],
+  ['hunter', 'home'],
+  ['woodcutter', 'trees'],
   ['hut', 'home'],
   ['fisher', 'water'],
   ['stockpile', 'home'],
   ['hut', 'home'],
   ['woodcutter', 'trees'],
   ['brickyard', 'clay'],
-  ['hunter', 'trees'],
   ['hut', 'home'],
   ['stockpile', 'home'],
   ['farm', 'home'],
@@ -186,21 +186,24 @@ export function botTick(bot) {
   }
 
   const pop = sim.population(st);
-  const waiting = st.citizens.filter((c) => c.stranger && !c.dead).length;
+  // Keep a couple of beds free: each new house brings newcomers.
   const free = st.buildings.reduce((n, b) => {
     const cap = b.built >= 1 && sim.BUILDINGS[b.type].housing ? stat(b, 'housing') : 0;
     return n + Math.max(0, cap - b.residents.length);
   }, 0);
-  if (waiting > 0 && free <= 0) {
+  const homeless = st.citizens.filter((c) => !c.dead && !c.stranger && !c.home).length;
+  if (free - homeless < 2) {
     const busy = st.buildings.some((b) => b.type === 'hut' && b.built < 1);
     const hut = !busy && st.buildings.find((b) => b.type === 'hut' && !b.dead && b.built >= 1 && sim.canUpgrade(st, b.id).ok);
     if (hut) sim.upgradeBuilding(st, hut.id);
-    else place(st, 'hut');
+    else if (!busy) place(st, 'hut');
   }
+  if (!st.flags.mud && st.res.bricks >= sim.mudUpgradeCost(st)) sim.mudUpgrade(st);
   const food = st.res.yam + st.res.fish + st.res.meat + st.res.garri;
   if (food < pop * 3 && count(st, 'farm') < 2 + pop / 5) place(st, 'farm');
-  if (count(st, 'woodcutter') < 2 + Math.floor(pop / 12)) place(st, 'woodcutter', 'trees');
-  if (count(st, 'brickyard') < 2 + Math.floor(pop / 15)) place(st, 'brickyard', 'clay');
+  if (count(st, 'woodcutter') < 3 + Math.floor(pop / 8)) place(st, 'woodcutter', 'trees');
+  if (count(st, 'brickyard') < 1 + Math.floor(pop / 15)) place(st, 'brickyard', 'clay');
+  if (count(st, 'hunter') < 1 + Math.floor(pop / 15)) place(st, 'hunter', 'home');
   const full = Math.max(st.res.wood, st.res.bricks) >= st.cap.goods - 5 || food >= st.cap.food - 5;
   if (full && st.era < 1 && count(st, 'stockpile') < 6) place(st, 'stockpile');
   if (st.res.wood >= st.cap.goods - 5 && count(st, 'storehouse') < 4) place(st, 'storehouse');

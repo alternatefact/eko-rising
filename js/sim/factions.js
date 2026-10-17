@@ -133,7 +133,9 @@ export function updateFactions(st, dt) {
       f.capT = 0;
     }
 
-    // Hostile peoples send war bands, once they know where you are.
+    // Hostile peoples send war bands, once they know where you are; never
+    // while the opening story is still being told.
+    if (st.tut && !st.tut.done) continue;
     if (f.status === 'hostile' && (f.discovered || f.temperament === 'bandit' || st.era >= 2)) {
       if (f.temperament === 'bandit' && !(st.era >= 1 && st.time.day >= 20) && st.time.day < 45) continue;
       if (!f.raids) continue;
