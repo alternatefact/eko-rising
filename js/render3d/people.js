@@ -239,7 +239,7 @@ export class People {
     const color = CARRY[r] || '#c8a06a';
     if (r === 'wood') {
       // A bundle of split planks.
-      for (let k = 0; k < 3; k++) this.part('load', k % 2 ? '#b88a57' : '#c9a06c', 0, y + k * 0.022, 0, 0, 0.1, 0, 1.7, 0.36, 0.55);
+      for (let k = 0; k < 6; k++) this.part('load', (k + Math.floor(k / 3)) % 2 ? '#b88a57' : '#c9a06c', 0, y + Math.floor(k / 3) * 0.024, ((k % 3) - 1) * 0.072, 0, 0.06 * ((k % 3) - 1), 0, 1.6, 0.4, 0.55);
     } else if (r === 'bricks') {
       // Mud bricks on a head pad, two courses.
       for (let k = 0; k < 4; k++) this.part('load', k % 3 ? '#b55d34' : '#9c4a2a', (k % 2 - 0.5) * 0.09, y + Math.floor(k / 2) * 0.04, 0, 0, Math.floor(k / 2) * 1.57, 0, 0.42, 0.62, 0.55);

@@ -464,14 +464,16 @@ export class IsoRenderer {
     const type = job?.type;
     const working = WORKING.has(c.state) && !moving;
     const fighting = c.state === 'fight';
+    // Someone with a load keeps their hands up to it, walking or not.
+    const still = !moving;
     if (c.special === 'founder') {
-      if (c.carry && moving) return { look: 'founder', anim: 'carry' };
+      if (c.carry) return { look: 'founder', anim: 'carry', still };
       if ((c.state === 'fell' || c.state === 'saw') && !moving) return { look: 'founder_axe', anim: 'swing' };
       return { look: 'founder', anim: moving ? 'strut' : 'idle' };
     }
     if (c.special === 'spouse') return { look: 'wife', anim: moving ? 'womanwalk' : 'idle' };
     if (c.female) {
-      if (c.carry && moving) return { look: 'woman', anim: 'womancarry' };
+      if (c.carry) return { look: 'woman', anim: 'womancarry', still };
       const look = FEMALE_LOOK[type] || 'woman';
       const anims = this.atlas.meta.looks[look].anims;
       if ((working || fighting) && anims.includes(WORK_ANIM[type])) return { look, anim: WORK_ANIM[type] };
@@ -480,7 +482,7 @@ export class IsoRenderer {
     }
     const look = MALE_LOOK[type] || 'labourer';
     const anims = this.atlas.meta.looks[look].anims;
-    if (c.carry && moving) return { look, anim: 'carry' };
+    if (c.carry) return { look, anim: 'carry', still };
     if ((working || fighting) && anims.includes(WORK_ANIM[type])) return { look, anim: WORK_ANIM[type] };
     if (fighting) return { look, anim: anims.includes('swing') ? 'swing' : 'idle' };
     if (c.carcass && moving) return { look, anim: 'carry' };
@@ -510,9 +512,10 @@ export class IsoRenderer {
     return SECTOR[s];
   }
 
-  frameKey({ look, anim }, dir, t, id) {
+  frameKey({ look, anim, still }, dir, t, id) {
     const L = this.atlas.meta.looks[look];
     if (!L || !L.anims.includes(anim)) anim = 'idle';
+    if (still) return `c/${look}/${anim}/${dir}/0`;
     const frames = L?.frames[anim] || 1;
     const fps = anim === 'idle' ? 3 : anim === 'swing' || anim === 'pull' || anim === 'slash' ? 9 : 11;
     return `c/${look}/${anim}/${dir}/${Math.floor(t * fps + id * 0.61) % frames}`;
