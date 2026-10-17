@@ -265,6 +265,35 @@ function flag(group, x, z, color, h = 1.4) {
   group.add(cloth);
 }
 
+// A tent of patched hides on a frame of poles: a ridge running along x, the
+// door flap at the front.
+function hideTent(group, cx, cz, w, d, h, turn) {
+  const t = new THREE.Group();
+  const hides = [toon('#6d5a43'), toon('#7e6a4e'), toon('#5e4c38')];
+  const roof = mesh(prism(w, d, h), hides[0], 0, 0, 0);
+  t.add(roof);
+  // Patches of different hides on the slopes.
+  for (const [x, side, k] of [[-w * 0.22, 1, 1], [w * 0.2, -1, 2], [w * 0.05, 1, 2]]) {
+    const patch = mesh(box(w * 0.28, 0.012, d * 0.3), hides[k], x, h * 0.42, side * d * 0.2);
+    patch.rotation.x = side * Math.atan2(h, d / 2);
+    t.add(patch);
+  }
+  // Pole ends crossing over the ridge, at both ends.
+  for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) {
+    for (const lean of [-0.35, 0.35]) {
+      const pole = mesh(cyl(0.014, 0.018, h + 0.28, 5), C.wood(), x, (h + 0.28) / 2, 0);
+      pole.rotation.x = lean;
+      t.add(pole);
+    }
+  }
+  // A dark doorway in the front end.
+  const door = mesh(box(0.02, h * 0.55, d * 0.28), C.dark(), w / 2 + 0.005, h * 0.27, 0);
+  t.add(door);
+  t.rotation.y = turn;
+  t.position.set(cx, 0, cz);
+  group.add(t);
+}
+
 // Yards are drawn by the ground itself (worn earth around buildings).
 function earthPad() {}
 
@@ -674,6 +703,27 @@ const BUILD = {
     g.add(mesh(cone(1.05, 0.62, 12), C.thatch(), 1, top + 0.85, 1));
     g.add(mesh(cyl(0.03, 0.06, 0.18, 5), C.wood(), 1, top + 1.2, 1));
     flag(g, 1.62, 0.38, '#1f8f4e', top + 1.25);
+  },
+
+  // Bandit tents: hides stretched over a frame of poles, the pole ends
+  // sticking out at the top.
+  tent(g) {
+    hideTent(g, 0.5, 0.5, 0.86, 0.8, 0.62, 0.35);
+    const sack = mesh(ball(0.08, 1), toon('#8c7a55'), 0.86, 0.07, 0.86);
+    sack.scale.set(1, 0.8, 1);
+    g.add(sack);
+  },
+
+  chieftent(g) {
+    hideTent(g, 1, 0.95, 1.5, 1.35, 0.95, 0.0);
+    // Stolen goods heaped by the door, and the bandits' black flag.
+    for (const [x, z, c] of [[1.55, 1.75, '#8c7a55'], [1.72, 1.6, '#7a6a4a'], [1.35, 1.82, '#9a8760']]) {
+      const sack = mesh(ball(0.1, 1), toon(c), x, 0.09, z);
+      sack.scale.set(1, 0.85, 1);
+      g.add(sack);
+    }
+    g.add(mesh(box(0.22, 0.16, 0.16), C.wood(), 0.45, 0.08, 1.75));
+    flag(g, 0.3, 0.3, '#1d1d1d', 1.5);
   },
 
   warcamp(g, b) {

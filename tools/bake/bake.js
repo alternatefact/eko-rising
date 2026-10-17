@@ -448,18 +448,21 @@ function bakeAnimals() {
 
 // Who can look like what: a model, the tool in hand, and the movements.
 export const LOOKS = {
-  founder: { model: 'founder', anims: ['idle', 'strut', 'carry'] },
+  founder: { model: 'founder', anims: ['idle', 'walk', 'carry'] },
   founder_axe: { model: 'founder', prop: 'axe', anims: ['swing', 'idle'] },
+  founder_hammer: { model: 'founder', prop: 'hammer', anims: ['swing'] },
   wife: { model: 'wife', anims: ['idle', 'womanwalk'] },
   woman: { model: 'woman', prop: null, anims: ['idle', 'womanwalk', 'womancarry'] },
   woman_axe: { model: 'woman', prop: 'axe', anims: ['idle', 'womanwalk', 'swing'] },
   woman_hoe: { model: 'woman', prop: 'hoe', anims: ['idle', 'womanwalk', 'pull'] },
   woman_bow: { model: 'woman', prop: 'bow', hand: 'Left', anims: ['idle', 'womanwalk', 'bow'] },
+  woman_hammer: { model: 'woman', prop: 'hammer', anims: ['idle', 'womanwalk', 'swing'] },
   farmer: { model: 'farmer', anims: ['idle', 'walk', 'pull', 'carry'] },
   woodcutter: { model: 'woodcutter', anims: ['idle', 'walk', 'swing', 'carry'] },
   hunter: { model: 'hunter', anims: ['idle', 'walk', 'bow', 'carry'] },
   fisher: { model: 'fisher', anims: ['idle', 'walk', 'pull', 'carry'] },
   labourer: { model: 'labourer', anims: ['idle', 'walk', 'pull', 'swing', 'carry'] },
+  builder: { model: 'labourer', prop: 'hammer', anims: ['idle', 'walk', 'swing'] },
   spearman: { model: 'spearman', anims: ['idle', 'spearwalk', 'slash'] },
   bandit: { model: 'bandit', anims: ['idle', 'walk', 'slash'] },
 };

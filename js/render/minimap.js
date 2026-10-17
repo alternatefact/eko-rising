@@ -51,7 +51,7 @@ export class Minimap {
     ctx.drawImage(this.base, 0, 0);
 
     for (const b of st.buildings) {
-      if (b.dead) continue;
+      if (b.dead || (b.owner !== 'player' && !st.explored[b.y * st.W + b.x])) continue;
       ctx.fillStyle = b.owner === 'player' ? '#ffe9a8' : '#999';
       ctx.fillRect(b.x, b.y, b.w, b.h);
     }

@@ -111,7 +111,7 @@ class Game {
     if (this.st) {
       this.keys?.update(dt);
       if (!this.paused) {
-        this.acc += dt * this.speed;
+        this.acc += dt * this.speed * sim.PACE;
         let steps = 0;
         while (this.acc >= sim.STEP && steps < MAX_STEPS) {
           sim.tick(this.st, sim.STEP);
@@ -123,7 +123,7 @@ class Game {
       this.pruneSelection();
       this.view.point = this.pointFrom(this.view.pointTarget);
       this.followStory();
-      this.renderer.timeScale = this.paused ? 0 : this.speed;
+      this.renderer.timeScale = this.paused || this.st.eventQueue.length ? 0 : this.speed * sim.PACE;
       this.renderer.draw(this.paused ? 1 : Math.min(1, this.acc / sim.STEP), this.view);
       if (this.frame++ % 6 === 0) this.minimap.draw(this.renderer);
       this.hudT += dt;
@@ -604,6 +604,23 @@ class Game {
     return null;
   }
 
+  enemyBuildingNear(x, y, r) {
+    const st = this.st;
+    let best = null;
+    let bestD = r;
+    for (const b of st.buildings) {
+      if (b.dead || b.owner === 'player' || !st.explored[Math.floor(b.y) * st.W + Math.floor(b.x)]) continue;
+      const dx = Math.max(b.x - x, 0, x - (b.x + b.w));
+      const dy = Math.max(b.y - y, 0, y - (b.y + b.h));
+      const d = Math.hypot(dx, dy);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    return best;
+  }
+
   selectedCitizen() {
     if (this.view.selected.size !== 1) return null;
     const e = this.st.byId.get([...this.view.selected][0]);
@@ -622,8 +639,15 @@ class Game {
       return;
     }
     const p = this.renderer.screenToTile(sx, sy);
-    const hit = this.renderer.pickScreen?.(sx, sy) || this.pick(p.x, p.y);
+    let hit = this.renderer.pickScreen?.(sx, sy) || this.pick(p.x, p.y);
     const army = this.myUnits();
+    // With soldiers selected, trees are just ground to march to, and a tap
+    // near an enemy tent (even one behind the trees) is an order to burn it.
+    if (army.length && (!hit || hit.kind === 'tree' || hit.kind === 'faction')) {
+      const tent = this.enemyBuildingNear(p.x, p.y, 1.3);
+      if (tent) hit = tent;
+      else if (hit?.kind === 'tree') hit = null;
+    }
 
     // Orders for one of your people: a tree to fell, a workplace, a place to go.
     const who = this.selectedCitizen();
@@ -633,6 +657,14 @@ class Game {
         if (r.ok) {
           this.view.order = { x: hit.x, y: hit.y, at: performance.now() };
           this.hud.toast(`🪓 ${who.name} is going to fell that tree.`);
+        } else this.hud.toast(r.reason);
+        return;
+      }
+      if (hit?.kind === 'building' && hit.owner === 'player' && hit.built < 1 && who.special !== 'spouse') {
+        const r = sim.assignBuilder(this.st, who.id, hit.id);
+        if (r.ok) {
+          this.view.order = { x: hit.x + hit.w / 2, y: hit.y + hit.h / 2, at: performance.now() };
+          if (!r.same) this.hud.toast(`🔨 ${who.name} is going to help build the ${BUILDINGS[hit.type].name.toLowerCase()}.`);
         } else this.hud.toast(r.reason);
         return;
       }
@@ -658,13 +690,18 @@ class Game {
     }
 
     if (hit?.kind === 'unit' && hit.owner === 'player' && info.button !== 2) {
-      if (!info.shift) this.view.selected.clear();
-      this.view.selected.add(hit.id);
+      // In select mode (or with shift) a tap adds a soldier, or takes them out.
+      const adding = info.shift || this.selecting;
+      if (!adding) this.view.selected.clear();
+      if (adding && this.view.selected.has(hit.id)) this.view.selected.delete(hit.id);
+      else this.view.selected.add(hit.id);
       this.view.selectedFaction = null;
-      this.hud.openPanel('units');
+      if (this.myUnits().length) this.hud.openPanel('units');
+      else this.hud.closePanel();
       return;
     }
-    if (army.length && !(hit?.kind === 'building' && info.button !== 2) && !(hit?.kind === 'citizen' && info.button !== 2)) {
+    const enemyBuilding = hit?.kind === 'building' && hit.owner !== 'player';
+    if (army.length && (enemyBuilding || !(hit?.kind === 'building' && info.button !== 2)) && !(hit?.kind === 'citizen' && info.button !== 2)) {
       this.command(army, hit, p);
       return;
     }
@@ -695,10 +732,10 @@ class Game {
 
   command(army, hit, p) {
     const ids = army.map((u) => u.id);
-    if (hit?.kind === 'unit' && hit.owner !== 'player') {
+    if ((hit?.kind === 'unit' || hit?.kind === 'building') && hit.owner !== 'player') {
       const r = sim.orderAttack(this.st, ids, hit.id);
       if (!r.ok && r.reason) this.hud.toast(r.reason);
-      else this.view.order = { x: hit.x, y: hit.y, at: performance.now(), attack: true };
+      else this.view.order = { x: hit.kind === 'building' ? hit.x + hit.w / 2 : hit.x, y: hit.kind === 'building' ? hit.y + hit.h / 2 : hit.y, at: performance.now(), attack: true };
       return;
     }
     let tx = p.x;
@@ -717,6 +754,15 @@ class Game {
     this.view.order = { x: tx, y: ty, at: performance.now(), attack: hit?.kind === 'faction' && hit.f.status === 'hostile' };
   }
 
+  // Select mode, for phones: drag a box round your soldiers instead of
+  // moving the map; taps add soldiers or take them out.
+  toggleSelecting(on = !this.selecting) {
+    this.selecting = on;
+    document.getElementById('select-btn')?.classList.toggle('on', on);
+    this.canvas.classList.toggle('selecting', on);
+    if (on) this.hud.toast('⬚ Drag a box round your soldiers. Tap a soldier to add or remove them. Press ⬚ again to move the map.');
+  }
+
   boxSelect(x0, y0, x1, y1, add) {
     // Test each soldier where it is drawn on screen, so this works however the view is turned.
     const [l, r] = [Math.min(x0, x1), Math.max(x0, x1)];
@@ -727,7 +773,17 @@ class Game {
       const s = this.renderer.tileToScreen(u.x, u.y, this.renderer.standAt ? this.renderer.standAt(u.x, u.y) + 0.4 : 0);
       if (s.x >= l && s.x <= r && s.y >= t && s.y <= b) this.view.selected.add(u.id);
     }
-    if (this.myUnits().length) this.hud.openPanel('units');
+    if (this.myUnits().length) {
+      this.hud.openPanel('units');
+      // One box and done: the next tap gives the order.
+      if (this.selecting) this.toggleSelecting(false);
+    } else if (this.selecting) this.hud.toast('No soldiers of yours in that box.');
+  }
+
+  setStance(stance) {
+    const ids = this.myUnits().map((u) => u.id);
+    const n = sim.setStance(this.st, ids, stance);
+    if (n) this.hud.toast(stance === 'hold' ? `✋ ${n > 1 ? 'They' : 'He'} will stand ${n > 1 ? 'their' : 'his'} ground and fight only what comes within reach.` : `⚔️ ${n > 1 ? 'They' : 'He'} will go for any enemy, tent or hut that comes near.`);
   }
 
   selectArmy() {
@@ -830,6 +886,7 @@ async function boot() {
   });
   document.getElementById('speed-btn').addEventListener('click', () => game.cycleSpeed());
   document.getElementById('army-btn').addEventListener('click', () => game.selectArmy());
+  document.getElementById('select-btn').addEventListener('click', () => game.toggleSelecting());
   document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
   document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));
   renderNigeria(document.getElementById('nigeria'), () => ready.then(() => game.newGame(readNewGameForm())));

@@ -9,6 +9,7 @@ import { goTo, stepMove } from './move.js';
 import { findPath } from '../world/path.js';
 import { distToRect, findLanding } from './world.js';
 import { spend, canAfford, armySize, armyCap, addMood, spawnStranger, DAY } from './economy.js';
+import { conquer } from './factions.js';
 
 // --- Who fights whom -----------------------------------------------------------
 
@@ -32,6 +33,11 @@ function distTo(u, e) {
   return Math.hypot(e.x - u.x, e.y - u.y);
 }
 
+// How near an enemy must come before your soldiers go for it by instinct,
+// and before they turn on an enemy tent or hut they are passing.
+export const ENGAGE = 6.5;
+const ENGAGE_BUILDING = 5;
+
 function findTarget(st, u, r, fromX, fromY) {
   const ox = fromX ?? u.x;
   const oy = fromY ?? u.y;
@@ -43,6 +49,18 @@ function findTarget(st, u, r, fromX, fromY) {
     if (d < bestD) {
       bestD = d;
       best = v;
+    }
+  }
+  if (!best && u.owner === 'player') {
+    // No fighters about: the tents and huts of an enemy camp.
+    let bd = Math.min(r, u.stance === 'hold' ? r : ENGAGE_BUILDING);
+    for (const b of st.buildings) {
+      if (b.dead || b.owner === 'player' || !isHostileOwner(st, u.owner, b.owner) || BUILDINGS[b.type].invulnerable) continue;
+      const d = distToRect(ox, oy, b);
+      if (d < bd) {
+        bd = d;
+        best = b;
+      }
     }
   }
   if (u.owner !== 'player') {
@@ -119,7 +137,16 @@ export function damage(st, attacker, target, amount) {
     notifyOnce(st, 'killed', 6, `⚰️ ${target.name} was killed by raiders.`, 'war', target);
     addMood(st, 'Townsfolk killed', -3, 3);
   } else if (target.kind === 'building') {
-    notify(st, `🔥 Your ${BUILDINGS[target.type].name.toLowerCase()} was destroyed!`, 'war', { x: target.x + target.w / 2, y: target.y + target.h / 2 });
+    const at = { x: target.x + target.w / 2, y: target.y + target.h / 2 };
+    if (target.owner !== 'player') {
+      // An enemy tent burns.
+      removeBuilding(st, target);
+      st.fx.push({ kind: 'blaze', x0: at.x, y0: at.y, x1: at.x, y1: at.y, t: 0, dur: 16, r: Math.max(target.w, target.h) * 0.35 });
+      const f = st.factionMap[target.owner];
+      if (f) campLost(st, f, target);
+      return;
+    }
+    notify(st, `🔥 Your ${BUILDINGS[target.type].name.toLowerCase()} was destroyed!`, 'war', at);
     removeBuilding(st, target);
     if (attacker && attacker.kind === 'unit' && attacker.owner !== 'player') plunder(st, attacker);
   }
@@ -158,6 +185,29 @@ function plunder(st, u) {
   const cw = Math.min(st.res.cowries, 5 + st.rng.int(0, 15));
   st.res.cowries -= cw;
   if (took || cw) notifyOnce(st, 'plunder', 10, `💰 Raiders are carrying off your stores${k ? ` (${Math.round(took)} ${k})` : ''}${cw ? ` and ${Math.round(cw)} cowries` : ''}!`, 'war', u);
+}
+
+// A tent of a bandit camp has burned. When the last one goes, the camp is
+// finished: whoever is left of the bandits runs off into the bush.
+function campLost(st, f, tent) {
+  const left = st.buildings.filter((b) => b.owner === f.id && !b.dead && BUILDINGS[b.type].camp).length;
+  if (left > 0) {
+    notifyOnce(st, `tent-${f.id}`, 6, `🔥 A tent of the ${f.name} goes up in flames. ${left} left.`, 'good', { x: tent.x + tent.w / 2, y: tent.y + tent.h / 2 });
+    return;
+  }
+  const edge = { x: f.x < st.W / 2 ? 1 : st.W - 2, y: f.y < st.H / 2 ? 1 : st.H - 2 };
+  let fled = 0;
+  for (const u of st.units) {
+    if (u.dead || u.owner !== f.id) continue;
+    u.home = null;
+    u.origin = edge;
+    u.despawnHome = true;
+    u.order = { t: 'retreat' };
+    u.path = null;
+    fled++;
+  }
+  if (fled) notify(st, `🏃 With their camp in flames, the last of the ${f.name} run off into the bush.`, 'good', { x: f.x, y: f.y });
+  conquer(st, f);
 }
 
 export function declareWar(st, f, provoked) {
@@ -219,13 +269,17 @@ export function updateUnit(st, u, dt) {
     return;
   }
 
-  // Forced marches ignore enemies; everyone else keeps an eye out.
+  // Forced marches ignore enemies; everyone else keeps an eye out. Your
+  // soldiers holding their ground fight only what comes within reach.
+  const hold = u.owner === 'player' && u.stance === 'hold';
   if (!target && ord.t !== 'move' && ord.t !== 'retreat' && u.scanT <= 0) {
     u.scanT = 0.4;
     if (u.home) {
       target = findTarget(st, u, u.aggro, u.home.x, u.home.y);
+    } else if (hold) {
+      target = findTarget(st, u, def.range + 0.8);
     } else {
-      target = findTarget(st, u, ord.t === 'raid' ? 5 : u.aggro);
+      target = findTarget(st, u, ord.t === 'raid' ? 5 : u.owner === 'player' ? ENGAGE : u.aggro);
       if (!target && u.owner === 'player' && ord.t === 'guard') target = findIntruder(st, u);
     }
     if (target) ord.target = target.id;
@@ -255,6 +309,13 @@ export function updateUnit(st, u, dt) {
       return;
     }
     const d = distTo(u, target);
+    // Holding: let it go once it is out of reach, unless you ordered the attack.
+    if (hold && ord.t !== 'attack' && d > def.range + radiusOf(target) + 0.8) {
+      ord.target = 0;
+      target = null;
+      u.path = null;
+      return;
+    }
     if (d <= def.range + radiusOf(target)) {
       u.path = null;
       if (u.steal && ord.t === 'raid' && target.kind === 'building' && !u.plunder) {

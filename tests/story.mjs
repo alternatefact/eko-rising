@@ -82,6 +82,12 @@ export function fenceHome(st, r = 7.5) {
   }
   const gates = new Set();
   const gated = new Set();
+  // Gates already placed (built or still going up) count.
+  for (const b of st.buildings) {
+    if (b.dead || !b.gate || b.owner !== 'player') continue;
+    const g = b.y * W + b.x;
+    for (const j of [g - 1, g + 1, g - W, g + W]) if (region.has(j)) gated.add(region.get(j));
+  }
   for (const t of [...tiles].sort((a, b) => (st.feature[b] === 5) - (st.feature[a] === 5))) {
     for (const j of [t - 1, t + 1, t - W, t + W]) {
       const id = region.get(j);
@@ -91,7 +97,6 @@ export function fenceHome(st, r = 7.5) {
       }
     }
   }
-  // Gates already standing count.
   const order = [...tiles].sort((a, b) => gates.has(b) - gates.has(a));
   const out = { placed: 0, failed: [] };
   for (const i of order) {

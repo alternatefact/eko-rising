@@ -263,6 +263,10 @@ input {
   color: var(--muted);
 }
 
+#world.selecting {
+  cursor: crosshair;
+}
+
 .icon-btn:hover,
 .icon-btn.on {
   background: rgba(255, 240, 210, 0.1);
@@ -1346,3 +1350,19 @@ input {
   cursor: pointer;
   font-size: 14px;
 }
+
+/* Panels keep the map in view on phones: some text shows only on wide screens. */
+.narrow-only {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .wide-only {
+    display: none;
+  }
+
+  .narrow-only {
+    display: block;
+  }
+}
+

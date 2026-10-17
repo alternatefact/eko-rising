@@ -1,7 +1,7 @@
 // Everything on screen that isn't the map: resource bar, goals, messages,
 // the build bar, the side panel and story pop-ups.
 
-import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade, costOf } from '../data/buildings.js';
+import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade, costOf, buildCrew } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ERAS } from '../data/eras.js';
 import { RESOURCES, FOOD, costText, money } from '../data/resources.js';
@@ -9,7 +9,7 @@ import {
   canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season, fireCap,
   happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand,
 } from '../sim/economy.js';
-import { citizenStatus, jobless } from '../sim/citizens.js';
+import { citizenStatus, jobless, siteStage, freeBuilders } from '../sim/citizens.js';
 import { canTrain, armyPower } from '../sim/military.js';
 import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
@@ -498,8 +498,11 @@ export class Hud {
     const cur = lvl > 1 ? def.upgrades[lvl - 2] : null;
     let h = this.head(`${ICONS[b.type] || ''} ${esc(levelName(b))}`, `${esc(cur?.yo || def.yo)}${def.upgrades ? ` · level ${lvl} of ${def.upgrades.length + 1}` : ''}`);
     h += `<p class="muted">${esc(cur?.desc ? `${cur.desc} ${def.desc}` : def.desc)}</p>`;
-    if (b.built < 1) {
-      h += `<h4>Building</h4><div class="bar"><i style="width:${Math.round(b.built * 100)}%"></i></div>`;
+    if (b.built < 1 && b.owner === 'player') {
+      h += this.siteHtml(b);
+      if (def.workers) h += `<p class="muted">Once it stands, ${def.workers > 1 ? `${def.workers} people` : 'one person'} from the fire will work here.</p>`;
+      h += `<h4></h4><div class="row"><button class="btn danger" data-act="demolish">Cancel</button></div><p class="muted">Cancelling gives back everything it cost.</p>`;
+      return h;
     }
     if (!def.invulnerable) h += `<h4>Condition</h4><div class="bar"><i style="width:${Math.round((b.hp / b.maxHp) * 100)}%;background:${b.hp / b.maxHp > 0.5 ? '' : '#e2574c'}"></i></div>`;
     if (def.job?.type === 'farm') h += `<h4>${b.type === 'cassava' ? 'Cassava' : 'Yams'}</h4><div class="bar"><i style="width:${Math.round(b.growth * 100)}%;background:#7bbf3f"></i></div><p class="muted">${season(st).name}: crops grow at ×${season(st).farm}.</p>`;
@@ -570,12 +573,33 @@ export class Hud {
     if (b.type === 'port' && b.built >= 1) h += this.portHtml();
     if (b.owner === 'player') h += this.upgradeHtml(b);
     if (def.tower) h += `<p class="muted">Shoots enemies within ${def.tower.range} tiles.</p>`;
-    if (b.type !== 'compound' && b.type !== 'campfire') {
+    if (b.owner === 'player' && b.type !== 'compound' && b.type !== 'campfire') {
       h += '<h4></h4><div class="row">';
       if (def.movable) h += '<button class="btn" data-act="move">🚚 Move</button>';
       h += `<button class="btn danger" data-act="demolish">Pull down</button></div>`;
       h += `<p class="muted">${def.movable ? 'Sheds and farm land can be moved. ' : ''}Pulling down gives back half of what it cost.</p>`;
     }
+    return h;
+  }
+
+  // A building going up: what stage it is at, who is building it, and what
+  // the player can do if nobody is.
+  siteHtml(b) {
+    const st = this.st;
+    const def = BUILDINGS[b.type];
+    const stage = siteStage(b);
+    const mat = b.mat === 'bricks' ? 'mud bricks' : b.mat === 'wood' || !b.mat ? 'planks' : b.mat;
+    let h = `<h4>Being built · ${esc(stage.name)}</h4>`;
+    if (b.got < b.need) h += `<div class="bar"><i style="width:${Math.round((b.got / b.need) * 100)}%;background:#b07a43"></i></div><p class="muted">${b.got} of ${b.need} ${mat} carried over from the stores.</p>`;
+    else h += `<div class="bar"><i style="width:${Math.round(b.built * 100)}%;background:#f0b429"></i></div>`;
+    const crew = (b.builders || []).map((id) => st.byId.get(id)).filter((c) => c && !c.dead);
+    h += `<h4>Builders ${crew.length}/${buildCrew(def)}</h4><div class="list">`;
+    for (const c of crew) h += `<div class="item click" data-act="citizen" data-id="${c.id}"><span>${esc(c.name)}</span><span class="muted">${esc(citizenStatus(st, c))}</span></div>`;
+    if (!crew.length) {
+      const free = freeBuilders(st).length;
+      h += `<div class="item"><span class="muted">${free ? 'Someone from the fire is on the way.' : `Nobody is free to build. Whoever sits by the fire builds, and ${esc(st.founder)} when he has nothing else to do. Or tap one of your workers and then this building: they help, then go back to work.`}</span></div>`;
+    }
+    h += '</div>';
     return h;
   }
 
@@ -664,7 +688,7 @@ export class Hud {
     const job = c.job ? st.byId.get(c.job) : null;
     const home = c.home ? st.byId.get(c.home) : null;
     let h = this.head(`${c.female ? '👩🏾' : '👨🏾'} ${esc(c.name)}`, `${esc(c.people)} · from ${esc(c.from)}`);
-    if (c.special === 'founder') h += '<p>The founder of this settlement. He takes no job: he walks from workplace to workplace, and people working near him work faster.</p>';
+    if (c.special === 'founder') h += '<p>The founder of this settlement. He takes no job: he walks from workplace to workplace, and people working near him work faster. When nobody else is free, he builds.</p>';
     if (c.special === 'spouse') h += `<p>Wife of ${esc(st.founder)}, co-founder of ${esc(st.name)}.</p>`;
     h += `<div class="kv"><span>Doing</span><b>${esc(citizenStatus(st, c))}</b>
       <span>Works at</span><b>${job ? esc(BUILDINGS[job.type].name) : c.stranger ? '—' : 'No job yet'}</b>
@@ -672,10 +696,10 @@ export class Hud {
       ${c.carry ? `<span>Carrying</span><b>${RESOURCES[c.carry.r].icon} ${Math.round(c.carry.n)}</b>` : ''}</div>`;
     if (job) h += `<h4></h4><button class="btn" data-act="building" data-id="${job.id}">Go to workplace</button>`;
     const cutter = job && BUILDINGS[job.type].job?.source === 'tree';
-    if (c.special === 'founder') h += '<p class="tip">👉 Tap a tree and he will fell it and carry the planks home. Tap the ground to send him there.</p>';
+    if (c.special === 'founder') h += '<p class="tip">👉 Tap a tree and he will fell it and carry the planks home. Tap a building site and he will help build it. Tap the ground to send him there.</p>';
     else if (cutter) h += '<p class="tip">👉 Tap a tree: it becomes his new place of work, and he fells the trees around it. Tap another workplace to move him there.</p>';
     else if (!c.special && !c.stranger) {
-      h += '<p class="tip">👉 Tap a workplace on the map to send them to work there.</p>';
+      h += '<p class="tip">👉 Tap a workplace on the map to send them to work there, or a building site to have them help build it.</p>';
       const open = st.buildings.filter((b) => b.owner === 'player' && !b.dead && b.built >= 1 && BUILDINGS[b.type].workers && b.id !== c.job && b.workers.length < BUILDINGS[b.type].workers);
       if (open.length) {
         h += '<h4>Places that need hands</h4><div class="list">';
@@ -697,13 +721,19 @@ export class Hud {
     }
     const counts = {};
     for (const u of units) counts[u.type] = (counts[u.type] || 0) + 1;
-    let h = this.head(`🛡️ ${units.length} selected`, Object.entries(counts).map(([t, n]) => `${n} ${UNITS[t].name.toLowerCase()}${n > 1 ? 's' : ''}`).join(', '));
-    h += '<p class="muted">Tap the ground to march. Tap an enemy or a village to attack. Unexplored places with a ❓ hide rewards.</p><div class="list">';
+    const plural = (name, n) => (n > 1 ? (name.endsWith('man') ? `${name.slice(0, -3)}men` : `${name}s`) : name);
+    let h = this.head(`🛡️ ${units.length} selected`, Object.entries(counts).map(([t, n]) => `${n} ${plural(UNITS[t].name.toLowerCase(), n)}`).join(', '));
+    h += '<p class="muted wide-only">Tap the ground to march. Tap an enemy, a tent or a village to attack. Unexplored places with a ❓ hide rewards.</p><div class="list wide-only">';
     for (const u of units.slice(0, 12)) {
       h += `<div class="item"><span>${UNIT_ICON[u.type] || ''} ${esc(u.name || UNITS[u.type].name)}</span><span class="muted">${Math.ceil(u.hp)}/${u.maxHp} ♥</span></div>`;
     }
-    h += `</div><h4></h4><div class="row"><button class="btn" data-act="halt">✋ Hold here</button><button class="btn" data-act="home">🏠 Return home</button><button class="btn" data-act="deselect">Deselect</button></div>`;
-    h += `<p class="muted">Army strength: ${armyPower(st)}</p>`;
+    const hold = units.every((u) => u.stance === 'hold');
+    const engage = units.every((u) => u.stance !== 'hold');
+    h += `</div><h4>When enemies come near</h4><div class="seg"><button class="btn ${hold ? 'on' : ''}" data-act="stance" data-v="hold">✋ Stand your ground</button><button class="btn ${engage ? 'on' : ''}" data-act="stance" data-v="engage">⚔️ Fight any close by</button></div>`;
+    h += `<p class="muted wide-only">${hold ? 'They stay where you put them and fight only what comes within reach of their spears.' : engage ? 'They go for any enemy within a few steps, and set fire to enemy tents they pass.' : 'Some stand their ground, some fight any close by.'}</p>`;
+    h += `<div class="row"><button class="btn" data-act="halt">⏹ Stop here</button><button class="btn" data-act="home">🏠 Return home</button><button class="btn" data-act="deselect">Deselect</button></div>`;
+    h += `<p class="muted wide-only">Army strength: ${armyPower(st)}. On a phone, press ⬚ Select at the top and drag a box round the soldiers you want.</p>`;
+    h += '<p class="muted narrow-only">Tap the ground to march, or a bandit, tent or village to attack.</p>';
     return h;
   }
 
@@ -971,6 +1001,9 @@ export class Hud {
         return;
       case 'halt':
         g.haltSelected();
+        break;
+      case 'stance':
+        g.setStance(el.dataset.v);
         break;
       case 'home':
         g.sendSelectedHome();

@@ -5,13 +5,13 @@
 // fell a tree, cut it into planks where it lies and carry them home four at
 // a time; hunters carry the kill home, butcher it and carry the meat.
 
-import { BUILDINGS, STORAGE_FOR, stat, levelName } from '../data/buildings.js';
+import { BUILDINGS, STORAGE_FOR, stat, levelName, buildCrew } from '../data/buildings.js';
 import { RESOURCES, FOOD } from '../data/resources.js';
 import { F, T, WALK, TREE, isWater, treeBlocks } from '../world/terrain.js';
 import { findPath } from '../world/path.js';
 import { findNear, adjacentToWater } from './world.js';
 import { goTo, stepMove, wander } from './move.js';
-import { notify, notifyOnce, releaseFromJob, removeCitizen, markTile } from './entities.js';
+import { notify, notifyOnce, releaseFromJob, removeCitizen, markTile, leaveSite } from './entities.js';
 import { addRes, roomFor, gatheringPoint, season, totalFood, population, sendAway } from './economy.js';
 
 const WALK_SPEED = 2.1;
@@ -192,6 +192,7 @@ export function assignTo(st, c, b) {
   if (!def.workers) return { ok: false, reason: `Nobody works at the ${def.name.toLowerCase()}.` };
   if (b.built < 1) return { ok: false, reason: `The ${def.name.toLowerCase()} is still being built.` };
   if (c.job === b.id) return { ok: true, same: true };
+  const from = c.job ? st.byId.get(c.job)?.type || null : null;
   let bumped = null;
   if (b.workers.length >= def.workers) {
     bumped = st.byId.get(b.workers[b.workers.length - 1]);
@@ -201,21 +202,27 @@ export function assignTo(st, c, b) {
   c.site = null;
   c.src = -1;
   b.paused = false;
-  startJob(st, c, b);
+  startJob(st, c, b, from);
   notify(st, `🔁 ${c.name} now works at the ${def.name.toLowerCase()}.${bumped ? ` ${bumped.name} goes back to the fire.` : ''}`, 'info', c);
   return { ok: true, bumped };
 }
 
-function startJob(st, c, b) {
+// Taking up work: first they change into the clothes of the trade, there
+// and then, and only then set off for the workplace.
+export const DRESS_TIME = 2.6;
+
+function startJob(st, c, b, from = null) {
+  leaveSite(st, c);
+  c.dressFrom = from;
   c.job = b.id;
   b.workers.push(c.id);
-  c.state = 'towork';
   c.carry = null;
   c.carcass = null;
-  c.timer = 0;
   c.src = -1;
-  const p = at(b);
-  walkTo(st, c, p.x, p.y);
+  c.path = null;
+  c.state = 'dress';
+  c.timer = DRESS_TIME;
+  st.fx.push({ kind: 'puff', x0: c.x, y0: c.y, x1: c.x, y1: c.y, t: -0.9, dur: 1.1 });
 }
 
 // --- Orders for one person ----------------------------------------------------
@@ -237,6 +244,8 @@ export function orderTree(st, c, i) {
     return { ok: false, reason: 'Nobody can get to that tree yet. Pick one at the edge of the forest.' };
   }
   const site = { x: (i % st.W) + 0.5, y: Math.floor(i / st.W) + 0.5 };
+  leaveSite(st, c);
+  if (c.state === 'dress' || BUILD_STATES.has(c.state)) c.state = 'idle';
   // Whoever was cutting it leaves it to them.
   for (const o of st.citizens) if (o !== c && o.src === i) o.src = -1;
   if (c.special === 'founder') c.task = { kind: 'chop', site };
@@ -254,6 +263,7 @@ export function orderWalk(st, c, x, y) {
   if (!goTo(st, c, x, y, { within: 0.8, max: 8000 }) && !goTo(st, c, x, y, { within: 0.8, max: 8000, partial: true })) {
     return { ok: false, reason: 'He cannot find a way there.' };
   }
+  leaveSite(st, c);
   c.task = { kind: 'go', x, y };
   c.state = 'goto';
   c.carry = null;
@@ -267,6 +277,220 @@ function endTask(st, c) {
   c.path = null;
   c.state = 'idle';
   c.timer = 0;
+}
+
+// --- Building sites --------------------------------------------------------------
+
+// Nothing goes up by itself. Builders (anyone sitting by the fire, and the
+// founder when he has nothing else to do) walk to the stores, carry the
+// planks over a load at a time, and then put the building up.
+const LOAD = 8;
+export const BUILD_STATES = new Set(['fetch', 'tosite', 'build']);
+
+export function freeBuilders(st) {
+  const out = jobless(st).filter((c) => c.state !== 'movein');
+  const f = st.citizens.find((x) => x.special === 'founder' && !x.dead);
+  if (f && !f.task && !f.buildSite && !f.hidden && (f.state === 'supervise' || f.state === 'idle')) out.push(f);
+  return out;
+}
+
+export function buildingSites(st) {
+  return st.buildings.filter((b) => b.owner === 'player' && !b.dead && b.built < 1);
+}
+
+export function assignBuilders(st) {
+  st.dirty.build = false;
+  const list = buildingSites(st);
+  if (!list.length) return;
+  const open = [];
+  for (const b of list) {
+    b.builders = (b.builders || []).filter((id) => {
+      const c = st.byId.get(id);
+      return c && !c.dead && c.buildSite === b.id;
+    });
+    if (st.time.t - (b.blockedT ?? -1e9) < 20) continue;
+    if (b.builders.length < buildCrew(BUILDINGS[b.type])) open.push(b);
+  }
+  const free = freeBuilders(st);
+  // Pair up builders and sites, nearest first: a builder finishing one
+  // fence section moves on to the next one along. The founder goes only when
+  // nobody else is free; older sites come a little before newer ones.
+  while (free.length && open.length) {
+    let best = null;
+    let bestD = Infinity;
+    for (const c of free) {
+      for (const b of open) {
+        const p = at(b);
+        const d = Math.hypot(c.x - p.x, c.y - p.y) + (c.special ? 60 : 0) + (b.id - open[0].id) * 0.02;
+        if (d < bestD) {
+          bestD = d;
+          best = [c, b];
+        }
+      }
+    }
+    const [c, b] = best;
+    free.splice(free.indexOf(c), 1);
+    startBuild(st, c, b);
+    if (b.builders.length >= buildCrew(BUILDINGS[b.type])) open.splice(open.indexOf(b), 1);
+  }
+}
+
+// The player sends someone to help on a building site. Workers keep their
+// place at work and go back to it when the building is finished.
+export function assignBuilder(st, c, b) {
+  if (!c || c.dead || c.kind !== 'citizen') return { ok: false, reason: 'Pick one of your people first.' };
+  if (c.stranger || c.guest) return { ok: false, reason: `${c.name} has not joined you yet.` };
+  if (c.special === 'spouse') return { ok: false, reason: `${c.name} keeps the house.` };
+  if (!b || b.dead || b.owner !== 'player' || b.built >= 1) return { ok: false, reason: 'That is not a building site.' };
+  if (c.buildSite === b.id) return { ok: true, same: true };
+  leaveSite(st, c);
+  if (c.special === 'founder') c.task = null;
+  // Whatever was in their hands is put down at the stores on the way.
+  if (c.carry) addRes(st, c.carry.r, c.carry.n);
+  c.carry = null;
+  if (c.carcass) {
+    const job = st.byId.get(c.job);
+    if (job) job.meat = (job.meat || 0) + (MEAT[c.carcass] || 8);
+    c.carcass = null;
+  }
+  if (c.prey) {
+    const a = st.byId.get(c.prey);
+    if (a) a.reserved = 0;
+    c.prey = 0;
+  }
+  c.hidden = false;
+  startBuild(st, c, b);
+  notify(st, `🔨 ${c.name} goes to help build the ${BUILDINGS[b.type].name.toLowerCase()}.`, 'info', c);
+  return { ok: true };
+}
+
+function startBuild(st, c, b) {
+  c.buildSite = b.id;
+  if (!b.builders.includes(c.id)) b.builders.push(c.id);
+  c.inspect = 0;
+  c.path = null;
+  c.timer = 0;
+  c.status = '';
+  nextBuildStep(st, c, b);
+}
+
+const haulLeft = (b) => Object.keys(b.haul || {}).find((k) => b.haul[k] > 0);
+const loadFor = (b) => Math.max(LOAD, Math.ceil((b.need || 0) / 6));
+
+// Materials still to fetch? To the stores. Otherwise, to the site.
+function nextBuildStep(st, c, b) {
+  const r = haulLeft(b);
+  if (r) {
+    const store = findStore(st, r, c.x, c.y);
+    if (store && walkTo(st, c, at(store).x, at(store).y)) {
+      c.state = 'fetch';
+      c.storeId = store.id;
+      return;
+    }
+    // No store to fetch from: they make do with what is to hand.
+    b.got += b.haul[r];
+    b.haul[r] = 0;
+    nextBuildStep(st, c, b);
+    return;
+  }
+  c.state = 'tosite';
+  goToSite(st, c, b);
+}
+
+function goToSite(st, c, b) {
+  const p = at(b);
+  const within = Math.max(b.w, b.h) / 2 + 0.9;
+  if (walkTo(st, c, p.x, p.y, { within }) || walkTo(st, c, p.x, p.y, { within, partial: true })) return;
+  b.blockedT = st.time.t;
+  notifyOnce(st, `site-${b.id}`, 60, `🚧 Nobody can get to the ${BUILDINGS[b.type].name.toLowerCase()} to build it.`, 'bad', p);
+  leaveSite(st, c);
+  afterBuild(st, c);
+}
+
+// Back to what they were doing before.
+function afterBuild(st, c) {
+  c.status = '';
+  c.path = null;
+  if (c.carry?.site) c.carry = null;
+  if (c.special === 'founder') {
+    c.state = 'supervise';
+    c.timer = 1;
+  } else if (c.job && st.byId.get(c.job)) {
+    c.state = 'towork';
+    const job = st.byId.get(c.job);
+    walkTo(st, c, at(job).x, at(job).y);
+  } else {
+    c.state = 'idle';
+  }
+  st.dirty.jobs = true;
+  st.dirty.build = true;
+}
+
+function finishSite(st, b) {
+  b.built = 1;
+  for (const id of b.builders) {
+    const c = st.byId.get(id);
+    if (!c || c.dead || c.buildSite !== b.id) continue;
+    c.buildSite = 0;
+    afterBuild(st, c);
+  }
+  b.builders = [];
+}
+
+function updateBuilder(st, c, dt) {
+  const b = c.buildSite ? st.byId.get(c.buildSite) : null;
+  if (!b || b.dead || b.built >= 1) {
+    leaveSite(st, c);
+    afterBuild(st, c);
+    return;
+  }
+  switch (c.state) {
+    case 'fetch': {
+      if (!stepMove(st, c, dt, WALK_SPEED)) return;
+      const r = haulLeft(b);
+      if (r) {
+        const n = Math.min(b.haul[r], loadFor(b));
+        b.haul[r] -= n;
+        c.carry = { r, n, site: b.id };
+      }
+      c.state = 'tosite';
+      goToSite(st, c, b);
+      return;
+    }
+    case 'tosite': {
+      if (!stepMove(st, c, dt, c.carry ? CARRY_SPEED : WALK_SPEED)) return;
+      if (c.carry?.site === b.id) {
+        b.got += c.carry.n;
+        c.carry = null;
+      }
+      if (haulLeft(b)) {
+        nextBuildStep(st, c, b);
+        return;
+      }
+      c.state = 'build';
+      c.timer = 0;
+      return;
+    }
+    case 'build': {
+      if (b.got < b.need) {
+        c.status = 'Waiting for the materials';
+        return;
+      }
+      c.status = '';
+      b.built += (dt / b.work) * (supervised(st, c) ? SUPERVISE_BONUS : 1) * (st.tech.tools ? 1.25 : 1);
+      if (b.built >= 1) finishSite(st, b);
+      return;
+    }
+  }
+}
+
+// What stage a building site has reached.
+export function siteStage(b) {
+  if (b.built >= 1) return null;
+  if (b.got < b.need) return { n: 0, name: 'Bringing the materials' };
+  if (b.built < 0.3) return { n: 1, name: BUILDINGS[b.type].flat ? 'Marking out the ground' : 'Putting up the frame' };
+  if (b.built < 0.8) return { n: 2, name: BUILDINGS[b.type].flat ? 'Clearing and laying out' : 'Raising the walls' };
+  return { n: 3, name: BUILDINGS[b.type].flat ? 'Finishing off' : 'Putting on the roof' };
 }
 
 // --- Stores -----------------------------------------------------------------
@@ -429,6 +653,9 @@ function goToSource(st, c) {
   }
 }
 
+// Whose clothes someone puts on for each kind of work.
+const TRADE = { woodcutter: "a woodcutter's", hunter: "a hunter's", farm: "a farmer's", cassava: "a farmer's", brickyard: "a brickmaker's", fisher: "a fisherman's", canoeyard: "a boatbuilder's", quarry: "a quarryman's", ironmine: "a miner's", blacksmith: "a smith's", palmpress: 'oil-pressing', garri: 'garri-making', shrine: "a priest's", market: "a trader's" };
+
 const SOURCE_NAME = { tree: 'trees', rock: 'rock', iron: 'iron ore', palm: 'ripe palm trees', water: 'open water', clay: 'red mud' };
 
 // Meat in each kind of animal.
@@ -475,6 +702,14 @@ export function resume(st, c) {
   c.hidden = false;
   c.path = null;
   c.hideFor = null;
+  const site = c.buildSite ? st.byId.get(c.buildSite) : null;
+  if (site && !site.dead && site.built < 1) {
+    if (c.carry?.site) {
+      c.state = 'tosite';
+      goToSite(st, c, site);
+    } else nextBuildStep(st, c, site);
+    return;
+  }
   if (c.stranger) c.state = 'arrive';
   else if (c.task?.kind === 'chop') {
     if (c.carry) headToStore(st, c);
@@ -535,10 +770,27 @@ export function updateCitizen(st, c, dt) {
     }
   }
 
+  if (BUILD_STATES.has(c.state)) {
+    updateBuilder(st, c, dt);
+    return;
+  }
+
   switch (c.state) {
     case 'supervise':
       supervise(st, c, dt);
       return;
+    // Changing into work clothes before setting off.
+    case 'dress': {
+      c.timer -= dt;
+      if (c.timer > 0) return;
+      if (!job) {
+        c.state = 'idle';
+        return;
+      }
+      c.state = 'towork';
+      walkTo(st, c, at(job).x, at(job).y);
+      return;
+    }
     // Caught by a wild animal (see sim/animals.js): frozen in place, or
     // standing to fight it off. The animal ends the struggle either way.
     case 'attacked':
@@ -1176,6 +1428,20 @@ export function citizenStatus(st, c) {
       return b && !b.dead ? `Inspecting the ${BUILDINGS[b.type].name.toLowerCase()}` : 'Walking the town';
     })(),
     hide: 'Hiding indoors',
+    dress: `Changing into ${TRADE[job?.type] || 'work'} clothes`,
+    fetch: (() => {
+      const b = st.byId.get(c.buildSite);
+      return `Fetching ${b?.mat === 'bricks' ? 'mud bricks' : b?.mat || 'planks'} for the ${b ? BUILDINGS[b.type].name.toLowerCase() : 'building'}`;
+    })(),
+    tosite: (() => {
+      const b = st.byId.get(c.buildSite);
+      const what = b ? BUILDINGS[b.type].name.toLowerCase() : 'building';
+      return c.carry ? `Carrying ${Math.round(c.carry.n)} ${c.carry.r === 'wood' ? 'planks' : c.carry.r} to the ${what}` : `Going to build the ${what}`;
+    })(),
+    build: (() => {
+      const b = st.byId.get(c.buildSite);
+      return `Building the ${b ? BUILDINGS[b.type].name.toLowerCase() : 'house'}`;
+    })(),
   };
   return s[c.state] || c.state;
 }

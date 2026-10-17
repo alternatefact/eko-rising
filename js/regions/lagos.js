@@ -840,7 +840,7 @@ export const LAGOS = {
       who: 'founder',
       say: '“The house sleeps five: the two of us and three more. We need no new house yet. What we need is wood.”',
       task: 'Build a Wood Shed by the forest',
-      hint: 'Open 🔨 Build → Industry and pick the Wood Shed (6 planks). Place it near the trees: its woodcutters fell the trees closest to the shed first, then the next nearest.',
+      hint: 'Open 🔨 Build → Industry and pick the Wood Shed (6 planks). Place it near the trees. Nothing builds itself: the two from the fire carry the planks over from the storage floor and put it up, post by post. Tap the building site to see how far along it is.',
       point: () => ({ build: 'woodcutter' }),
       done: (st) => !!building(st, 'woodcutter') && building(st, 'woodcutter').built >= 1,
     },
@@ -869,7 +869,7 @@ export const LAGOS = {
       who: 'spouse',
       say: (st) => `“${st.founder}, the yams we carried are nearly gone. But look — antelope are grazing just past the house. A hunter could feed us.”`,
       task: 'Build a Hunter’s Shed near the antelope',
-      hint: '🔨 Build → Food → Hunter’s Shed (8 planks). Whoever sits by the fire will take it on, change into hunting clothes and take up the bow.',
+      hint: '🔨 Build → Food → Hunter’s Shed (8 planks). Whoever sits by the fire builds it, then takes it on: watch them change into hunting clothes and take up the bow.',
       point: (st) => {
         const a = (st.flags.herd || []).map((id) => st.byId.get(id)).find((x) => x && !x.dead);
         return building(st, 'hunter') ? { id: building(st, 'hunter').id } : a ? { id: a.id } : { build: 'hunter' };
@@ -906,7 +906,7 @@ export const LAGOS = {
       who: 'spouse',
       say: '“Two more have come. They are sitting by the fire with nothing to do — and the house is full.”',
       task: 'Build a Plank House',
-      hint: '🔨 Build → Homes → Plank House (10 planks). It sleeps two. Mud bricks come later: for now we build in wood.',
+      hint: '🔨 Build → Homes → Plank House (10 planks). It sleeps two. The two at the fire build it. Mud bricks come later: for now we build in wood.',
       point: () => ({ build: 'hut' }),
       done: (st) => st.buildings.some((b) => b.type === 'hut' && b.owner === 'player' && !b.dead && b.built >= 1),
     },
@@ -958,7 +958,7 @@ export const LAGOS = {
       hint: (st) => {
         const f = fenceState(st);
         const state = !f.closed ? 'Not closed yet: there is still a way out between the trees.' : !f.gate ? 'Closed in! Now put a Gate in the fence so your people can get out.' : !f.floorIn ? 'The storage floor is outside the fence.' : f.area < 40 ? 'Too small: fence in more ground.' : '';
-        return `🔨 Build → Defence → Wooden Fence (2 planks a section): drag it from tree to tree, or down to the water. ${state} Short of wood? Tap the hunter, then the Wood Shed, to make him a woodcutter — or build a second shed. Tap a woodcutter and then a tree to choose where he cuts.`;
+        return `🔨 Build → Defence → Wooden Fence (2 planks a section): drag it from tree to tree, or down to the water. ${state} Every section is put up by hand: ${st.founder} builds when nobody else is free. To help him, tap a worker and then a fence section. Short of wood? Tap the hunter, then the Wood Shed, to make him a woodcutter — or build a second shed.`;
       },
       point: (st) => (fenceState(st).closed && !fenceState(st).gate ? { build: 'gate' } : { build: 'palisade' }),
       done: (st) => fenced(st),
@@ -1015,7 +1015,7 @@ export const LAGOS = {
       who: 'founder',
       say: '“A guard house, where our own men train and live.”',
       task: 'Build a Guard House',
-      hint: '🔨 Build → Defence → Guard House (40 planks).',
+      hint: '🔨 Build → Defence → Guard House (40 planks). A big building: three can work on it at once. Short of builders? Tap a worker, then the building site, to send them to help.',
       point: () => ({ build: 'warcamp' }),
       done: (st) => !!building(st, 'warcamp') && building(st, 'warcamp').built >= 1,
     },
@@ -1036,9 +1036,9 @@ export const LAGOS = {
         if (f) api.reveal(f.x, f.y, 4);
       },
       who: 'founder',
-      say: '“Their camp is in the far corner of the forest. Four of them. Go and clear it.”',
+      say: '“Their camp is in the far corner of the forest: four of them, and their tents. Go and burn it.”',
       task: 'Clear the bandit camp',
-      hint: 'Press 🛡️ Army at the top to select your soldiers, then tap the bandit camp to attack it.',
+      hint: 'Press 🛡️ Army at the top (or ⬚ Select, then drag a box round them) and tap the bandit camp. Near the camp they go for the bandits and set the tents alight by themselves. Burn every tent and the camp is gone.',
       point: (st) => st.factionMap.bandits1 && { x: st.factionMap.bandits1.x + 0.5, y: st.factionMap.bandits1.y + 0.5 },
       done: (st) => !st.factionMap.bandits1 || st.factionMap.bandits1.status === 'conquered',
     },

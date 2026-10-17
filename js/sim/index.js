@@ -6,7 +6,7 @@ import { REGIONS } from '../regions/index.js';
 import { generateWorld, reachable } from '../world/generate.js';
 import { T, F, WALK, TREE, isWater, treePlanks } from '../world/terrain.js';
 import { Rng } from '../core/rng.js';
-import { BUILDINGS, nextUpgrade, costOf, mudBricksFor } from '../data/buildings.js';
+import { BUILDINGS, nextUpgrade, costOf, mudBricksFor, materialsOf, buildWork } from '../data/buildings.js';
 import { ERAS } from '../data/eras.js';
 import { UNITS } from '../data/units.js';
 import { ORIGINS } from '../data/names.js';
@@ -18,7 +18,10 @@ import {
   DAY, capacity, canAfford, spend, dailyUpkeep, updateHappiness, updateMigration, population,
   hasBuilding, trade as marketTrade, invite, addMood,
 } from './economy.js';
-import { assignJobs, houseHomeless, updateCitizen, dailyCitizens, assignTo, orderTree as treeOrder, orderWalk as walkOrder } from './citizens.js';
+import {
+  assignJobs, assignBuilders, houseHomeless, updateCitizen, dailyCitizens, assignTo, assignBuilder as builderOrder,
+  orderTree as treeOrder, orderWalk as walkOrder,
+} from './citizens.js';
 import { updateStory, tutSignal } from './story.js';
 import { updateAnimal, spawnAnimals, replenishAnimals } from './animals.js';
 import { updateUnit, updateTowers, updateTraining, updateShips, updateExpeditions, train as trainUnit, isHostileOwner } from './military.js';
@@ -27,6 +30,9 @@ import { checkEvents, objectives, chooseEvent as choose, advanceEra as advance, 
 import { updatePort, dailyTrade, expireAllies, hire as hireFighter, barter as barterWith, sellToShip, buyFromShip } from './trade.js';
 
 export const STEP = 0.05;
+
+// Game seconds per real second at "1×": the world moves at a walking pace.
+export const PACE = 0.6;
 
 // --- New game -----------------------------------------------------------------
 
@@ -104,7 +110,7 @@ export function newGame(opts = {}) {
     spouse: (opts.spouse || 'Àdùkẹ́').slice(0, 20),
     nextId: 1,
     byId: new Map(),
-    dirty: { territory: true, jobs: true, cleanup: false, reach: false },
+    dirty: { territory: true, jobs: true, cleanup: false, reach: false, build: false },
     changedTiles: [],
     territoryVersion: 0,
     fogVersion: 0,
@@ -196,16 +202,19 @@ export function tick(st, dt = STEP) {
     newDay(st);
   }
 
+  // Builders put buildings up (see citizens.js); here the town takes note
+  // when one is finished.
   for (const b of st.buildings) {
-    if (b.built < 1 && !b.dead) {
-      b.built += dt / b.buildTime;
-      if (b.built >= 1) {
-        b.built = 1;
-        st.dirty.jobs = true;
-        st.dirty.territory = true;
-        st.cap = capacity(st);
-        onBuilt(st, b);
-      }
+    if (b.dead) continue;
+    if (b.built < 1 && b.owner !== 'player') b.built = Math.min(1, b.built + dt / 10);
+    if (b.rising && b.built >= 1) {
+      b.rising = false;
+      b.built = 1;
+      st.dirty.jobs = true;
+      st.dirty.build = true;
+      st.dirty.territory = true;
+      st.cap = capacity(st);
+      onBuilt(st, b);
     }
   }
 
@@ -215,6 +224,7 @@ export function tick(st, dt = STEP) {
     everySecond(st);
   }
   if (st.dirty.jobs) assignJobs(st);
+  if (st.dirty.build) assignBuilders(st);
 
   st.timers.vis += dt;
   if (st.timers.vis >= 0.4) {
@@ -270,6 +280,7 @@ function everySecond(st) {
   }
   houseHomeless(st);
   st.dirty.jobs = true;
+  st.dirty.build = true;
   updatePort(st);
   expireAllies(st);
   updateFactions(st, 1);
@@ -377,8 +388,17 @@ export function canPlace(st, type, x, y) {
 export function placeBuilding(st, type, x, y) {
   const can = canPlace(st, type, x, y);
   if (!can.ok) return can;
-  spend(st, costOf(st, type));
+  const cost = costOf(st, type);
+  spend(st, cost);
   const b = createBuilding(st, type, x, y);
+  setMaterials(b, cost);
+  // Fence stakes are cut and dragged along the line as it is marked out:
+  // the builders go straight from one section to the next.
+  if (BUILDINGS[type].wall || BUILDINGS[type].gate) {
+    b.got = b.need;
+    b.haul = {};
+  }
+  st.dirty.build = true;
   // After the kingdom upgrade, new houses and sheds go up in mud.
   if (st.flags.mud && BUILDINGS[type].mudBricks) {
     b.mud = true;
@@ -386,6 +406,14 @@ export function placeBuilding(st, type, x, y) {
   }
   st.stats.built = (st.stats.built || 0) + 1;
   return { ok: true, building: b };
+}
+
+// What the builders must carry over before they can start.
+function setMaterials(b, cost) {
+  b.haul = materialsOf(cost);
+  b.need = Object.values(b.haul).reduce((a, v) => a + v, 0);
+  b.got = 0;
+  b.mat = Object.keys(b.haul)[0] || null;
 }
 
 export function lineTiles(x0, y0, x1, y1) {
@@ -510,6 +538,28 @@ export function moveBuilding(st, id, x, y) {
 // Send one of your people to work at a building.
 export function assignWorker(st, cid, bid) {
   return assignTo(st, st.byId.get(cid), st.byId.get(bid));
+}
+
+// Send one of your people to help put up a building.
+export function assignBuilder(st, cid, bid) {
+  return builderOrder(st, st.byId.get(cid), st.byId.get(bid));
+}
+
+// Soldiers either hold their ground (fighting only what comes within reach
+// of their spears) or go for any enemy, tent or hut that comes near.
+export function setStance(st, ids, stance) {
+  let n = 0;
+  for (const id of ids) {
+    const u = st.byId.get(id);
+    if (!u || u.dead || u.owner !== 'player') continue;
+    u.stance = stance === 'hold' ? 'hold' : 'engage';
+    if (u.stance === 'hold' && u.order?.t === 'guard') {
+      u.order = { t: 'guard', x: u.x, y: u.y };
+      u.path = null;
+    }
+    n++;
+  }
+  return n;
 }
 
 // Send the founder (or a woodcutter) to fell the tree on tile i.
@@ -667,7 +717,11 @@ export function upgradeBuilding(st, id) {
   b.maxHp = Math.round(b.maxHp * 1.5);
   b.hp = b.maxHp;
   b.built = 0.6;
+  b.rising = true;
+  b.builders = [];
+  setMaterials(b, can.up.cost);
   st.dirty.jobs = true;
+  st.dirty.build = true;
   st.stats.upgrades = (st.stats.upgrades || 0) + 1;
   notify(st, `🏗️ Upgrading to ${can.up.name}.`, 'good', { x: b.x + b.w / 2, y: b.y + b.h / 2 });
   return { ok: true };
@@ -735,7 +789,17 @@ export function deserialize(json) {
   for (const list of [st.buildings, st.citizens, st.units, st.animals]) for (const e of list) st.byId.set(e.id, e);
   st.factionMap = {};
   for (const f of st.factions) st.factionMap[f.id] = f;
-  st.dirty = { territory: false, jobs: false, cleanup: false, reach: false };
+  st.dirty = { territory: false, jobs: false, cleanup: false, reach: false, build: true };
+  // Saves from before builders: anything still going up is finished by them.
+  for (const b of st.buildings) {
+    if (b.rising !== undefined) continue;
+    b.rising = b.built < 1;
+    b.work = buildWork(BUILDINGS[b.type]);
+    b.builders = [];
+    b.haul = {};
+    b.got = 0;
+    b.need = 0;
+  }
   st.territoryVersion = 0;
   st.fogVersion = 0;
   st.visVersion = 0;

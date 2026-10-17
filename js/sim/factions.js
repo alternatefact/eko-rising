@@ -2,7 +2,9 @@
 // and a relationship with you. Befriend them, make them pay tribute, or
 // conquer them — but some are strong enough to wipe out a careless army.
 
-import { createUnit, notify } from './entities.js';
+import { createUnit, createBuilding, notify } from './entities.js';
+import { BUILDINGS } from '../data/buildings.js';
+import { isWater } from '../world/terrain.js';
 import { armyPower, launchWarBand, declareWar } from './military.js';
 import { addRes, addMood, spawnStranger } from './economy.js';
 import { revealAround } from './world.js';
@@ -50,8 +52,47 @@ export function initFaction(st, def, spot) {
   };
   st.factions.push(f);
   st.factionMap[f.id] = f;
+  if (f.style === 'camp') pitchTents(st, f);
   spawnGarrison(st, f);
   return f;
+}
+
+// A bandit camp: the chief's tent and a ring of smaller ones around a fire.
+function pitchTents(st, f) {
+  f.camp = true;
+  const free = (x, y, w, h) => {
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        const tx = x + dx;
+        const ty = y + dy;
+        if (tx < 1 || ty < 1 || tx >= st.W - 1 || ty >= st.H - 1) return false;
+        const i = ty * st.W + tx;
+        if (st.occ[i] || isWater(st.terrain[i])) return false;
+      }
+    }
+    return true;
+  };
+  const place = (type, x, y) => {
+    const def = BUILDINGS[type];
+    if (!free(x, y, def.w, def.h)) return null;
+    return createBuilding(st, type, x, y, { instant: true, owner: f.id });
+  };
+  let chief = null;
+  for (const [dx, dy] of [[-1, -3], [-3, -1], [1, -3], [-3, 1], [1, 1]]) {
+    chief = place('chieftent', f.x + dx, f.y + dy);
+    if (chief) break;
+  }
+  const n = Math.max(3, f.huts || 3);
+  let made = chief ? 1 : 0;
+  for (let k = 0; k < 24 && made < n + 1; k++) {
+    const a = (k / 8) * Math.PI * 2 + 0.4 + Math.floor(k / 8) * 0.35;
+    const r = 2.6 + Math.floor(k / 8) * 0.9;
+    if (place('tent', Math.round(f.x + Math.cos(a) * r), Math.round(f.y + Math.sin(a) * r))) made++;
+  }
+}
+
+export function campTents(st, f) {
+  return st.buildings.filter((b) => b.owner === f.id && !b.dead && BUILDINGS[b.type].camp);
 }
 
 function garrisonList(f) {
@@ -124,8 +165,11 @@ export function updateFactions(st, dt) {
       }
     }
 
-    // Capture: no defenders left and your soldiers stand in the village.
-    if (f.status !== 'allied' && f.status !== 'vassal' && alive.length === 0) {
+    // Capture: no defenders left and your soldiers stand in the village. A
+    // camp falls only when its tents are burned (see military.js).
+    if (f.camp) {
+      f.capT = 0;
+    } else if (f.status !== 'allied' && f.status !== 'vassal' && alive.length === 0) {
       const here = st.units.some((u) => u.owner === 'player' && !u.dead && Math.hypot(u.x - f.x - 0.5, u.y - f.y - 0.5) < 3.5);
       f.capT = here ? f.capT + dt : 0;
       if (f.capT >= 5) conquer(st, f);

@@ -34,7 +34,7 @@ export function bindInput(game, canvas, minimap) {
       game.wallPress(p.x, p.y);
       return;
     }
-    gesture = { kind: 'tap', mouse, button: e.button, shift: e.shiftKey, start: { ...p }, moved: false };
+    gesture = { kind: 'tap', mouse, button: e.button, shift: e.shiftKey, start: { ...p }, moved: false, select: !!game.selecting };
   });
 
   canvas.addEventListener('pointermove', (e) => {
@@ -71,7 +71,7 @@ export function bindInput(game, canvas, minimap) {
     if (gesture.kind === 'tap') {
       if (Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > DRAG_PX) {
         gesture.moved = true;
-        if (gesture.mouse && (gesture.shift || gesture.button === 2) && gesture.button !== 1) {
+        if (gesture.select || (gesture.mouse && (gesture.shift || gesture.button === 2) && gesture.button !== 1)) {
           gesture.kind = 'box';
           game.view.box = { x0: gesture.start.x, y0: gesture.start.y, x1: p.x, y1: p.y };
         } else {

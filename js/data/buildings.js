@@ -237,12 +237,46 @@ export const BUILDINGS = {
     job: { type: 'craft', inputs: { cassava: 6, palmoil: 2 }, work: 10, yield: 10, product: 'garri', cash: 25 },
     desc: 'Machines process cassava into packaged garri and export palm products: food for the city and money for every batch.',
   },
+  // A bandit camp: hide tents around a fire, not built by you but burned by
+  // your soldiers. When every tent is gone the bandits are finished.
+  tent: {
+    name: 'Bandit Tent', cat: 'military', era: 0, w: 1, h: 1,
+    cost: {}, hp: 90, buildable: false, camp: true,
+    desc: 'Hides stretched over poles. Bandits sleep here between raids. Burn every tent and the camp is gone for good.',
+  },
+  chieftent: {
+    name: 'Bandit Chief’s Tent', cat: 'military', era: 0, w: 2, h: 2,
+    cost: {}, hp: 170, buildable: false, camp: true,
+    desc: 'The biggest tent, where the bandit chief keeps what they have stolen. Burn every tent and the camp is gone for good.',
+  },
   bank: {
     name: 'Bank', yo: 'Ilé Ìfowópamọ́', cat: 'town', era: 4, w: 2, h: 2,
     cost: { stone: 50, iron: 10, cowries: 400 }, hp: 300, place: 'land', unique: true,
     desc: 'Money makes money: your treasury earns 1% interest a day (up to 60 a day).',
   },
 };
+
+// Putting a building up: the labour it takes (seconds of one builder's
+// work), how many builders can work on it at once, and the materials they
+// carry over from the stores first.
+export function buildWork(def) {
+  if (def.wall) return 4;
+  if (def.gate) return 12;
+  return Math.round((def.flat ? 4 : 9) * def.w * def.h + 8);
+}
+
+export function buildCrew(def) {
+  if (def.wall || def.gate) return 1;
+  return def.w * def.h >= 9 ? 3 : 2;
+}
+
+export const MATERIALS = ['wood', 'bricks', 'stone', 'iron'];
+
+export function materialsOf(cost) {
+  const out = {};
+  for (const k of MATERIALS) if (cost?.[k] > 0) out[k] = cost[k];
+  return out;
+}
 
 // Bricks the kingdom upgrade needs to rebuild a building in mud.
 export function mudBricksFor(b) {

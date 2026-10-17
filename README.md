@@ -35,10 +35,20 @@ then a Yam Farm for them to work. A pack of four wolves kills the farmers; the
 woodcutter and the hunter kill two each while the founder and his wife shut
 themselves in. Then the clearing is fenced in, using the forest as a wall,
 with a gate; newcomers start coming on their own. Bandits break through the
-fence, kill and steal half the stores; a Guard House and five spearmen clear
-their camp. Àdìó walks back down the path to the red-mud pit they passed on
+fence, kill and steal half the stores; a Guard House and five spearmen burn
+their camp: hide tents round a fire in the far corner of the forest. Àdìó walks back down the path to the red-mud pit they passed on
 the way in, a Mud Brick Shed goes up beside it, and once there are bricks
 enough, the kingdom upgrade rebuilds every house and shed in mud at once.
+
+Nothing builds itself. Whoever sits by the fire walks to the storage floor,
+carries the planks over a load at a time and puts the building up stage by
+stage: the ground pegged out with string, a frame of poles, the walls rising,
+the roof. The founder builds too when nobody else is free, and you can tap any
+worker and then a building site to have them help (they go back to their work
+after). Fence stakes are dragged along as the line is marked out, so fence
+builders go straight from section to section. Someone given work first changes
+into its clothes, in a puff of dust, and only then walks there. The world runs
+at a walking pace: one real second is 0.6 of a game second at 1×.
 
 Each workplace takes its own hands. People with no work sit at the campfire
 (up to five early on) and fill new workplaces by themselves; nobody leaves a
@@ -57,6 +67,12 @@ metropolis. Moving up an age needs people, money and a number of neighbouring
 kingdoms conquered or paying tribute. Money comes from taxes, the market, trade
 agreements with other kingdoms and merchant ships at the port, and pays for
 buildings, upgrades, trained soldiers and hired fighters.
+
+Soldiers either stand their ground (fighting only what comes within reach) or
+fight any close by: then they go for any enemy within a few steps and set
+fire to enemy tents and huts they pass. A bandit camp is gone when its last
+tent burns. On a phone, ⬚ Select at the top turns a drag into a selection box,
+and taps add or remove soldiers.
 
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%

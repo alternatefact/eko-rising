@@ -1,6 +1,6 @@
 // Creating and removing the things that live on the map, plus the message log.
 
-import { BUILDINGS } from '../data/buildings.js';
+import { BUILDINGS, buildWork } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ORIGINS, ORIGIN_WEIGHTS } from '../data/names.js';
 import { T, F } from '../world/terrain.js';
@@ -44,7 +44,14 @@ export function createBuilding(st, type, x, y, opts = {}) {
     hp: def.hp,
     maxHp: def.hp,
     built: opts.instant ? 1 : 0,
-    buildTime: 3 + def.w * def.h * 0.7,
+    // Going up: builders carry the materials over (haul, still to fetch;
+    // got of need delivered), then work on it for `work` seconds between them.
+    rising: !opts.instant,
+    work: buildWork(def),
+    builders: [],
+    haul: {},
+    got: 0,
+    need: 0,
     workers: [],
     residents: [],
     priority: 1,
@@ -86,6 +93,14 @@ export function createBuilding(st, type, x, y, opts = {}) {
 export function removeBuilding(st, b) {
   if (b.dead) return;
   b.dead = true;
+  for (const id of b.builders || []) {
+    const c = st.byId.get(id);
+    if (c && c.buildSite === b.id) {
+      c.buildSite = 0;
+      if (c.carry?.site) c.carry = null;
+    }
+  }
+  b.builders = [];
   for (let dy = 0; dy < b.h; dy++) {
     for (let dx = 0; dx < b.w; dx++) {
       const i = (b.y + dy) * st.W + b.x + dx;
@@ -113,6 +128,7 @@ export function markTile(st, i) {
 }
 
 export function releaseFromJob(st, c) {
+  leaveSite(st, c);
   const b = st.byId.get(c.job);
   if (b) b.workers = b.workers.filter((id) => id !== c.id);
   c.job = 0;
@@ -129,6 +145,20 @@ export function releaseFromJob(st, c) {
     c.prey = 0;
   }
   st.dirty.jobs = true;
+}
+
+// A builder stops work on a building site. Anything they were carrying to
+// it goes back on the list to fetch.
+export function leaveSite(st, c) {
+  if (!c.buildSite) return;
+  const b = st.byId.get(c.buildSite);
+  c.buildSite = 0;
+  if (b) {
+    b.builders = (b.builders || []).filter((id) => id !== c.id);
+    if (c.carry?.site === b.id) b.haul[c.carry.r] = (b.haul[c.carry.r] || 0) + c.carry.n;
+  }
+  if (c.carry?.site) c.carry = null;
+  st.dirty.build = true;
 }
 
 // --- People -----------------------------------------------------------------
@@ -190,6 +220,7 @@ export function createCitizen(st, x, y, opts = {}) {
     src: -1,
     task: null,
     site: null,
+    buildSite: 0,
   };
   st.citizens.push(c);
   st.byId.set(c.id, c);
@@ -199,6 +230,7 @@ export function createCitizen(st, x, y, opts = {}) {
 export function removeCitizen(st, c) {
   if (c.dead) return;
   c.dead = true;
+  leaveSite(st, c);
   if (c.job) releaseFromJob(st, c);
   if (c.home) {
     const h = st.byId.get(c.home);

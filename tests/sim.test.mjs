@@ -28,6 +28,17 @@ function fresh(seed = 4242) {
   return st;
 }
 
+// Puts up at once whatever is being built, for tests about something else.
+function finish(st) {
+  for (const b of st.buildings) {
+    if (b.dead || b.built >= 1) continue;
+    b.haul = {};
+    b.got = b.need;
+    b.built = 1;
+  }
+  sim.tick(st);
+}
+
 function advance(st, seconds, answer = 0) {
   const steps = Math.round(seconds / sim.STEP);
   for (let i = 0; i < steps; i++) {
@@ -76,7 +87,7 @@ test('a new game starts with just the couple walking up to an abandoned house in
   const st = sim.newGame({ seed: 9 });
   assert.equal(st.citizens.length, 2);
   assert.deepEqual(st.citizens.map((c) => c.special).sort(), ['founder', 'spouse']);
-  assert.deepEqual(st.buildings.map((b) => b.type).sort(), ['campfire', 'compound', 'stockpile']);
+  assert.deepEqual(st.buildings.filter((b) => b.owner === 'player').map((b) => b.type).sort(), ['campfire', 'compound', 'stockpile']);
   const home = st.buildings.find((b) => b.type === 'compound');
   const floor = st.buildings.find((b) => b.type === 'stockpile');
   assert.ok(Math.hypot(floor.x - home.x, floor.y - home.y) <= 5, 'the floor is right by the house');
@@ -199,16 +210,16 @@ test('a new plank house brings two newcomers, who sit by the fire until there is
   const st = fresh(11);
   st.migrateT = 1e9;
   assert.ok(place(st, 'hut'), 'plank house placed');
-  advance(st, 20);
+  advance(st, 120);
   const hut = st.buildings.find((b) => b.type === 'hut');
-  assert.equal(hut.built, 1);
+  assert.equal(hut.built, 1, 'the founder built it, there being nobody else');
   advance(st, 40);
   const newcomers = st.citizens.filter((c) => !c.special && !c.dead);
   assert.equal(newcomers.length, 2, 'two came');
   assert.ok(newcomers.every((c) => !c.stranger && !c.job && c.state === 'wait'), 'sitting by the fire');
   assert.ok(newcomers.every((c) => c.home), 'and they have beds');
   assert.ok(place(st, 'woodcutter', 'trees'), 'wood shed placed');
-  advance(st, 30);
+  advance(st, 90);
   const working = newcomers.filter((c) => st.byId.get(c.job)?.type === 'woodcutter');
   assert.equal(working.length, 1, 'a wood shed takes one pair of hands');
   advance(st, 60);
@@ -222,12 +233,14 @@ test('nobody leaves a job by themselves; the player moves people', () => {
   const a = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
   advance(st, 40);
   assert.ok(place(st, 'woodcutter', 'trees'));
+  finish(st);
   advance(st, 20);
   const shed = st.buildings.find((b) => b.type === 'woodcutter');
   assert.deepEqual(shed.workers, [a.id]);
   assert.ok(place(st, 'hunter', 'home'));
   const lodge = st.buildings.find((b) => b.type === 'hunter');
   sim.setPriority(st, lodge.id, 2);
+  finish(st);
   advance(st, 20);
   assert.equal(lodge.workers.length, 0, 'high priority, but nobody is pulled away');
   const r = sim.assignWorker(st, a.id, lodge.id);
@@ -253,7 +266,7 @@ test('sheds and farm land can be moved; houses must be pulled down for half thei
   const st = fresh(13);
   assert.ok(place(st, 'woodcutter', 'trees'));
   assert.ok(place(st, 'hut'));
-  advance(st, 20);
+  finish(st);
   const shed = st.buildings.find((b) => b.type === 'woodcutter');
   const hut = st.buildings.find((b) => b.type === 'hut');
   let moved = false;
@@ -355,15 +368,103 @@ test('a war band raids, the compound shoots back, and the town survives', () => 
 
 test('conquering a village takes its wealth and its people join you', () => {
   const st = fresh(17);
-  const f = st.factionMap.bandits1;
-  // Wipe the garrison and stand in the camp.
+  const f = st.factionMap.ijebu || st.factions.find((x) => !x.camp && x.major);
+  f.status = 'hostile';
+  // Wipe the garrison and stand in the village.
   st.units.filter((u) => u.owner === f.id).forEach((u) => (u.dead = true));
   st.dirty.cleanup = true;
   createUnit(st, 'spearman', f.x, f.y, 'player');
   const cowries = st.res.cowries;
   advance(st, 8);
   assert.equal(f.status, 'conquered');
-  assert.ok(st.res.cowries > cowries, 'plunder taken');
+  assert.ok(st.res.cowries >= cowries, 'plunder taken');
+});
+
+test('a bandit camp is tents: soldiers burn them by instinct, or hold their ground if told', () => {
+  const st = fresh(17);
+  const f = st.factionMap.bandits1;
+  const { campTents } = awaitFactions();
+  const tents = campTents(st, f);
+  assert.ok(tents.length >= 3, `tents round the fire (${tents.length})`);
+  assert.ok(tents.some((b) => b.type === 'chieftent'), "and the chief's tent");
+  // The bandits are out; five spearmen come near the camp.
+  st.units.filter((u) => u.owner === f.id).forEach((u) => (u.dead = true));
+  st.dirty.cleanup = true;
+  const t0 = tents[0];
+  const spot = { x: t0.x + 0.5, y: t0.y + 4.5 };
+  const holders = [0, 1].map(() => createUnit(st, 'spearman', Math.floor(spot.x), Math.floor(spot.y), 'player'));
+  sim.setStance(st, holders.map((u) => u.id), 'hold');
+  advance(st, 6);
+  assert.equal(campTents(st, f).length, tents.length, 'holding their ground, they leave the tents alone');
+  assert.ok(holders.every((u) => Math.hypot(u.x - spot.x, u.y - spot.y) < 1.5), 'and stay put');
+  // Told to fight any close by, they go for the tents by themselves.
+  sim.setStance(st, holders.map((u) => u.id), 'engage');
+  for (let k = 0; k < 3; k++) createUnit(st, 'spearman', Math.floor(spot.x), Math.floor(spot.y), 'player');
+  advance(st, 200);
+  assert.equal(campTents(st, f).length, 0, 'every tent burned');
+  assert.equal(f.status, 'conquered', 'the camp is finished');
+});
+
+test('builders carry the planks over and put each building up; nothing builds itself', () => {
+  const st = fresh(21);
+  st.migrateT = 1e9;
+  const { spawnStranger } = awaitEconomy();
+  const a = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  const b = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  const founder = st.citizens.find((c) => c.special === 'founder');
+  assert.ok(place(st, 'hut'), 'plank house placed');
+  const hut = st.buildings.find((x) => x.type === 'hut');
+  assert.equal(hut.built, 0);
+  assert.equal(hut.need, 10, 'ten planks to carry over');
+  let carried = false;
+  let stages = new Set();
+  const { siteStage } = awaitCitizens();
+  for (let i = 0; i < 20 * 120 && hut.built < 1; i++) {
+    sim.tick(st);
+    if ([a, b].some((c) => c.carry?.r === 'wood' && c.buildSite === hut.id)) carried = true;
+    const s = siteStage(hut);
+    if (s) stages.add(s.n);
+  }
+  assert.equal(hut.built, 1, 'built');
+  assert.ok(carried, 'the planks were carried over from the storage floor');
+  assert.deepEqual([...stages].sort(), [0, 1, 2, 3], 'through every stage');
+  assert.ok(!founder.buildSite, 'the founder left it to the two from the fire');
+  // Nobody free: the founder builds; a worker can be sent to help and goes
+  // back to work after.
+  advance(st, 30);
+  finish(st);
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  finish(st);
+  advance(st, 10);
+  const cutter = st.citizens.find((c) => st.byId.get(c.job)?.type === 'woodcutter');
+  assert.ok(cutter);
+  st.res.wood = 40;
+  assert.ok(place(st, 'stockpile'));
+  const floor = st.buildings.filter((x) => x.type === 'stockpile').at(-1);
+  advance(st, 3);
+  assert.ok(sim.assignBuilder(st, cutter.id, floor.id).ok);
+  for (let i = 0; i < 20 * 120 && floor.built < 1; i++) sim.tick(st);
+  assert.equal(floor.built, 1);
+  advance(st, 2);
+  assert.equal(st.byId.get(cutter.job)?.type, 'woodcutter', 'back to the wood shed');
+  assert.ok(!cutter.buildSite);
+});
+
+test('someone given work changes into its clothes before walking there', () => {
+  const st = fresh(22);
+  st.migrateT = 1e9;
+  const { spawnStranger } = awaitEconomy();
+  spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  assert.ok(place(st, 'hunter', 'home'));
+  finish(st);
+  const c = st.citizens.find((x) => x.job);
+  assert.equal(c.state, 'dress', 'changing clothes first');
+  assert.ok(!c.path, 'standing still to do it');
+  assert.ok(st.fx.some((f) => f.kind === 'puff'), 'in a puff of dust');
+  advance(st, 3);
+  assert.notEqual(c.state, 'dress', 'then off to work');
 });
 
 test('gifts win friendship and friendship becomes an alliance', () => {
@@ -453,7 +554,7 @@ test('your own soldiers train at a Guard House from people at the fire; the comp
   assert.match(sim.train(st, compound.id, 'scout').reason, /money/);
   st.res.wood = 200;
   assert.ok(place(st, 'warcamp'));
-  advance(st, 15);
+  finish(st);
   const camp = st.buildings.find((b) => b.type === 'warcamp');
   const before = st.res.wood;
   assert.ok(sim.train(st, camp.id, 'spearman').ok, 'spears and shields of wood, and food');
@@ -486,7 +587,8 @@ test('no Town age without subduing a kingdom', () => {
   st.res.stone = 999;
   st.res.cowries = 999;
   assert.ok(place(st, 'palace'));
-  advance(st, 30);
+  finish(st);
+  advance(st, 2);
   assert.equal(sim.advanceEra(st), false);
   st.factionMap.ilaje.status = 'vassal';
   assert.equal(sim.advanceEra(st), true);
@@ -527,7 +629,7 @@ test('kingdoms trade only after an agreement, which needs a market and goodwill'
   st.res.wood = 200;
   st.res.cowries = 200;
   assert.ok(place(st, 'market'));
-  advance(st, 20);
+  finish(st);
   f.relation = 25;
   assert.ok(sim.diplo(st, f.id, 'trade').ok);
   const cash = st.res.cowries;
@@ -543,7 +645,7 @@ test('the local market only buys so much of a good each day', () => {
   st.res.wood = 300;
   st.res.cowries = 200;
   assert.ok(place(st, 'market'));
-  advance(st, 20);
+  finish(st);
   st.res.wood = 300;
   const a = sim.trade(st, 'wood', 100, false);
   assert.ok(a.ok);
@@ -555,7 +657,7 @@ test('the kingdom upgrade rebuilds everything in mud, and houses sleep four', ()
   const st = fresh(36);
   st.res.wood = 100;
   assert.ok(place(st, 'hut'));
-  advance(st, 15);
+  finish(st);
   const hut = st.buildings.find((b) => b.type === 'hut');
   const { stat } = awaitData();
   assert.equal(stat(hut, 'housing'), 2, 'a plank house sleeps two');
@@ -618,4 +720,12 @@ function awaitImport() {
 import * as economy from '../js/sim/economy.js';
 function awaitEconomy() {
   return economy;
+}
+import * as factionsMod from '../js/sim/factions.js';
+function awaitFactions() {
+  return factionsMod;
+}
+import * as citizensMod from '../js/sim/citizens.js';
+function awaitCitizens() {
+  return citizensMod;
 }

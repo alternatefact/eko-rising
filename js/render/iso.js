@@ -15,6 +15,7 @@ import { PLAYER, ENEMY } from './palette.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
 import { isHostileOwner } from '../sim/military.js';
+import { BUILD_STATES, DRESS_TIME, siteStage } from '../sim/citizens.js';
 
 const HW = 32; // half a tile's width at zoom 1
 const HH = 16; // half its height
@@ -144,6 +145,12 @@ export class IsoRenderer {
     const ctx = this.ctx;
     const z = this.cam.zoom;
     const t = performance.now() / 1000;
+    // People and animals move to the game's clock (slower at 1×, stopped
+    // when paused); flames and water to the real one.
+    const step = this.lastNow ? Math.min(0.25, t - this.lastNow) : 0;
+    this.lastNow = t;
+    this.at = (this.at || 0) + step * this.timeScale;
+    const at = this.at;
     this.t = t;
     if (st.changedTiles.length) {
       for (const i of st.changedTiles) this.ground.touch(i);
@@ -259,6 +266,7 @@ export class IsoRenderer {
         if (b.built < 1) this.drawConstruction(ctx, key, p, b);
         else this.atlas.draw(ctx, key, p.x, p.y, z);
         if (b.type === 'campfire') this.drawFlames(ctx, b.x + 1, b.y + 1, 0.12, t, 1);
+        if (b.built < 1 && sel) this.siteLabel(ctx, b);
         if (b.hp < b.maxHp && b.built >= 1 && !BUILDINGS[b.type].invulnerable) {
           const top = this.tileToScreen(b.x + b.w / 2, b.y + b.h / 2, 1.3);
           this.hpBar(ctx, top.x, top.y, b.hp / b.maxHp, 40 * z);
@@ -277,8 +285,20 @@ export class IsoRenderer {
       if (!st.explored[f.y * st.W + f.x]) continue;
       const p = this.tileToScreen(f.x + 0.5, f.y + 0.5);
       if (!onScreen(p.x, p.y, 300)) continue;
-      const key = `v/${f.id}`;
       const sel = view.selectedFaction === f.id;
+      if (f.camp) {
+        // A bandit camp is its tents (drawn as buildings) round a fire.
+        const key = 'b/campfire/1';
+        const q = this.tileToScreen(f.x - 0.5, f.y - 0.5);
+        add(f.x + f.y + 1, () => {
+          if (sel) this.ellipse(ctx, f.x + 0.5, f.y + 0.5, 3.4, 'rgba(255,224,102,0.8)');
+          this.atlas.draw(ctx, key, q.x, q.y, z);
+          if (f.status !== 'conquered') this.drawFlames(ctx, f.x + 0.5, f.y + 0.5, 0.12, t, 1);
+        });
+        hits.push({ key, x: q.x, y: q.y, depth: f.x + f.y + 1, target: { kind: 'faction', f } });
+        continue;
+      }
+      const key = `v/${f.id}`;
       add(f.x + f.y + 1, () => {
         if (sel) this.ellipse(ctx, f.x + 0.5, f.y + 0.5, f.radius, 'rgba(255,224,102,0.8)');
         this.atlas.draw(ctx, key, p.x, p.y, z);
@@ -314,7 +334,7 @@ export class IsoRenderer {
       if (a.type === 'wolf' && !a.carcass && (a.phase === 'maul' || a.phase === 'fight')) anim = 'bite';
       const frames = { walk: 6, run: 6, bite: 4 }[anim] || 1;
       const fps = anim === 'run' ? 14 : anim === 'bite' ? 8 : 9;
-      const key = `a/${a.type}/${anim}/${dir}/${Math.floor(t * fps + a.id * 0.37) % frames}`;
+      const key = `a/${a.type}/${anim}/${dir}/${Math.floor(at * fps + a.id * 0.37) % frames}`;
       add(x + y, () => {
         this.shadow(ctx, p.x, p.y, a.type === 'wolf' ? 9 : 8);
         this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
@@ -336,7 +356,7 @@ export class IsoRenderer {
       const look = this.citizenLook(c, job, moving);
       const face = this.faceOf(c, job);
       const [dir, mirror] = this.dirFor(c, face ? face.x - x : x - c.px, face ? face.y - y : y - c.py, !!face);
-      const key = this.frameKey(look, dir, t, c.id);
+      const key = this.frameKey(look, dir, at, c.id);
       const sel = view.selected.has(c.id);
       add(x + y, () => {
         if (sel) this.ellipse(ctx, x, y, 0.32, '#ffe066');
@@ -375,12 +395,13 @@ export class IsoRenderer {
       const tx = target ? (target.kind === 'building' ? target.x + target.w / 2 : target.x) : null;
       const ty = target ? (target.kind === 'building' ? target.y + target.h / 2 : target.y) : null;
       const [dir, mirror] = this.dirFor(u, striking && target ? tx - x : x - u.px, striking && target ? ty - y : y - u.py, striking && !!target);
-      const key = this.frameKey({ look: lookName, anim }, dir, t, u.id);
+      const key = this.frameKey({ look: lookName, anim }, dir, at, u.id);
       const color = u.owner === 'player' ? PLAYER : isHostileOwner(st, 'player', u.owner) ? ENEMY : st.factionMap[u.owner]?.color || st.foreign[u.owner]?.color || '#888';
       const sel = view.selected.has(u.id);
       add(x + y, () => {
         if (sel) this.ellipse(ctx, x, y, 0.38, '#ffe066');
         this.teamMark(ctx, p.x, p.y, color);
+        if (sel && u.stance === 'hold') this.ellipse(ctx, x, y, 0.5, 'rgba(120,200,255,0.8)');
         this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
         if (u.hp < u.maxHp || sel) {
           const top = this.tileToScreen(x, y, 1.0);
@@ -461,17 +482,27 @@ export class IsoRenderer {
   }
 
   citizenLook(c, job, moving) {
-    const type = job?.type;
+    let type = job?.type;
     const working = WORKING.has(c.state) && !moving;
     const fighting = c.state === 'fight';
     // Someone with a load keeps their hands up to it, walking or not.
     const still = !moving;
+    const building = BUILD_STATES.has(c.state);
+    const hammering = c.state === 'build' && !moving;
     if (c.special === 'founder') {
       if (c.carry) return { look: 'founder', anim: 'carry', still };
+      if (hammering) return { look: this.atlas.meta.looks.founder_hammer ? 'founder_hammer' : 'founder_axe', anim: 'swing' };
       if ((c.state === 'fell' || c.state === 'saw') && !moving) return { look: 'founder_axe', anim: 'swing' };
-      return { look: 'founder', anim: moving ? 'strut' : 'idle' };
+      return { look: 'founder', anim: moving ? (this.atlas.meta.looks.founder.anims.includes('walk') ? 'walk' : 'strut') : 'idle' };
     }
     if (c.special === 'spouse') return { look: 'wife', anim: moving ? 'womanwalk' : 'idle' };
+    // Changing clothes: the old ones until the puff of dust, then the new.
+    if (c.state === 'dress' && c.timer > DRESS_TIME / 2) type = c.dressFrom;
+    // On a building site everyone carries a hammer.
+    if (building && !c.carry) {
+      const look = c.female ? 'woman_hammer' : 'builder';
+      if (this.atlas.meta.looks[look]) return { look, anim: hammering ? 'swing' : moving ? (c.female ? 'womanwalk' : 'walk') : 'idle' };
+    }
     if (c.female) {
       if (c.carry) return { look: 'woman', anim: 'womancarry', still };
       const look = FEMALE_LOOK[type] || 'woman';
@@ -492,6 +523,10 @@ export class IsoRenderer {
   // What someone at work turns to face: the tree, the prey, the wolf.
   faceOf(c, job) {
     const st = this.st;
+    if (c.state === 'build' && c.buildSite) {
+      const b = st.byId.get(c.buildSite);
+      if (b) return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    }
     if ((c.state === 'fell' || c.state === 'saw') && c.src >= 0) return { x: (c.src % st.W) + 0.5, y: Math.floor(c.src / st.W) + 0.5 };
     if (c.state === 'shoot' && c.prey) {
       const a = st.byId.get(c.prey);
@@ -639,34 +674,118 @@ export class IsoRenderer {
     ctx.fill();
   }
 
-  // A building going up: its foundations, then the walls rising behind
-  // scaffold poles.
+  // A building going up, in stages: the ground marked out with pegs and
+  // string and the materials piled beside it; the frame of poles; the walls
+  // rising behind the poles; the roof going on.
   drawConstruction(ctx, key, p, b) {
     const z = this.cam.zoom;
-    this.diamond(ctx, b.x, b.y, b.w, b.h, 'rgba(120,85,50,0.45)', 'rgba(90,60,30,0.8)');
+    const def = BUILDINGS[b.type];
+    const k = Math.max(0, Math.min(1, b.built));
+    const short = def.wall || def.gate;
+    const frameH = def.flat ? 0.12 : short ? 0.85 : 0.8;
+    this.diamond(ctx, b.x, b.y, b.w, b.h, def.flat ? 'rgba(120,85,50,0.25)' : 'rgba(120,85,50,0.42)', null);
+    const corners = [[0, 0], [b.w, 0], [b.w, b.h], [0, b.h]];
+    // Pegs and string.
+    ctx.strokeStyle = 'rgba(240,225,190,0.85)';
+    ctx.lineWidth = Math.max(1, 0.9 * z);
+    ctx.setLineDash([3 * z, 2 * z]);
+    ctx.beginPath();
+    corners.forEach(([dx, dy], n) => {
+      const q = this.tileToScreen(b.x + dx, b.y + dy, 0.12);
+      if (n) ctx.lineTo(q.x, q.y);
+      else ctx.moveTo(q.x, q.y);
+    });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // The walls rise from the ground up (flat sites fade in).
+    const rise = Math.max(0, (k - 0.3) / 0.7);
     const box = this.atlas.box(key, p.x, p.y, z);
-    if (box) {
-      const k = Math.max(0, Math.min(1, b.built));
-      const bottom = box.top + box.h;
-      const cut = bottom - box.h * k;
+    if (box && rise > 0) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(box.left - 2, cut, box.w + 4, bottom - cut + 2);
-      ctx.clip();
-      ctx.globalAlpha = 0.9;
-      this.atlas.draw(ctx, key, p.x, p.y, z);
+      if (def.flat) {
+        ctx.globalAlpha = 0.25 + rise * 0.75;
+        this.atlas.draw(ctx, key, p.x, p.y, z);
+      } else {
+        const bottom = box.top + box.h;
+        const cut = bottom - box.h * rise;
+        ctx.beginPath();
+        ctx.rect(box.left - 2, cut, box.w + 4, bottom - cut + 2);
+        ctx.clip();
+        this.atlas.draw(ctx, key, p.x, p.y, z);
+      }
       ctx.restore();
     }
-    ctx.strokeStyle = '#7a5634';
-    ctx.lineWidth = Math.max(1, 2 * z);
-    for (const [dx, dy] of [[0, 0], [b.w, 0], [b.w, b.h], [0, b.h]]) {
-      const a = this.tileToScreen(b.x + dx, b.y + dy);
-      const top = this.tileToScreen(b.x + dx, b.y + dy, 0.9);
+    // The frame of poles, and beams across their tops once they stand.
+    if (!def.flat && b.got >= b.need && k < 0.97) {
+      const up = Math.min(1, k / 0.3) * frameH;
+      const posts = short ? corners : [...corners, [b.w / 2, 0], [b.w, b.h / 2], [b.w / 2, b.h], [0, b.h / 2]];
+      ctx.strokeStyle = '#8a6238';
+      ctx.lineWidth = Math.max(1.2, 2.2 * z);
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(top.x, top.y);
+      for (const [dx, dy] of posts) {
+        const a = this.tileToScreen(b.x + dx, b.y + dy);
+        const top = this.tileToScreen(b.x + dx, b.y + dy, up);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(top.x, top.y);
+      }
       ctx.stroke();
+      if (k >= 0.3) {
+        ctx.lineWidth = Math.max(1, 1.6 * z);
+        ctx.beginPath();
+        corners.forEach(([dx, dy], n) => {
+          const q = this.tileToScreen(b.x + dx, b.y + dy, frameH);
+          if (n) ctx.lineTo(q.x, q.y);
+          else ctx.moveTo(q.x, q.y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
     }
+    // What is left of the materials, piled at the front corner.
+    const left = Math.round((b.got || 0) * (1 - k));
+    if (left > 0 && b.mat && this.atlas.has(`s/${b.mat}/2`)) {
+      const n = Math.max(2, Math.min(20, Math.ceil(left / 2) * 2));
+      const q = short ? this.tileToScreen(b.x + 0.5, b.y + 0.8) : this.tileToScreen(b.x + b.w - 0.4, b.y + b.h - 0.4);
+      this.atlas.draw(ctx, `s/${b.mat}/${n}`, q.x, q.y, z * (short ? 0.7 : 1));
+    }
+    // How far along it is.
+    if (!short || this.cam.zoom > 0.9) {
+      const top = this.tileToScreen(b.x + b.w / 2, b.y + b.h / 2, frameH + 0.55);
+      const w = (short ? 18 : 38) * z;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(top.x - w / 2 - 1, top.y - 1, w + 2, 5);
+      if (b.got < b.need) {
+        ctx.fillStyle = '#b07a43';
+        ctx.fillRect(top.x - w / 2, top.y, w * (b.need ? b.got / b.need : 0), 3);
+      } else {
+        ctx.fillStyle = '#f0b429';
+        ctx.fillRect(top.x - w / 2, top.y, w * k, 3);
+      }
+      if (!b.builders?.length && !short) {
+        // Nobody on it: a small sign so the player notices.
+        ctx.font = `${Math.round(11 * z)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('⏳', top.x, top.y - 4 * z);
+      }
+    }
+  }
+
+  // The stage a selected building site is at, written above it.
+  siteLabel(ctx, b) {
+    const s = siteStage(b);
+    if (!s) return;
+    const z = this.cam.zoom;
+    const top = this.tileToScreen(b.x + b.w / 2, b.y + b.h / 2, 1.6);
+    ctx.font = `600 ${Math.round(12 * Math.max(0.8, z))}px Manrope, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const text = `${s.name}…`;
+    const w = ctx.measureText(text).width + 12;
+    ctx.fillStyle = 'rgba(20,14,8,0.75)';
+    ctx.fillRect(top.x - w / 2, top.y - 9, w, 18);
+    ctx.fillStyle = '#ffe9b0';
+    ctx.fillText(text, top.x, top.y);
   }
 
   // A tree going over, pivoting on its foot away from the axe.
@@ -712,8 +831,36 @@ export class IsoRenderer {
 
   drawFx(ctx, f) {
     const z = this.cam.zoom;
+    if (f.t < 0) return;
     const k = Math.min(1, f.t / f.dur);
     if (f.kind === 'treefall') return;
+    if (f.kind === 'puff') {
+      // Changing into work clothes: a quick cloud of dust and a glint.
+      const c = this.tileToScreen(f.x0, f.y0, 0.4);
+      for (let n = 0; n < 7; n++) {
+        const a = n * 0.9 + k * 1.5;
+        const r = (5 + k * 16) * z;
+        ctx.fillStyle = `rgba(236,222,190,${0.75 * (1 - k)})`;
+        ctx.beginPath();
+        ctx.arc(c.x + Math.cos(a) * r * 0.8, c.y + Math.sin(a) * r * 0.55 - k * 8 * z, (6 + k * 7) * z, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(255,236,140,${1 - k})`;
+      for (let n = 0; n < 4; n++) {
+        const a = n * 1.57 + 0.4;
+        const r = (8 + k * 18) * z;
+        ctx.fillRect(c.x + Math.cos(a) * r - 1.5 * z, c.y + Math.sin(a) * r * 0.7 - k * 14 * z - 1.5 * z, 3 * z, 3 * z);
+      }
+      return;
+    }
+    if (f.kind === 'blaze') {
+      // A burning tent.
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, (f.dur - f.t) / 4));
+      this.drawFlames(ctx, f.x0, f.y0, f.r || 0.35, this.t, 3);
+      ctx.restore();
+      return;
+    }
     const a = this.tileToScreen(f.x0, f.y0, 0.5);
     const b = this.tileToScreen(f.x1, f.y1, 0.3);
     const x = a.x + (b.x - a.x) * k;
