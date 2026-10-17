@@ -1,23 +1,21 @@
 // Everything on screen that isn't the map: resource bar, goals, messages,
 // the build bar, the side panel and story pop-ups.
 
-import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade } from '../data/buildings.js';
+import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade, costOf } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ERAS } from '../data/eras.js';
 import { RESOURCES, FOOD, costText, money } from '../data/resources.js';
-import { drawBuilding } from '../render/sprites.js';
 import {
-  canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season,
+  canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season, fireCap,
   happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand,
 } from '../sim/economy.js';
-import { citizenStatus } from '../sim/citizens.js';
+import { citizenStatus, jobless } from '../sim/citizens.js';
 import { canTrain, armyPower } from '../sim/military.js';
 import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
-import { buildLocked, canUpgrade } from '../sim/index.js';
+import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost } from '../sim/index.js';
 import { STATES, NEXT_UP } from '../regions/index.js';
-import { graphicsMode, setGraphicsMode, graphicsStyle, setGraphicsStyle } from './settings.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -99,6 +97,15 @@ export class Hud {
       if (m) this.game.centerOn(+m.dataset.x, +m.dataset.y);
     });
     $('#objectives').addEventListener('click', (e) => {
+      if (e.target.closest('[data-guide="show"]')) {
+        this.game.showPoint();
+        return;
+      }
+      if (e.target.closest('[data-guide="toggle"]')) {
+        this.collapsedGoals = !this.collapsedGoals;
+        this.renderGoals(true);
+        return;
+      }
       if (e.target.closest('h3')) {
         this.collapsedGoals = !this.collapsedGoals;
         this.renderGoals(true);
@@ -106,33 +113,18 @@ export class Hud {
     });
     $('#modal').addEventListener('click', (e) => this.onModalClick(e));
     $('#place-ok').addEventListener('click', () => this.game.confirmPlace());
+    $('#mud-btn').addEventListener('click', () => {
+      if (this.panel?.kind === 'mud') this.closePanel();
+      else this.openPanel('mud');
+    });
     $('#place-cancel').addEventListener('click', () => this.game.cancelBuild());
     if (window.innerWidth < 760) {
       this.collapsedGoals = true;
     }
   }
 
-  makeThumbs() {
-    const fake = { era: 0, flags: {} };
-    for (const [type, def] of Object.entries(BUILDINGS)) {
-      const c = document.createElement('canvas');
-      const size = 96;
-      c.width = size;
-      c.height = size;
-      const g = c.getContext('2d');
-      const px = Math.max(def.w, def.h) * 32;
-      const k = (size - 8) / (px + (type === 'palace' ? 40 : 16));
-      g.translate(size / 2 - (def.w * 32 * k) / 2, size / 2 - (def.h * 32 * k) / 2 + (type === 'palace' ? -10 : 4));
-      g.scale(k, k);
-      const n = def.line ? { l: true, r: true, u: false, d: false } : { l: false, r: false, u: false, d: false };
-      try {
-        drawBuilding(g, { type, w: def.w, h: def.h, built: 1, growth: 0.7, id: 3, workers: [] }, 0.5, fake, n);
-      } catch (err) {
-        // A missing sprite only costs the thumbnail.
-      }
-      this.thumbs[type] = c.toDataURL();
-    }
-  }
+  // Build-bar pictures come from the renderer's sprite sheets once they load.
+  makeThumbs() {}
 
   // --- Periodic refresh ----------------------------------------------------
 
@@ -149,6 +141,52 @@ export class Hud {
     const eraBtn = document.querySelector('[data-panel="era"]');
     const req = eraRequirements(st);
     eraBtn.classList.toggle('alert', !!req && req.reqs.every((r) => r.met));
+    // The kingdom upgrade, once there are mud bricks to build with.
+    const mud = $('#mud-btn');
+    mud.hidden = !!st.flags.mud || !(st.res.bricks >= 1 || st.buildings.some((b) => b.type === 'brickyard' && !b.dead));
+    mud.classList.toggle('alert', !mud.hidden && st.res.bricks >= mudUpgradeCost(st));
+    this.highlight();
+  }
+
+  // Point at what the guide is talking about: a card in the build bar, a
+  // button, or (through the renderer) something on the map.
+  highlight() {
+    const st = this.st;
+    const step = currentStep(st);
+    const pt = step?.point ? (() => {
+      try {
+        return step.point(st);
+      } catch (err) {
+        return null;
+      }
+    })() : null;
+    const key = `${step?.id}|${pt?.build || ''}|${pt?.ui || ''}`;
+    if (key !== this.lastHighlight) {
+      this.lastHighlight = key;
+      document.querySelectorAll('.pulse').forEach((el) => el.classList.remove('pulse'));
+      if (pt?.build) {
+        const cat = BUILDINGS[pt.build]?.cat;
+        // Open the right tab once, so the card is in sight.
+        if (cat && this.tab !== cat && this.tabFor !== key) {
+          this.tab = cat;
+          this.tabFor = key;
+          this.renderBuild(true);
+          const bar = $('#buildbar');
+          if (bar.classList.contains('collapsed')) {
+            bar.classList.remove('collapsed');
+            document.getElementById('app').classList.remove('build-collapsed');
+          }
+        }
+      }
+    }
+    document.querySelectorAll('.pulse').forEach((el) => el.classList.remove('pulse'));
+    if (pt?.build && !this.game.mode.build) {
+      document.querySelector(`.bcard[data-type="${pt.build}"]`)?.classList.add('pulse');
+      if (this.tab !== BUILDINGS[pt.build]?.cat) document.querySelector(`#build-tabs [data-tab="${BUILDINGS[pt.build]?.cat}"]`)?.classList.add('pulse');
+    }
+    if (pt?.ui) document.querySelector(pt.ui)?.classList.add('pulse');
+    // Things on the map get the renderer's arrow (placed every frame).
+    this.game.view.pointTarget = pt && (pt.id || pt.x !== undefined) ? pt : null;
   }
 
   renderTop() {
@@ -165,7 +203,7 @@ export class Hud {
     const pop = residents(st).length;
     const waiting = strangers(st).length;
     chips.push(`<span class="res" title="Residents / homes">👥 ${pop}<small>/${housingCap(st)}</small></span>`);
-    if (waiting) chips.push(`<span class="res" title="Strangers waiting for a home">🔥 ${waiting}</span>`);
+    if (waiting) chips.push(`<span class="res" title="People at the fire with no work (room for ${fireCap(st)})">🔥 ${waiting}</span>`);
     chips.push(`<span class="res" title="Soldiers / army limit">🛡️ ${armySize(st)}<small>/${armyCap(st)}</small></span>`);
     const h = Math.round(st.happy);
     const face = h >= 70 ? '😄' : h >= 50 ? '🙂' : h >= 35 ? '😐' : '😠';
@@ -192,16 +230,52 @@ export class Hud {
 
   renderGoals(force) {
     const st = this.st;
+    if (storyRunning(st)) {
+      this.renderGuide(force);
+      return;
+    }
     const goals = st.objCurrent.map((id) => st.region.objectives.find((o) => o.id === id)).filter(Boolean);
     const key = goals.map((g) => g.id).join() + this.collapsedGoals;
     if (key === this.lastGoals && !force) return;
     this.lastGoals = key;
     const el = $('#objectives');
     el.classList.toggle('collapsed', this.collapsedGoals);
+    el.classList.remove('guiding');
+    this.lastGuide = null;
     el.hidden = !goals.length;
     el.innerHTML = `<h3><span>🎯 Goals</span><span>${this.collapsedGoals ? '▸' : '▾'}</span></h3>${goals
       .map((g) => `<div class="goal"><b>${esc(g.text)}</b><span>${esc(g.hint)}</span></div>`)
       .join('')}`;
+  }
+
+  // The guide: who is speaking, what they say, and the one thing to do now.
+  renderGuide(force) {
+    const st = this.st;
+    const step = currentStep(st);
+    const el = $('#objectives');
+    if (!step) {
+      el.hidden = true;
+      return;
+    }
+    const steps = st.region.story;
+    const who = step.who === 'founder' ? st.founder : step.who === 'spouse' ? st.spouse : 'Guide';
+    const face = step.who === 'founder' ? '👨🏾' : step.who === 'spouse' ? '👩🏾' : '🧭';
+    const say = stepText(st, step, 'say');
+    const task = stepText(st, step, 'task');
+    const hint = stepText(st, step, 'hint');
+    const html = `<div class="guide who-${step.who || 'guide'}">
+      <div class="guide-head"><span class="face">${face}</span><b>${esc(who)}</b><span class="step">${st.tut.i + 1}/${steps.length}</span><button class="mini" data-guide="toggle" aria-label="${this.collapsedGoals ? 'Show' : 'Hide'} the guide">${this.collapsedGoals ? '▸' : '▾'}</button></div>
+      <p class="say">${esc(say)}</p>
+      <div class="task"><span class="tick">▶</span><b>${esc(task)}</b>${step.point ? '<button class="showme" data-guide="show" title="Show me">📍</button>' : ''}</div>
+      ${this.collapsedGoals || !hint ? '' : `<p class="hint">${esc(hint)}</p>`}
+    </div>`;
+    if (html === this.lastGuide && !force) return;
+    this.lastGuide = html;
+    this.lastGoals = null;
+    el.hidden = false;
+    el.classList.add('guiding');
+    el.classList.remove('collapsed');
+    el.innerHTML = html;
   }
 
   renderFeed() {
@@ -233,7 +307,7 @@ export class Hud {
 
   renderBuild(force) {
     const st = this.st;
-    const sig = `${this.tab}|${st.era}|${Object.entries(st.res).map(([k, v]) => Math.floor(v / 5)).join()}|${this.game.mode.build}|${this.game.mode.demolish}|${st.flags.europeanTrade}|${st.buildings.length}`;
+    const sig = `${this.tab}|${st.era}|${st.flags.mud}|${Object.entries(st.res).map(([k, v]) => Math.floor(v / 5)).join()}|${this.game.mode.build}|${this.game.mode.demolish}|${st.flags.europeanTrade}|${st.buildings.length}`;
     if (sig === this.lastBuild && !force) return;
     this.lastBuild = sig;
     $('#build-tabs').innerHTML =
@@ -243,14 +317,15 @@ export class Hud {
     $('#build-items').innerHTML = items
       .map(([type, d]) => {
         const locked = buildLocked(st, type);
-        const poor = !canAfford(st, d.cost);
+        const cost = costOf(st, type);
+        const poor = !canAfford(st, cost);
         const cls = ['bcard', locked ? 'locked' : '', poor ? 'poor' : '', this.game.mode.build === type ? 'on' : ''].join(' ');
-        const natural = !d.cost.cowries;
+        const natural = !cost.cowries;
         const tip = `${d.name} (${d.yo}) — ${d.desc}${natural ? '\n🌿 Built from natural materials — no money needed.' : `\n${money(st).icon} Needs money.`}${locked ? `\n🔒 ${locked}` : ''}`;
         return `<div class="${cls}" data-type="${type}" title="${esc(tip)}" role="button" tabindex="0">
           <img src="${this.thumbs[type]}" alt="" />
           <span class="nm">${locked ? '🔒 ' : ''}${esc(d.name)}</span>
-          <span class="cost">${costText(d.cost, st) || 'free'}</span>
+          <span class="cost">${costText(cost, st) || 'free'}</span>
         </div>`;
       })
       .join('');
@@ -396,6 +471,9 @@ export class Hud {
       case 'menu':
         html = this.menuHtml();
         break;
+      case 'mud':
+        html = this.mudHtml();
+        break;
       default:
         return this.closePanel();
     }
@@ -431,13 +509,21 @@ export class Hud {
         const c = st.byId.get(id);
         if (c) h += `<div class="item click" data-act="citizen" data-id="${c.id}"><span>${esc(c.name)}</span><span class="muted">${esc(citizenStatus(st, c))}</span></div>`;
       }
-      if (!b.workers.length) h += `<div class="item"><span class="muted">${b.paused ? 'Paused.' : 'Nobody yet — waiting for an idle resident. Build huts so strangers move in.'}</span></div>`;
-      h += '</div><h4>Priority</h4><div class="seg">';
+      if (!b.workers.length) h += `<div class="item"><span class="muted">${b.paused ? 'Paused.' : 'Nobody yet. Whoever sits by the fire comes to work here; or tap one of your people and then this building.'}</span></div>`;
+      h += '</div>';
+      // People at the fire who could come and work here.
+      const free = b.built >= 1 && b.workers.length < def.workers ? jobless(st) : [];
+      if (free.length) {
+        h += `<h4>At the fire, free to work</h4><div class="list">`;
+        for (const c of free.slice(0, 6)) h += `<div class="item"><span>${esc(c.name)}</span><button class="btn primary" data-act="assign" data-c="${c.id}">Send here</button></div>`;
+        h += '</div>';
+      }
+      h += '<h4>Priority</h4><div class="seg">';
       ['Low', 'Normal', 'High'].forEach((n, k) => {
         h += `<button class="btn ${b.priority === k ? 'on' : ''}" data-act="prio" data-v="${k}">${n}</button>`;
       });
       h += `<button class="btn ${b.paused ? 'on' : ''}" data-act="pause">${b.paused ? '▶ Resume' : '⏸ Pause'}</button></div>`;
-      h += '<p class="muted">Workers leave lower-priority jobs to fill higher ones. Food jobs get a boost when the granary runs low.</p>';
+      h += '<p class="muted">People sitting at the fire go to the highest-priority work first. Nobody leaves a job by themselves: to move someone, tap them and then the place you want them.</p>';
     }
     if (def.housing) {
       h += `<h4>Residents ${b.residents.length}/${stat(b, 'housing')}</h4><div class="list">`;
@@ -484,7 +570,12 @@ export class Hud {
     if (b.type === 'port' && b.built >= 1) h += this.portHtml();
     if (b.owner === 'player') h += this.upgradeHtml(b);
     if (def.tower) h += `<p class="muted">Shoots enemies within ${def.tower.range} tiles.</p>`;
-    if (b.type !== 'compound' && b.type !== 'campfire') h += `<h4></h4><button class="btn danger" data-act="demolish">Pull down</button>`;
+    if (b.type !== 'compound' && b.type !== 'campfire') {
+      h += '<h4></h4><div class="row">';
+      if (def.movable) h += '<button class="btn" data-act="move">🚚 Move</button>';
+      h += `<button class="btn danger" data-act="demolish">Pull down</button></div>`;
+      h += `<p class="muted">${def.movable ? 'Sheds and farm land can be moved. ' : ''}Pulling down gives back half of what it cost.</p>`;
+    }
     return h;
   }
 
@@ -580,6 +671,18 @@ export class Hud {
       <span>Lives in</span><b>${home ? esc(BUILDINGS[home.type].name) : 'Homeless'}</b>
       ${c.carry ? `<span>Carrying</span><b>${RESOURCES[c.carry.r].icon} ${Math.round(c.carry.n)}</b>` : ''}</div>`;
     if (job) h += `<h4></h4><button class="btn" data-act="building" data-id="${job.id}">Go to workplace</button>`;
+    const cutter = job && BUILDINGS[job.type].job?.source === 'tree';
+    if (c.special === 'founder') h += '<p class="tip">👉 Tap a tree and he will fell it and carry the planks home. Tap the ground to send him there.</p>';
+    else if (cutter) h += '<p class="tip">👉 Tap a tree: it becomes his new place of work, and he fells the trees around it. Tap another workplace to move him there.</p>';
+    else if (!c.special && !c.stranger) {
+      h += '<p class="tip">👉 Tap a workplace on the map to send them to work there.</p>';
+      const open = st.buildings.filter((b) => b.owner === 'player' && !b.dead && b.built >= 1 && BUILDINGS[b.type].workers && b.id !== c.job && b.workers.length < BUILDINGS[b.type].workers);
+      if (open.length) {
+        h += '<h4>Places that need hands</h4><div class="list">';
+        for (const b of open.slice(0, 6)) h += `<div class="item"><span>${ICONS[b.type] || ''} ${esc(levelName(b))} <span class="muted">${b.workers.length}/${BUILDINGS[b.type].workers}</span></span><button class="btn primary" data-act="sendto" data-b="${b.id}" data-c="${c.id}">Send</button></div>`;
+        h += '</div>';
+      }
+    }
     return h;
   }
 
@@ -749,6 +852,17 @@ export class Hud {
     return h;
   }
 
+  mudHtml() {
+    const st = this.st;
+    const cost = mudUpgradeCost(st);
+    const ok = st.res.bricks >= cost && !st.flags.mud;
+    return `${this.head('🧱 Kingdom upgrade', 'Rebuild in mud · Ilé Amọ̀')}
+      <p>Rebuild every house, shed, floor and the guard house in red mud bricks, all at once. Mud walls stand up far better to fire and to bandits, and every plank house becomes a mud house that sleeps four.</p>
+      <div class="kv"><span>Bricks needed</span><b>🧱 ${cost}</b><span>Bricks you have</span><b>🧱 ${Math.floor(st.res.bricks)}</b></div>
+      <h4></h4><button class="btn primary big" data-act="mud" ${ok ? '' : 'disabled'}>Rebuild in mud</button>
+      <p class="muted">Fences stay wooden: rebuild them as mud walls later, section by section.</p>`;
+  }
+
   menuHtml() {
     const g = this.game;
     return `${this.head('☰ Menu', `Map seed ${this.st.seed}`)}
@@ -757,18 +871,11 @@ export class Hud {
         <button class="btn" data-act="load" ${g.hasSave() ? '' : 'disabled'}>📂 Load last save</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
       </div>
-      <h4>Graphics</h4>
-      <div class="seg">
-        ${[['real', '🏰 Realistic 3D'], ['cartoon', '🎨 Cartoon 3D'], ['2d', '🖼️ Classic 2D']].map(([k, label]) => {
-          const on = k === '2d' ? graphicsMode() === '2d' : graphicsMode() === '3d' && graphicsStyle() === k;
-          return `<button class="btn ${on ? 'on' : ''}" data-act="graphics" data-v="${k}">${label}</button>`;
-        }).join('')}
-      </div>
       <div class="list">
         <button class="btn" data-act="log">📜 Message history</button>
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
-      <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home.</p>
+      <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home. Tap one of your people, then a tree or a workplace, to give orders.</p>
       <p class="owner">Eko Rising is an original game by <a href="https://alternatefactstudios.com/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
       ${this.panel?.data === 'log' ? `<h4>History</h4><div class="list">${this.st.log.slice().reverse().map((m) => `<div class="item"><span>${esc(m.text)}</span><span class="muted">d${m.day + 1}</span></div>`).join('')}</div>` : ''}`;
   }
@@ -840,15 +947,23 @@ export class Hud {
         if (r && !r.ok && r.reason) this.toast(r.reason);
         break;
       }
-      case 'graphics': {
-        const v = el.dataset.v;
-        if (v === '2d') setGraphicsMode('2d');
-        else {
-          setGraphicsMode('3d');
-          setGraphicsStyle(v);
-        }
-        g.save(false);
-        window.location.reload();
+      case 'assign': {
+        const r = g.cmd('assignWorker', +el.dataset.c, sel);
+        if (r && !r.ok) this.toast(r.reason);
+        break;
+      }
+      case 'sendto': {
+        const r = g.cmd('assignWorker', +el.dataset.c, +el.dataset.b);
+        if (r && !r.ok) this.toast(r.reason);
+        break;
+      }
+      case 'move':
+        g.startMove(sel);
+        return;
+      case 'mud': {
+        const r = g.cmd('mudUpgrade');
+        if (r && !r.ok) this.toast(r.reason);
+        else this.closePanel();
         return;
       }
       case 'goto':

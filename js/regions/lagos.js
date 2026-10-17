@@ -813,6 +813,7 @@ export const LAGOS = {
     },
     {
       id: 'strangers',
+      focus: true,
       enter: (st, api) => {
         const a = api.wanderer({ female: false, calling: 'woodcutter', guest: true, near: true, quiet: true });
         const b = api.wanderer({ female: true, calling: 'woodcutter', guest: true, near: true, quiet: true });
@@ -860,6 +861,7 @@ export const LAGOS = {
     },
     {
       id: 'antelope',
+      focus: true,
       enter: (st, api) => {
         const herd = api.herd(3);
         st.flags.herd = herd.map((a) => a.id);
@@ -931,6 +933,7 @@ export const LAGOS = {
     },
     {
       id: 'wolves',
+      focus: true,
       enter: (st, api) => {
         st.flags.packSent = !!api.pack(4);
       },
@@ -982,6 +985,7 @@ export const LAGOS = {
     },
     {
       id: 'bandits',
+      focus: true,
       enter: (st, api) => {
         st.story = { ...(st.story || {}), raidDead: [], stolen: {} };
         const ids = api.raid('bandits1', ['bandit', 'bandit', 'bandit', 'bandit'], { steal: true, patience: 110, label: 'bandit raid', onDefeat: 'bandits_gone' });
@@ -1003,7 +1007,7 @@ export const LAGOS = {
       who: 'founder',
       say: '“First we fill the stores again. Then we build a guard house.”',
       task: 'Refill the stores: 30 food and 40 planks',
-      hint: (st) => `Food ${Math.floor(totalFood(st))} of 30, planks ${Math.floor(st.res.wood)} of 40. A second farm or wood shed helps; the woodcutters can also mend the fence.`,
+      hint: (st) => `Food ${Math.floor(totalFood(st))} of 30, planks ${Math.floor(st.res.wood)} of 40. A second farm or wood shed helps. If the storage floor is full, build another beside it (Industry).`,
       done: (st) => totalFood(st) >= 30 && st.res.wood >= 40,
     },
     {
@@ -1026,6 +1030,7 @@ export const LAGOS = {
     },
     {
       id: 'camp',
+      focus: true,
       enter: (st, api) => {
         const f = st.factionMap.bandits1;
         if (f) api.reveal(f.x, f.y, 4);
@@ -1039,6 +1044,7 @@ export const LAGOS = {
     },
     {
       id: 'mudpit',
+      focus: true,
       who: 'founder',
       say: (st) => `“On our way here we passed a pit of red mud. With mud we can make bricks, and build houses no bandit can burn so easily. Let me go and find it again.”`,
       task: (st) => `Click ${st.founder}, then click the marked place to send him there`,
@@ -1055,6 +1061,7 @@ export const LAGOS = {
     },
     {
       id: 'brickshed',
+      focus: true,
       who: 'founder',
       say: '“Here it is: red mud, as much as we will ever need.”',
       task: 'Build a Mud Brick Shed beside the red mud',
@@ -1067,7 +1074,7 @@ export const LAGOS = {
       who: 'guide',
       say: 'With enough mud bricks, every house and shed can be rebuilt in mud at once: the kingdom upgrade.',
       task: (st) => `Make ${mudCost(st)} mud bricks`,
-      hint: (st) => `Bricks: ${Math.floor(st.res.bricks)} of ${mudCost(st)}. More hands at the brick shed make them faster.`,
+      hint: (st) => `Bricks: ${Math.floor(st.res.bricks)} of ${mudCost(st)}. Two people can work the brick shed. If the storage floor fills up, build another beside it.`,
       point: (st) => building(st, 'brickyard') && { id: building(st, 'brickyard').id },
       done: (st) => st.res.bricks >= mudCost(st),
     },

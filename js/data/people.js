@@ -1,5 +1,6 @@
-// The life-like 3D people (made with Higgsfield) and their animations, and
-// which model and movement each person in the game uses.
+// The life-like 3D people (made with Higgsfield) and their animations. The
+// sprite baker (tools/bake) photographs them in every movement for the 2D
+// isometric view; js/render/iso.js picks which picture each person shows.
 
 // Character models in art/people/characters. `height` scales a model relative
 // to a grown man. `prop` is the tool in their hand (js/render3d/props.js),
@@ -51,80 +52,4 @@ function headLoad(clip) {
   out.tracks = out.tracks.filter((t) => !held.has(t.name));
   for (const [bone, q] of Object.entries(HEAD_LOAD_POSE)) out.tracks.push(new Track(`${bone}.quaternion`, [0], q));
   return out;
-}
-
-const WORK = {
-  farm: 'pull',
-  cassava: 'pull',
-  woodcutter: 'swing',
-  brickyard: 'pull',
-  quarry: 'swing',
-  ironmine: 'swing',
-  blacksmith: 'swing',
-  hunter: 'bow',
-  palmpress: 'pull',
-  garri: 'pull',
-};
-
-const JOB_MODEL = {
-  farm: 'farmer',
-  cassava: 'farmer',
-  woodcutter: 'woodcutter',
-  hunter: 'hunter',
-  fisher: 'fisher',
-  canoeyard: 'fisher',
-  brickyard: 'labourer',
-  quarry: 'labourer',
-  ironmine: 'labourer',
-  blacksmith: 'labourer',
-};
-
-const WORKING = new Set(['gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot']);
-
-// Which model a townsperson uses, and what they are doing.
-export function citizenLook(st, c, job, moving) {
-  let type;
-  if (c.special === 'founder') type = 'founder';
-  else if (c.special === 'spouse') type = 'wife';
-  else if (c.female) type = 'woman';
-  else type = (job && JOB_MODEL[job.type]) || 'labourer';
-  const female = type === 'wife' || type === 'woman';
-  let anim = 'idle';
-  if (c.state === 'fight') anim = 'swing';
-  else if (moving) {
-    if (c.carry) anim = female ? 'womancarry' : 'carry';
-    else if (type === 'founder') anim = 'strut';
-    else anim = female ? 'womanwalk' : 'walk';
-  } else if (WORKING.has(c.state) && job) {
-    anim = WORK[job.type] || (c.state === 'shoot' ? 'bow' : 'swing');
-    if (job.type === 'fisher') anim = 'idle';
-  }
-  return { type, anim };
-}
-
-// Which model a soldier uses (null: keep the simple figure, for later-age troops).
-export function unitLook(st, u, moving, striking) {
-  let type = null;
-  switch (u.type) {
-    case 'spearman':
-    case 'warrior':
-    case 'scout':
-    case 'swordsman':
-      type = 'spearman';
-      break;
-    case 'archer':
-    case 'bowman':
-      type = 'hunter';
-      break;
-    case 'bandit':
-    case 'slaver':
-      type = 'bandit';
-      break;
-    default:
-      return null;
-  }
-  let anim = 'idle';
-  if (striking) anim = type === 'hunter' ? 'bow' : 'slash';
-  else if (moving) anim = type === 'spearman' ? 'spearwalk' : 'walk';
-  return { type, anim };
 }

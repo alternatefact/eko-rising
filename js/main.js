@@ -3,11 +3,10 @@
 
 import * as sim from './sim/index.js';
 import { BUILDINGS } from './data/buildings.js';
-import { Renderer } from './render/renderer.js';
+import { IsoRenderer } from './render/iso.js';
 import { Minimap } from './render/minimap.js';
 import { Hud, renderNigeria } from './ui/hud.js';
 import { bindInput } from './ui/input.js';
-import { graphicsMode } from './ui/settings.js';
 
 const SAVE_KEY = 'eko-rising:save:v2';
 const MAX_STEPS = 12;
@@ -63,7 +62,7 @@ class Game {
     this.hud.closePanel();
     this.hud.modalKey = null;
     const home = st.buildings.find((b) => b.type === 'palace' && !b.dead) || st.buildings.find((b) => b.type === 'compound');
-    this.renderer.cam.zoom = window.innerWidth < 760 ? 1.05 : 1.35;
+    this.renderer.cam.zoom = window.innerWidth < 760 ? 1.05 : 1.45;
     this.renderer.centerOn(home ? home.x + home.w / 2 : st.start.x, home ? home.y + home.h / 2 + 1 : st.start.y);
     document.getElementById('title').hidden = true;
     this.paused = false;
@@ -122,6 +121,8 @@ class Game {
         if (steps >= MAX_STEPS) this.acc = 0;
       }
       this.pruneSelection();
+      this.view.point = this.pointFrom(this.view.pointTarget);
+      this.followStory();
       this.renderer.timeScale = this.paused ? 0 : this.speed;
       this.renderer.draw(this.paused ? 1 : Math.min(1, this.acc / sim.STEP), this.view);
       if (this.frame++ % 6 === 0) this.minimap.draw(this.renderer);
@@ -137,6 +138,41 @@ class Game {
       }
     }
     requestAnimationFrame((t) => this.loop(t));
+  }
+
+  // When the story moves to a step that happens somewhere (strangers on the
+  // path, wolves out of the bush), the camera goes to look.
+  followStory() {
+    const step = sim.currentStep(this.st);
+    const id = step?.id || null;
+    if (id === this.storyStep) return;
+    this.storyStep = id;
+    if (!step?.focus) return;
+    let pt = null;
+    try {
+      pt = this.pointFrom(step.point?.(this.st));
+    } catch (err) {
+      pt = null;
+    }
+    if (pt) this.centerOn(pt.x, pt.y);
+  }
+
+  // The guide's "show me": centre on what it is pointing at.
+  showPoint() {
+    if (this.view.point) this.centerOn(this.view.point.x, this.view.point.y);
+    else this.hud.toast('Look at the building bar at the bottom: the card to use is lit up.');
+  }
+
+  // Where the guide's arrow goes this frame.
+  pointFrom(pt) {
+    if (!pt || !this.st) return null;
+    if (pt.id) {
+      const e = this.st.byId.get(pt.id);
+      if (!e || e.dead || e.hidden) return null;
+      if (e.kind === 'building') return { x: e.x + e.w / 2, y: e.y + e.h / 2, z: 1.5 };
+      return { x: e.x, y: e.y, z: e.kind === 'animal' ? 0.8 : 1.25 };
+    }
+    return { x: pt.x, y: pt.y, z: pt.tree ? 1.7 : 0.5, ring: !pt.tree };
   }
 
   pruneSelection() {
@@ -297,6 +333,52 @@ class Game {
     this.hud.placeBar(true, `Pull down the ${BUILDINGS[b.type].name.toLowerCase()}?`, true, '✓ Pull down');
   }
 
+  // Move a shed or farm: its outline follows the pointer until tapped down.
+  startMove(id) {
+    const b = this.st.byId.get(id);
+    if (!b || !BUILDINGS[b.type].movable) return;
+    this.clearSelection();
+    this.hud.closePanel();
+    this.mode = { build: null, move: id, line: false, wallStart: null, ghostAt: null };
+    this.view.showTerritory = true;
+    this.canvas.classList.add('building');
+    this.hud.placeBar(true, `Move the ${BUILDINGS[b.type].name.toLowerCase()}: tap where it should go.`, false, '✓ Move here');
+    if (this.hoverAt) this.hover(this.hoverAt.x, this.hoverAt.y);
+  }
+
+  moveGhost(at) {
+    const b = this.st.byId.get(this.mode.move);
+    if (!b) return;
+    this.view.ghost = { type: b.type, w: b.w, h: b.h, tiles: [{ x: at.x, y: at.y, ok: sim.canMove(this.st, b.id, at.x, at.y).ok }] };
+  }
+
+  moveTap(at, info) {
+    const b = this.st.byId.get(this.mode.move);
+    if (!b) {
+      this.cancelBuild();
+      return;
+    }
+    const doMove = () => {
+      const r = sim.moveBuilding(this.st, b.id, at.x, at.y);
+      if (!r.ok) {
+        this.hud.toast(r.reason);
+        return;
+      }
+      this.cancelBuild();
+      this.selectEntity(b.id);
+    };
+    const g = this.mode.ghostAt;
+    if (info?.mouse || (g && g.x === at.x && g.y === at.y)) {
+      doMove();
+      return;
+    }
+    this.mode.ghostAt = at;
+    this.mode.pending = doMove;
+    this.moveGhost(at);
+    const can = sim.canMove(this.st, b.id, at.x, at.y);
+    this.hud.placeBar(true, can.ok ? 'Move it here?' : can.reason, can.ok, '✓ Move here');
+  }
+
   cancelBuild() {
     this.mode = { build: null, demolish: false, line: false, wallStart: null, ghostAt: null };
     this.view.ghost = null;
@@ -307,6 +389,11 @@ class Game {
   }
 
   footprintAt(sx, sy) {
+    if (this.mode.move) {
+      const b = this.st.byId.get(this.mode.move);
+      const p = this.renderer.screenToTile(sx, sy);
+      return { x: Math.floor(p.x - (b?.w || 1) / 2 + 0.5), y: Math.floor(p.y - (b?.h || 1) / 2 + 0.5) };
+    }
     if (this.mode.demolish) {
       const p = this.renderer.screenToTile(sx, sy);
       return { x: Math.floor(p.x), y: Math.floor(p.y) };
@@ -329,6 +416,10 @@ class Game {
 
   hover(sx, sy) {
     this.hoverAt = { x: sx, y: sy };
+    if (this.mode.move && this.st) {
+      if (!this.mode.ghostAt) this.moveGhost(this.footprintAt(sx, sy));
+      return;
+    }
     if (this.mode.demolish && this.st) {
       const at = this.footprintAt(sx, sy);
       if (!this.mode.ghostAt) this.demolishGhost(this.demolishTargets(this.mode.wallStart || at, this.mode.wallStart ? at : null));
@@ -356,7 +447,7 @@ class Game {
   }
 
   confirmPlace() {
-    if (this.mode.demolish) {
+    if (this.mode.demolish || this.mode.move) {
       this.mode.pending?.();
       this.mode.pending = null;
       return;
@@ -372,6 +463,10 @@ class Game {
 
   buildTap(sx, sy, info) {
     const at = this.footprintAt(sx, sy);
+    if (this.mode.move) {
+      this.moveTap(at, info);
+      return;
+    }
     if (this.mode.demolish) {
       this.demolishTap(at, info);
       return;
@@ -460,7 +555,7 @@ class Game {
   }
 
   escape() {
-    if (this.mode.build || this.mode.demolish) this.cancelBuild();
+    if (this.mode.build || this.mode.demolish || this.mode.move) this.cancelBuild();
     else if (this.view.selected.size || this.hud.panel) {
       this.clearSelection();
       this.hud.closePanel();
@@ -509,13 +604,19 @@ class Game {
     return null;
   }
 
+  selectedCitizen() {
+    if (this.view.selected.size !== 1) return null;
+    const e = this.st.byId.get([...this.view.selected][0]);
+    return e && !e.dead && e.kind === 'citizen' ? e : null;
+  }
+
   myUnits() {
     return [...this.view.selected].map((id) => this.st.byId.get(id)).filter((u) => u && !u.dead && u.kind === 'unit' && u.owner === 'player');
   }
 
   tap(sx, sy, info) {
     if (!this.st || this.st.eventQueue.length) return;
-    if (this.mode.build || this.mode.demolish) {
+    if (this.mode.build || this.mode.demolish || this.mode.move) {
       if (info.button === 2) this.cancelBuild();
       else this.buildTap(sx, sy, info);
       return;
@@ -523,6 +624,38 @@ class Game {
     const p = this.renderer.screenToTile(sx, sy);
     const hit = this.renderer.pickScreen?.(sx, sy) || this.pick(p.x, p.y);
     const army = this.myUnits();
+
+    // Orders for one of your people: a tree to fell, a workplace, a place to go.
+    const who = this.selectedCitizen();
+    if (who) {
+      if (hit?.kind === 'tree') {
+        const r = sim.orderTree(this.st, who.id, hit.i);
+        if (r.ok) {
+          this.view.order = { x: hit.x, y: hit.y, at: performance.now() };
+          this.hud.toast(`🪓 ${who.name} is going to fell that tree.`);
+        } else this.hud.toast(r.reason);
+        return;
+      }
+      if (hit?.kind === 'building' && !who.special && hit.owner === 'player' && BUILDINGS[hit.type].workers && hit.id !== who.job) {
+        const r = sim.assignWorker(this.st, who.id, hit.id);
+        if (r.ok) this.view.order = { x: hit.x + hit.w / 2, y: hit.y + hit.h / 2, at: performance.now() };
+        else this.hud.toast(r.reason);
+        return;
+      }
+      if (who.special === 'founder' && (!hit || hit.kind === 'faction' || hit.kind === 'poi' || info.button === 2)) {
+        const r = sim.orderWalk(this.st, who.id, p.x, p.y);
+        if (r.ok) this.view.order = { x: p.x, y: p.y, at: performance.now() };
+        else this.hud.toast(r.reason);
+        return;
+      }
+    }
+    if (hit?.kind === 'tree' && info.button !== 2) {
+      const t = sim.treeInfo(this.st, hit.i);
+      if (t) this.hud.toast(`🌳 ${t.kind}: ${t.felled ? `felled, ${t.planks} planks left to cut` : `${t.full} planks`}. Tap ${this.st.founder} or a woodcutter first, then the tree, to have it felled.`);
+      this.view.selected.clear();
+      this.hud.closePanel();
+      return;
+    }
 
     if (hit?.kind === 'unit' && hit.owner === 'player' && info.button !== 2) {
       if (!info.shift) this.view.selected.clear();
@@ -547,6 +680,7 @@ class Game {
       this.hud.openPanel('units');
     } else if (hit.kind === 'citizen') {
       this.view.selected.add(hit.id);
+      sim.signal(this.st, 'select', hit.id);
       this.hud.openPanel('citizen', hit.id);
     } else if (hit.kind === 'building') {
       this.view.selected.add(hit.id);
@@ -615,6 +749,7 @@ class Game {
     if (!e) return;
     this.view.selected.clear();
     this.view.selected.add(id);
+    if (e.kind === 'citizen') sim.signal(this.st, 'select', id);
     this.centerOn(e.kind === 'building' ? e.x + e.w / 2 : e.x, e.kind === 'building' ? e.y + e.h / 2 : e.y);
     this.hud.openPanel(e.kind === 'building' ? 'building' : e.kind === 'citizen' ? 'citizen' : 'units', id);
   }
@@ -659,35 +794,31 @@ function hashString(s) {
   return h >>> 0;
 }
 
-// The 3D view needs WebGL; older phones fall back to the hand-drawn 2D view.
+// The isometric view draws from baked sprite sheets: load them (and the
+// ground textures) before the first game starts.
 async function makeRenderer(game) {
-  if (graphicsMode() === '3d') {
-    try {
-      const mod = await import('./render3d/renderer3d.js');
-      if (mod.webglAvailable()) {
-        game.renderer = new mod.Renderer3D(game.canvas);
-        game.renderer.is3d = true;
-        try {
-          const { BUILDINGS } = await import('./data/buildings.js');
-          const types = Object.entries(BUILDINGS).filter(([, d]) => d.buildable !== false);
-          game.hud.thumbs = { ...game.hud.thumbs, ...mod.Renderer3D.thumbnails(types, { era: 0, flags: {} }) };
-        } catch (err) {
-          // Keep the 2D thumbnails.
-        }
-        return;
-      }
-    } catch (err) {
-      console.warn('3D view unavailable, using 2D:', err);
-    }
+  game.renderer = new IsoRenderer(game.canvas);
+  const start = document.getElementById('ng-start');
+  const label = start.textContent;
+  start.disabled = true;
+  start.textContent = 'Loading…';
+  try {
+    await game.renderer.load();
+    const types = Object.entries(BUILDINGS).filter(([, d]) => d.buildable !== false);
+    game.hud.thumbs = { ...game.hud.thumbs, ...game.renderer.thumbnails(types) };
+  } catch (err) {
+    console.error(err);
+    game.hud.toast('Some pictures could not be loaded. Check your connection and reload.');
   }
-  game.renderer = new Renderer(game.canvas);
+  start.disabled = false;
+  start.textContent = label;
 }
 
 async function boot() {
   const game = new Game();
   window.ekoRising = game;
   game.hud.mount();
-  await makeRenderer(game);
+  const ready = makeRenderer(game);
   game.renderer.resize();
   game.keys = bindInput(game, game.canvas, game.minimap);
   window.addEventListener('resize', () => {
@@ -700,10 +831,11 @@ async function boot() {
   document.getElementById('speed-btn').addEventListener('click', () => game.cycleSpeed());
   document.getElementById('army-btn').addEventListener('click', () => game.selectArmy());
   document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
-  document.getElementById('ng-continue').addEventListener('click', () => game.load());
-  renderNigeria(document.getElementById('nigeria'), () => game.newGame(readNewGameForm()));
+  document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));
+  renderNigeria(document.getElementById('nigeria'), () => ready.then(() => game.newGame(readNewGameForm())));
   showTitle(game);
   requestAnimationFrame((t) => game.loop(t));
+  await ready;
 }
 
 boot();

@@ -351,7 +351,9 @@ const BUILD = {
     earthPad(g, 2, 2);
     const lvl = b.level || 1;
     if (lvl === 1) {
-      roundHut(g, 1, 0.95, 0.62);
+      // A plank house: sawn boards on a timber sill under a thatched gable roof.
+      gableHouse(g, 1, 0.9, 1.4, 1.0, 0.62, { wall: C.planks(), plinth: C.wood(), windows: true, shutter: C.wood() });
+      for (const x of [0.32, 1.68]) for (const z of [0.42, 1.38]) g.add(mesh(box(0.06, 0.66, 0.06), C.wood(), x, 0.35, z));
     } else if (lvl === 2) {
       // Mud-brick house with a thatched verandah.
       gableHouse(g, 1, 0.85, 1.5, 1.05, 0.7, { wall: C.mud(), roof: C.thatch(), verandah: true });
@@ -429,9 +431,9 @@ const BUILD = {
     g.add(mesh(ball(0.12, 0), toon('#a87b4f'), 1.4, 0.1, 0.5));
   },
 
-  woodcutter(g) {
+  woodcutter(g, b) {
     earthPad(g, 2, 2);
-    gableHouse(g, 0.75, 0.75, 1.1, 0.9, 0.5, { windows: false });
+    gableHouse(g, 0.75, 0.75, 1.1, 0.9, 0.5, b.mud ? { windows: false } : { windows: false, wall: C.planks(), plinth: C.wood() });
     // Logs waiting to be split.
     const log = cyl(0.09, 0.09, 0.7, 8);
     for (let k = 0; k < 3; k++) {
@@ -483,7 +485,15 @@ const BUILD = {
 
   // A floor of laid mud bricks in front of the compound. What is stored on it
   // is drawn separately (render3d/stocks.js), because it changes all the time.
-  stockpile(g) {
+  stockpile(g, b) {
+    if (!b.mud) {
+      // Swept, beaten earth edged with planks laid on their sides.
+      g.add(mesh(box(1.96, 0.04, 1.96), toon('#c9ab80', { map: 'soil' }), 1, 0.02, 1));
+      const edge = C.planks();
+      for (const [w, d, x, z] of [[2, 0.08, 1, 0.04], [2, 0.08, 1, 1.96], [0.08, 2, 0.04, 1], [0.08, 2, 1.96, 1]]) g.add(mesh(box(w, 0.09, d), edge, x, 0.045, z));
+      for (const [x, z] of [[0.04, 0.04], [1.96, 0.04], [0.04, 1.96], [1.96, 1.96]]) g.add(mesh(cyl(0.05, 0.05, 0.16, 6), C.wood(), x, 0.08, z));
+      return;
+    }
     const a = toon('#b8683f', { map: 'mud' });
     const b2 = toon('#c87c4e', { map: 'mud' });
     const brick = box(0.3, 0.07, 0.15);
@@ -501,9 +511,12 @@ const BUILD = {
     for (const [w, d, x, z] of [[2, 0.07, 1, 0.02], [2, 0.07, 1, 1.98], [0.07, 2, 0.02, 1], [0.07, 2, 1.98, 1]]) g.add(mesh(box(w, 0.1, d), b2, x, 0.05, z));
   },
 
-  hunter(g) {
+  hunter(g, b) {
     earthPad(g, 2, 2);
-    roundHut(g, 0.7, 0.75, 0.5);
+    if (b.mud) roundHut(g, 0.7, 0.75, 0.5);
+    else gableHouse(g, 0.75, 0.7, 1.1, 0.85, 0.5, { windows: false, wall: C.planks(), plinth: C.wood() });
+    // A butchering block and a hide stretched to dry.
+    g.add(mesh(cyl(0.16, 0.18, 0.2, 10), toon('#8a5a36'), 0.45, 0.1, 1.6));
     for (const x of [1.3, 1.8]) g.add(mesh(cyl(0.03, 0.03, 0.7, 5), C.wood(), x, 0.35, 1.4));
     g.add(mesh(box(0.55, 0.02, 0.02), C.wood(), 1.55, 0.68, 1.4));
     g.add(mesh(box(0.4, 0.42, 0.02), toon('#c8a06a'), 1.55, 0.45, 1.41));
@@ -666,9 +679,10 @@ const BUILD = {
   warcamp(g, b) {
     earthPad(g, 3, 3);
     ring(g, 1.5, 1.5, 1.4, 22, C.wood(), 0.5);
-    roundHut(g, 0.9, 0.9, 0.42);
-    if ((b.level || 1) >= 2) gableHouse(g, 2.1, 0.9, 1.2, 0.8, 0.55, { wall: C.mud(), roof: C.zinc() });
-    else roundHut(g, 2.1, 1, 0.42);
+    if ((b.level || 1) >= 2) gableHouse(g, 1.5, 0.85, 2.2, 0.85, 0.6, { wall: C.mud(), roof: C.zinc() });
+    else if (b.mud) gableHouse(g, 1.5, 0.85, 2.2, 0.85, 0.6, { wall: C.mud(), verandah: true });
+    // The guard house: a long barracks of planks with a verandah.
+    else gableHouse(g, 1.5, 0.85, 2.2, 0.85, 0.6, { wall: C.planks(), plinth: C.wood(), verandah: true });
     for (let k = 0; k < 6; k++) {
       const s = mesh(cyl(0.015, 0.015, 0.8, 4), C.wood(), 1 + k * 0.18, 0.4, 2.2);
       s.rotation.x = -0.15;

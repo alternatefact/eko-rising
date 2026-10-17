@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- The models load their textures from art/, relative to the game's root. -->
+    <base href="../../" />
+    <title>Eko Rising sprite baker</title>
+    <style>
+      body { margin: 0; background: #333; color: #eee; font: 13px system-ui, sans-serif; }
+      #log { padding: 8px; white-space: pre-wrap; }
+      canvas.sheet { display: block; max-width: 100%; background: repeating-conic-gradient(#555 0 25%, #444 0 50%) 0 0 / 16px 16px; margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <div id="log">Loading…</div>
+    <script type="module" src="tools/bake/bake.js"></script>
+  </body>
+</html>
