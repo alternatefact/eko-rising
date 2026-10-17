@@ -92,6 +92,12 @@ export class IsoRenderer {
 
   clampCam() {
     if (!this.st) return;
+    // Never somewhere that is not a place: fall back to the middle of the home.
+    if (!Number.isFinite(this.cam.x) || !Number.isFinite(this.cam.y)) {
+      this.cam.x = this.st.start.x + 0.5;
+      this.cam.y = this.st.start.y + 0.5;
+    }
+    if (!Number.isFinite(this.cam.zoom)) this.cam.zoom = 1.2;
     this.cam.x = Math.max(0, Math.min(this.st.W, this.cam.x));
     this.cam.y = Math.max(0, Math.min(this.st.H, this.cam.y));
   }
@@ -176,12 +182,14 @@ export class IsoRenderer {
   }
 
   centerOn(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     this.cam.x = x;
     this.cam.y = y;
     this.clampCam();
   }
 
   zoomAt(factor, sx, sy) {
+    if (!Number.isFinite(factor) || factor <= 0) return;
     const before = this.screenToTile(sx, sy);
     this.cam.zoom = Math.max(ZOOM[0], Math.min(ZOOM[1], this.cam.zoom * factor));
     const after = this.screenToTile(sx, sy);

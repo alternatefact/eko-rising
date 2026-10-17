@@ -111,6 +111,8 @@ class Game {
     this.hud.shownMsgs = new Set(st.log.map((m) => m.id));
     this.hud.closePanel();
     this.hud.modalKey = null;
+    // A loaded game opens on the village, not wherever the guide last looked.
+    this.storyStep = sim.currentStep(st)?.id || null;
     const home = st.buildings.find((b) => b.type === 'palace' && !b.dead) || st.buildings.find((b) => b.type === 'compound');
     this.renderer.cam.zoom = window.innerWidth < 760 ? 1.05 : 1.45;
     this.renderer.centerOn(home ? home.x + home.w / 2 : st.start.x, home ? home.y + home.h / 2 + 1 : st.start.y);
@@ -225,8 +227,21 @@ class Game {
   // --- Loop -------------------------------------------------------------------------
 
   loop(now) {
+    // The next frame is asked for first, so one bad frame can never stop the game.
+    requestAnimationFrame((t) => this.loop(t));
     const dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
+    try {
+      this.frameStep(dt);
+    } catch (err) {
+      if (!this.frameError) console.error(err);
+      this.frameError = err;
+      // Most likely the camera is somewhere it should not be: back home.
+      if (!Number.isFinite(this.renderer.cam.x) || !Number.isFinite(this.renderer.cam.y) || !Number.isFinite(this.renderer.cam.zoom)) this.goHome();
+    }
+  }
+
+  frameStep(dt) {
     if (this.st) {
       this.keys?.update(dt);
       if (!this.paused) {
@@ -258,7 +273,6 @@ class Game {
         if (!this.st.gameOver) this.save('auto');
       }
     }
-    requestAnimationFrame((t) => this.loop(t));
   }
 
   // When the story moves to a step that happens somewhere (strangers on the
@@ -293,6 +307,8 @@ class Game {
       if (e.kind === 'building') return { x: e.x + e.w / 2, y: e.y + e.h / 2, z: 1.5 };
       return { x: e.x, y: e.y, z: e.kind === 'animal' ? 0.8 : 1.25 };
     }
+    // A card in the build bar or a button is not a place on the map.
+    if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return null;
     return { x: pt.x, y: pt.y, z: pt.tree ? 1.7 : 0.5, ring: !pt.tree };
   }
 
@@ -408,8 +424,11 @@ class Game {
   }
 
   goHome() {
+    if (!this.st) return;
     const home = this.st.buildings.find((b) => b.type === 'palace' && !b.dead) || this.st.buildings.find((b) => b.type === 'compound' && !b.dead);
     if (home) this.centerOn(home.x + home.w / 2, home.y + home.h / 2);
+    else this.centerOn(this.st.start.x, this.st.start.y);
+    if (!Number.isFinite(this.renderer.cam.zoom)) this.renderer.cam.zoom = 1.2;
   }
 
   // --- Building -----------------------------------------------------------------------
@@ -1052,6 +1071,7 @@ async function boot() {
   document.getElementById('turn-left').addEventListener('click', () => game.turnView(-1));
   document.getElementById('turn-right').addEventListener('click', () => game.turnView(1));
   document.getElementById('trees-btn').addEventListener('click', () => game.toggleTrees());
+  document.getElementById('home-btn').addEventListener('click', () => game.goHome());
   document.getElementById('select-btn').addEventListener('click', () => game.toggleSelecting());
   document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
   document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));

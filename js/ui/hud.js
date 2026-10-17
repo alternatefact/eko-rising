@@ -531,7 +531,7 @@ export class Hud {
         html = this.menuHtml();
         break;
       case 'saves':
-        html = `${this.head('💾 Saved games', esc(st.name))}${this.savesHtml(true)}`;
+        html = `${this.head(p.data === 'load' ? '📂 Load a game' : '💾 Save the game', esc(st.name))}${this.savesHtml(true, p.data)}`;
         break;
       case 'mud':
         html = this.mudHtml();
@@ -959,7 +959,8 @@ export class Hud {
     const g = this.game;
     return `${this.head('☰ Menu', `Map seed ${this.st.seed}`)}
       <div class="list">
-        <button class="btn" data-act="saves">💾 Save or load a game</button>
+        <button class="btn primary" data-act="saves" data-mode="save">💾 Save game</button>
+        <button class="btn primary" data-act="saves" data-mode="load">📂 Load game</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
       </div>
       <div class="list">
@@ -972,7 +973,8 @@ export class Hud {
   }
 
   // The saved games: the autosave and three slots, and files.
-  savesHtml(inGame) {
+  savesHtml(inGame, mode = 'save') {
+    const loading = mode === 'load';
     const ago = (t) => {
       if (!t) return '';
       const m = Math.round((Date.now() - t) / 60000);
@@ -983,14 +985,15 @@ export class Hud {
       const m = save?.meta;
       const what = m ? `${esc(m.town || '?')} · day ${(m.day || 0) + 1}${m.era ? ` · ${esc(m.era)}` : ''}${m.pop ? ` · ${m.pop} people` : ''}` : 'Empty';
       h += `<div class="item"><span><b>${slot === 'auto' ? 'Autosave' : `Slot ${slot}`}</b><br><span class="muted">${what}${m?.savedAt ? ` · ${ago(m.savedAt)}` : ''}</span></span><span class="row">`;
-      if (inGame && slot !== 'auto') h += `<button class="btn primary" data-act="slotsave" data-slot="${slot}">Save here</button>`;
-      if (save) h += `<button class="btn" data-act="slotload" data-slot="${slot}">Load</button>`;
+      if (inGame && !loading && slot !== 'auto') h += `<button class="btn primary" data-act="slotsave" data-slot="${slot}">Save here</button>`;
+      if (save) h += `<button class="btn ${loading || !inGame ? 'primary' : ''}" data-act="slotload" data-slot="${slot}">Load</button>`;
       if (save && slot !== 'auto') h += `<button class="btn" data-act="slotdel" data-slot="${slot}" title="Delete this save" aria-label="Delete">✕</button>`;
       h += '</span></div>';
     }
     h += '</div><h4>Files</h4><div class="row">';
-    if (inGame) h += '<button class="btn" data-act="savefile">⬇ Save to a file</button>';
+    if (inGame && !loading) h += '<button class="btn" data-act="savefile">⬇ Save to a file</button>';
     h += '<button class="btn" data-act="openfile">⬆ Open a save file</button></div>';
+    if (loading) h += `<p class="muted">Loading a slot replaces the game you are playing; it is kept in the autosave first. To save instead, use 💾 at the top.</p>`;
     h += `<p class="muted">${inGame ? 'The game saves itself in the autosave every minute. Ctrl+S saves in slot 1. ' : ''}Saves stay in this browser: save to a file to keep a game safe, or to carry on on another device.</p>`;
     return h;
   }
@@ -1056,7 +1059,7 @@ export class Hud {
     }
     switch (act) {
       case 'saves':
-        this.openPanel('saves');
+        this.openPanel('saves', el.dataset.mode || 'save');
         return;
       case 'close':
         this.closePanel();
