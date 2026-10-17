@@ -230,7 +230,28 @@ function buildingVariants() {
   return out;
 }
 
-function bakeBuildings() {
+// A model turned a quarter turn `r` times, the way the game turns its view
+// (see js/render/iso.js), and set back on its footprint so that the corner
+// at the top of the screen is again at the origin.
+function turned(model, w, h, r) {
+  if (!r) return model;
+  const a = (-r * Math.PI) / 2;
+  const c = Math.round(Math.cos(a));
+  const s = Math.round(Math.sin(a));
+  const xs = [];
+  const zs = [];
+  for (const [x, z] of [[0, 0], [w, 0], [0, h], [w, h]]) {
+    xs.push(x * c + z * s);
+    zs.push(-x * s + z * c);
+  }
+  model.rotation.y = a;
+  model.position.set(-Math.min(...xs), 0, -Math.min(...zs));
+  const g = new THREE.Group();
+  g.add(model);
+  return g;
+}
+
+function bakeBuildings(turns = [0]) {
   const NO = { l: false, r: false, u: false, d: false };
   for (const v of buildingVariants()) {
     if (v.def.line) continue;
@@ -238,17 +259,22 @@ function bakeBuildings() {
     const b = { id: 3, type: v.type, w: v.def.w, h: v.def.h, level: v.level, mud: v.mud, built: 1, growth: v.growth, workers: [] };
     const port = v.type === 'port';
     const flagsList = port ? [{}, { frenchPact: true }, { britishPartner: true }] : [{}];
-    for (const flags of flagsList) {
-      const st = fakeSt(v.era, flags);
-      const g = buildingModel(b, st, NO);
-      // Flames and flags move: the game draws flames itself.
-      const flames = [];
-      g.traverse((o) => o.userData.flame && flames.push(o));
-      for (const o of flames) o.parent.remove(o);
-      const key = port ? `${v.key}/${flags.frenchPact ? 'f' : flags.britishPartner ? 'b' : 'p'}` : v.key;
-      keep(key, shoot(g));
+    for (const r of turns) {
+      // Farm land looks the same from every side.
+      if (r && v.def.job?.type === 'farm') continue;
+      for (const flags of flagsList) {
+        const st = fakeSt(v.era, flags);
+        const g = buildingModel(b, st, NO);
+        // Flames and flags move: the game draws flames itself.
+        const flames = [];
+        g.traverse((o) => o.userData.flame && flames.push(o));
+        for (const o of flames) o.parent.remove(o);
+        const key = port ? `${v.key}/${flags.frenchPact ? 'f' : flags.britishPartner ? 'b' : 'p'}` : v.key;
+        keep(r ? `${key}@${r}` : key, shoot(turned(g, b.w, b.h, r)));
+      }
     }
   }
+  if (turns[0] !== 0) return;
   // Fence and wall sections join their neighbours: one picture for each of
   // the sixteen ways they can.
   for (const type of ['palisade', 'stonewall']) {
@@ -552,8 +578,8 @@ function gripFor(template, side) {
 
 // --- Packing ----------------------------------------------------------------------------
 
-function pack() {
-  const list = [...sprites.entries()].map(([key, s]) => ({ key, ...s, w: s.canvas.width, h: s.canvas.height }));
+function pack(keys) {
+  const list = keys.map((key) => ({ key, ...sprites.get(key), w: sprites.get(key).canvas.width, h: sprites.get(key).canvas.height }));
   list.sort((a, b) => b.h - a.h || b.w - a.w);
   const sheets = [];
   let sheet = null;
@@ -606,7 +632,10 @@ window.bakeAll = async (only) => {
   let people = {};
   for (const p of parts) {
     log(`baking ${p}…`);
-    if (p === 'buildings') bakeBuildings();
+    if (p === 'buildings') {
+      bakeBuildings();
+      bakeBuildings([1, 2, 3]);
+    }
     if (p === 'villages') bakeVillages();
     if (p === 'flora') bakeFlora();
     if (p === 'stocks') bakeStocks();
@@ -614,14 +643,21 @@ window.bakeAll = async (only) => {
     if (p === 'animals') bakeAnimals();
     if (p === 'people') people = await bakePeople();
   }
-  const { sheets, index } = pack();
-  log(`${sprites.size} sprites on ${sheets.length} sheets in ${Math.round(performance.now() - t0)} ms`);
+  // Buildings from the other three sides go on sheets of their own, which
+  // the game loads only when the view is first turned.
+  const keys = [...sprites.keys()];
+  const base = pack(keys.filter((k) => !k.includes('@')));
+  const rest = pack(keys.filter((k) => k.includes('@')));
+  const sheets = [...base.sheets, ...rest.sheets];
+  const index = { ...base.index };
+  for (const [k, v] of Object.entries(rest.index)) index[k] = [v[0] + base.sheets.length, ...v.slice(1)];
+  log(`${sprites.size} sprites on ${sheets.length} sheets (${rest.sheets.length} for turned views) in ${Math.round(performance.now() - t0)} ms`);
   for (const c of sheets) {
     c.className = 'sheet';
     document.body.appendChild(c);
   }
   window.baked = {
-    meta: { scale: SCALE, tile: [128, 64], dirs: DIRS.map((d) => d.name), looks: Object.fromEntries(Object.entries(LOOKS).map(([k, v]) => [k, { anims: v.anims, frames: Object.fromEntries(v.anims.map((a) => [a, FRAMES[a] || 8])), height: people[k]?.height || 0.82 }])) },
+    meta: { scale: SCALE, tile: [128, 64], lazyFrom: base.sheets.length, dirs: DIRS.map((d) => d.name), looks: Object.fromEntries(Object.entries(LOOKS).map(([k, v]) => [k, { anims: v.anims, frames: Object.fromEntries(v.anims.map((a) => [a, FRAMES[a] || 8])), height: people[k]?.height || 0.82 }])) },
     index,
     sheets: sheets.map((c) => c.toDataURL('image/webp', 0.9)),
   };

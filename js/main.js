@@ -8,26 +8,76 @@ import { Minimap } from './render/minimap.js';
 import { Hud, renderNigeria } from './ui/hud.js';
 import { bindInput } from './ui/input.js';
 
-const SAVE_KEY = 'eko-rising:save:v2';
 const MAX_STEPS = 12;
 
+// Saved games live in the browser: an autosave, kept up to date every
+// minute, and three slots the player saves into. A game can also be saved to
+// a file and opened again from one, on this device or another.
+const OLD_SAVE = 'eko-rising:save:v2';
+export const SLOTS = ['auto', '1', '2', '3'];
+const slotKey = (slot) => `eko-rising:slot:${slot}`;
+
 const storage = {
-  get() {
+  get(key) {
     try {
-      return localStorage.getItem(SAVE_KEY);
+      return localStorage.getItem(key);
     } catch (err) {
       return null;
     }
   },
-  set(v) {
+  set(key, v) {
     try {
-      localStorage.setItem(SAVE_KEY, v);
+      localStorage.setItem(key, v);
       return true;
     } catch (err) {
       return false;
     }
   },
+  remove(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (err) {
+      // Nothing to do: storage is blocked.
+    }
+  },
 };
+
+function saveMeta(st) {
+  return {
+    town: st.name,
+    founder: st.founder,
+    day: st.time.day,
+    year: st.time.year,
+    era: sim.ERAS[st.era].name,
+    pop: sim.population(st),
+    savedAt: Date.now(),
+  };
+}
+
+// What is in a slot: { meta, data } or null.
+function readSlot(slot) {
+  const raw = storage.get(slotKey(slot));
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      return null;
+    }
+  }
+  // Saves from before there were slots count as the autosave.
+  if (slot === 'auto') {
+    const old = storage.get(OLD_SAVE);
+    if (old) {
+      try {
+        const d = JSON.parse(old);
+        return { meta: { town: d.name, founder: d.founder, day: d.time?.day, year: d.time?.year, savedAt: 0 }, data: old };
+      } catch (err) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
 
 class Game {
   constructor() {
@@ -71,32 +121,101 @@ class Game {
 
   newGame(opts) {
     this.start(sim.newGame({ region: 'lagos', ...opts }));
-    this.save(false);
+    this.save('auto');
+  }
+
+  // --- Saving ---------------------------------------------------------------------
+
+  saves() {
+    return SLOTS.map((slot) => ({ slot, save: readSlot(slot) }));
   }
 
   hasSave() {
-    return !!storage.get();
+    return this.saves().some((s) => s.save);
   }
 
-  save(manual) {
-    if (!this.st) return;
-    const ok = storage.set(sim.serialize(this.st));
-    if (manual) this.hud.toast(ok ? '💾 Game saved.' : 'Could not save — your browser is blocking storage.');
+  // The most recent save in any slot.
+  latestSlot() {
+    let best = null;
+    for (const { slot, save } of this.saves()) if (save && (!best || (save.meta?.savedAt || 0) > (best.save.meta?.savedAt || 0))) best = { slot, save };
+    return best?.slot || null;
   }
 
-  load() {
-    const raw = storage.get();
-    if (!raw) return;
+  // Save into a slot ('auto', '1', '2', '3'). Said out loud unless it is the
+  // autosave.
+  save(slot = 'auto') {
+    if (!this.st) return false;
+    const ok = storage.set(slotKey(slot), JSON.stringify({ meta: saveMeta(this.st), data: sim.serialize(this.st) }));
+    if (slot !== 'auto') {
+      this.hud.toast(ok ? `💾 Saved in ${slotName(slot)}: ${this.st.name}, day ${this.st.time.day + 1}.` : '💾 This browser will not let the game save here. Use “Save to a file” instead.');
+      this.hud.lastPanelHtml = '';
+    }
+    return ok;
+  }
+
+  load(slot = this.latestSlot()) {
+    const s = slot && readSlot(slot);
+    if (!s) return;
     try {
-      this.start(sim.deserialize(raw));
-      this.hud.toast('📂 Game loaded.');
+      this.start(sim.deserialize(s.data));
+      this.hud.toast(`📂 ${slotName(slot)} loaded: ${this.st.name}, day ${this.st.time.day + 1}.`);
     } catch (err) {
       this.hud.toast(`Could not load the save: ${err.message}`);
     }
   }
 
+  deleteSave(slot) {
+    storage.remove(slotKey(slot));
+    if (slot === 'auto') storage.remove(OLD_SAVE);
+    this.hud.lastPanelHtml = '';
+  }
+
+  // Save the game to a file the player keeps.
+  async exportSave() {
+    if (!this.st) return;
+    const text = JSON.stringify({ game: 'eko-rising', meta: saveMeta(this.st), data: sim.serialize(this.st) });
+    // Plain letters in the file name: Èkó becomes eko.
+    const town = this.st.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    const filename = `eko-rising-${town || 'town'}-day-${this.st.time.day + 1}.json`;
+    // Inside claude.ai the page asks the viewer to accept the file.
+    const downloads = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: text });
+        this.hud.toast('💾 Saved to a file.');
+      } catch (err) {
+        if (err?.code !== 'declined') this.hud.toast('This view cannot save files. Save in a slot instead.');
+      }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    this.hud.toast('💾 Saved to a file. Open it again from the Save menu, here or on another device.');
+  }
+
+  // Open a game saved to a file.
+  async importSave(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const d = JSON.parse(text);
+      const data = d.game === 'eko-rising' ? d.data : text;
+      this.start(sim.deserialize(data));
+      this.save('auto');
+      this.hud.toast(`📂 Opened ${file.name}: ${this.st.name}, day ${this.st.time.day + 1}.`);
+    } catch (err) {
+      this.hud.toast(`That file is not an Eko Rising save${err?.message ? ` (${err.message})` : ''}.`);
+    }
+  }
+
   toTitle() {
-    this.save(false);
+    this.save('auto');
     this.st = null;
     this.hud.closePanel();
     document.getElementById('modal').hidden = true;
@@ -121,8 +240,10 @@ class Game {
         if (steps >= MAX_STEPS) this.acc = 0;
       }
       this.pruneSelection();
+      this.updateGaps(dt);
       this.view.point = this.pointFrom(this.view.pointTarget);
       this.followStory();
+      this.hud.placeArrow();
       this.renderer.timeScale = this.paused || this.st.eventQueue.length ? 0 : this.speed * sim.PACE;
       this.renderer.draw(this.paused ? 1 : Math.min(1, this.acc / sim.STEP), this.view);
       if (this.frame++ % 6 === 0) this.minimap.draw(this.renderer);
@@ -134,7 +255,7 @@ class Game {
       this.saveT += dt;
       if (this.saveT > 60) {
         this.saveT = 0;
-        if (!this.st.gameOver) this.save(false);
+        if (!this.st.gameOver) this.save('auto');
       }
     }
     requestAnimationFrame((t) => this.loop(t));
@@ -233,6 +354,39 @@ class Game {
   }
 
   // --- Camera -----------------------------------------------------------------------
+
+  // Turn the view a quarter turn, to see behind trees and buildings.
+  turnView(dir) {
+    if (!this.st) return;
+    this.renderer.turn(dir);
+    const names = ['from the south-east', 'from the south-west', 'from the north-west', 'from the north-east'];
+    this.hud.toast(`🧭 Looking ${names[this.renderer.rot]}.`);
+    this.hud.mapTools();
+  }
+
+  // Trees see-through, to check behind them.
+  toggleTrees() {
+    this.renderer.seeThrough = !this.renderer.seeThrough;
+    this.hud.mapTools();
+  }
+
+  // Where the fence is still open: shown while building fences, when a
+  // fence section is selected, and while the guide asks for a fence.
+  updateGaps(dt) {
+    const st = this.st;
+    const type = this.mode.build;
+    const sel = [...this.view.selected].map((id) => st.byId.get(id)).find((e) => e?.kind === 'building');
+    const want = type === 'palisade' || type === 'gate' || type === 'stonewall' || (this.mode.demolish && this.mode.line) || sel?.wall || sel?.gate || sim.currentStep(st)?.id === 'fence';
+    if (!want) {
+      this.view.gaps = null;
+      return;
+    }
+    this.gapsT = (this.gapsT || 0) - dt;
+    if (this.view.gaps && this.gapsT > 0 && this.gapsFor === st.buildings.length) return;
+    this.gapsT = 0.6;
+    this.gapsFor = st.buildings.length;
+    this.view.gaps = sim.fenceGaps(st).gaps;
+  }
 
   pan(dx, dy) {
     if (this.renderer.panBy) {
@@ -831,10 +985,19 @@ class Game {
 
 // --- Title screen ---------------------------------------------------------------------
 
+export function slotName(slot) {
+  return slot === 'auto' ? 'the autosave' : `slot ${slot}`;
+}
+
 function showTitle(game) {
   const title = document.getElementById('title');
   title.hidden = false;
-  document.getElementById('ng-continue').hidden = !game.hasSave();
+  const latest = game.latestSlot();
+  const btn = document.getElementById('ng-continue');
+  btn.hidden = !latest;
+  const meta = latest && game.saves().find((s) => s.slot === latest)?.save?.meta;
+  btn.textContent = meta?.town ? `Continue: ${meta.town}, day ${(meta.day || 0) + 1}` : 'Continue';
+  document.getElementById('title-saves').hidden = true;
 }
 
 function readNewGameForm() {
@@ -882,13 +1045,22 @@ async function boot() {
     if (game.st) game.renderer.clampCam();
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && game.st && !game.st.gameOver) game.save(false);
+    if (document.hidden && game.st && !game.st.gameOver) game.save('auto');
   });
   document.getElementById('speed-btn').addEventListener('click', () => game.cycleSpeed());
   document.getElementById('army-btn').addEventListener('click', () => game.selectArmy());
+  document.getElementById('turn-left').addEventListener('click', () => game.turnView(-1));
+  document.getElementById('turn-right').addEventListener('click', () => game.turnView(1));
+  document.getElementById('trees-btn').addEventListener('click', () => game.toggleTrees());
   document.getElementById('select-btn').addEventListener('click', () => game.toggleSelecting());
   document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
   document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));
+  document.getElementById('ng-saves').addEventListener('click', () => ready.then(() => game.hud.showSaves()));
+  document.getElementById('save-file').addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    ready.then(() => game.importSave(file));
+  });
   renderNigeria(document.getElementById('nigeria'), () => ready.then(() => game.newGame(readNewGameForm())));
   showTitle(game);
   requestAnimationFrame((t) => game.loop(t));

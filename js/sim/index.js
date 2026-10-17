@@ -13,7 +13,7 @@ import { ORIGINS } from '../data/names.js';
 import { FOOD, GOODS } from '../data/resources.js';
 import { createBuilding, createCitizen, removeBuilding, cleanup, notify } from './entities.js';
 import { goTo } from './move.js';
-import { computeTerritory, computeVisibility, revealAround, adjacentToWater } from './world.js';
+import { computeTerritory, computeVisibility, revealAround, adjacentToWater, fenceGaps } from './world.js';
 import {
   DAY, capacity, canAfford, spend, dailyUpkeep, updateHappiness, updateMigration, population,
   hasBuilding, trade as marketTrade, invite, addMood,
@@ -385,6 +385,69 @@ export function canPlace(st, type, x, y) {
   return { ok: true };
 }
 
+// A good place for a building, for the guide to point at: near the house,
+// and near what the building needs (trees for a wood shed, game for a
+// hunter, the red mud for a brick shed, open water for a jetty). Fences go
+// where the fence is still open.
+export function suggestPlace(st, type) {
+  const def = BUILDINGS[type];
+  if (!def) return null;
+  if (def.wall || def.gate) {
+    const g = fenceGaps(st).gaps[0];
+    return g ? { x: g.x, y: g.y } : null;
+  }
+  const home = st.buildings.find((b) => b.type === 'compound' && b.owner === 'player' && !b.dead);
+  if (!home) return null;
+  const hx = home.x + 1.5;
+  const hy = home.y + 1.5;
+  let ax = hx;
+  let ay = hy;
+  if (type === 'brickyard' && st.mudPit) {
+    ax = st.mudPit.x + 0.5;
+    ay = st.mudPit.y + 0.5;
+  }
+  if (type === 'stockpile') {
+    const floor = st.buildings.find((b) => b.type === 'stockpile' && b.owner === 'player' && !b.dead);
+    if (floor) {
+      ax = floor.x + 1;
+      ay = floor.y + 1;
+    }
+  }
+  const herd = type === 'hunter' ? st.animals.filter((a) => !a.dead && !a.carcass && a.type !== 'wolf') : [];
+  const around = (x, y, r, pred) => {
+    let n = 0;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const tx = x + dx;
+        const ty = y + dy;
+        if (tx >= 0 && ty >= 0 && tx < st.W && ty < st.H && pred(ty * st.W + tx)) n++;
+      }
+    }
+    return n;
+  };
+  let best = null;
+  let bestScore = -Infinity;
+  const R = type === 'brickyard' ? 8 : 14;
+  for (let y = Math.floor(ay) - R; y <= Math.floor(ay) + R; y++) {
+    for (let x = Math.floor(ax) - R; x <= Math.floor(ax) + R; x++) {
+      if (!canPlace(st, type, x, y).ok) continue;
+      const cx = x + def.w / 2;
+      const cy = y + def.h / 2;
+      let score = -Math.hypot(cx - ax, cy - ay);
+      if (type === 'woodcutter') score += around(x + 1, y + 1, 4, (i) => st.trees[i] > 0 && !st.felled[i]) * 0.6;
+      if (type === 'hunter' && herd.length) score -= Math.min(...herd.map((a) => Math.hypot(a.x - cx, a.y - cy))) * 0.8;
+      if (type === 'fisher') score += around(x + 1, y + 1, 3, (i) => isWater(st.terrain[i])) * 0.3;
+      // Leave room around the house: not right up against it.
+      if (type !== 'stockpile' && Math.hypot(cx - hx, cy - hy) < 3.2) score -= 6;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, y };
+      }
+    }
+  }
+  return best;
+}
+
 export function placeBuilding(st, type, x, y) {
   const can = canPlace(st, type, x, y);
   if (!can.ok) return can;
@@ -565,7 +628,7 @@ export function setStance(st, ids, stance) {
 // Send the founder (or a woodcutter) to fell the tree on tile i.
 export function orderTree(st, cid, i) {
   const r = treeOrder(st, st.byId.get(cid), i);
-  if (r.ok) tutSignal(st, 'tree', cid);
+  if (r.ok) signal(st, 'tree', cid);
   return r;
 }
 
@@ -575,8 +638,11 @@ export function orderWalk(st, cid, x, y) {
 }
 
 // The interface tells the story what the player has done (selected someone,
-// opened a menu) so the guide can move on.
-export const signal = tutSignal;
+// opened a menu), and the guide moves on at once.
+export function signal(st, kind, v) {
+  tutSignal(st, kind, v);
+  if (!st.eventQueue.length) updateStory(st);
+}
 
 // What a tree on tile i gives.
 export function treeInfo(st, i) {
@@ -810,5 +876,5 @@ export function deserialize(json) {
   return st;
 }
 
-export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK };
+export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK, fenceGaps };
 export { currentStep, stepText, storyRunning } from './story.js';

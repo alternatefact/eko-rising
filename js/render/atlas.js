@@ -1,7 +1,9 @@
 // The baked sprite sheets (art/iso, made by tools/bake): every building,
 // tree, animal and person, seen from the game's fixed isometric angle.
 // Sprites are stored at twice the zoom-1 size; a half-size copy of each
-// sheet is made on load so zoomed-out views stay smooth.
+// sheet is made on load so zoomed-out views stay smooth. Buildings seen from
+// the other three sides sit on sheets of their own, loaded the first time the
+// view is turned.
 
 const BASE = 'art/iso/';
 
@@ -18,23 +20,45 @@ export class Atlas {
     const res = await fetch(`${BASE}sprites.json`);
     this.meta = await res.json();
     this.sprites = this.meta.sprites;
-    this.full = await Promise.all(this.meta.sheets.map((name) => loadImage(BASE + name)));
-    this.half = this.full.map((img) => {
-      const c = document.createElement('canvas');
-      c.width = Math.ceil(img.width / 2);
-      c.height = Math.ceil(img.height / 2);
-      const g = c.getContext('2d');
-      g.imageSmoothingEnabled = true;
-      g.imageSmoothingQuality = 'high';
-      g.drawImage(img, 0, 0, c.width, c.height);
-      return c;
-    });
+    const n = this.meta.sheets.length;
+    this.first = this.meta.lazyFrom ?? n;
+    this.full = new Array(n).fill(null);
+    this.half = new Array(n).fill(null);
+    await Promise.all(this.meta.sheets.slice(0, this.first).map((name, k) => this.loadSheet(k)));
     this.ready = true;
     return this;
   }
 
+  async loadSheet(k) {
+    const img = await loadImage(BASE + this.meta.sheets[k]);
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(img.width / 2);
+    c.height = Math.ceil(img.height / 2);
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, c.width, c.height);
+    this.full[k] = img;
+    this.half[k] = c;
+  }
+
+  // The sheets not loaded at the start: buildings from the other sides.
+  loadLazy() {
+    if (this.lazy || !this.meta) return this.lazy;
+    const ks = [];
+    for (let k = this.first; k < this.meta.sheets.length; k++) ks.push(k);
+    this.lazy = Promise.all(ks.map((k) => this.loadSheet(k).catch(() => null)));
+    return this.lazy;
+  }
+
   has(key) {
     return !!this.sprites?.[key];
+  }
+
+  // Is the sheet with this sprite on it loaded?
+  loaded(key) {
+    const s = this.sprites?.[key];
+    return !!s && !!this.full[s[0]];
   }
 
   // Draw sprite `key` with its anchor at (x, y) on screen, at game zoom
@@ -44,6 +68,7 @@ export class Atlas {
     const s = this.sprites[key];
     if (!s) return null;
     const [sheet, sx, sy, w, h, ax, ay] = s;
+    if (!this.full[sheet]) return null;
     const k = zoom / 2;
     const half = zoom <= 1;
     const img = half ? this.half[sheet] : this.full[sheet];
@@ -77,6 +102,7 @@ export class Atlas {
     const s = this.sprites[key];
     if (!s) return false;
     const [sheet, sx, sy, w, h, ax, ay] = s;
+    if (!this.full[sheet]) return false;
     const k = zoom / 2;
     let u = (px - x) / k;
     if (mirror) u = -u;
@@ -100,6 +126,7 @@ export class Atlas {
     const s = this.sprites[key];
     if (!s) return null;
     const [sheet, sx, sy, w, h] = s;
+    if (!this.full[sheet]) return null;
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;

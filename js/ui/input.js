@@ -151,6 +151,11 @@ export function bindInput(game, canvas, minimap) {
   window.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea')) return;
     const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 's') {
+      e.preventDefault();
+      if (game.st) game.save('1');
+      return;
+    }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) {
       held.add(k);
       e.preventDefault();
@@ -164,6 +169,9 @@ export function bindInput(game, canvas, minimap) {
     if (k === '+' || k === '=') game.zoom(1.2, game.renderer.w / 2, game.renderer.h / 2);
     if (k === '-' || k === '_') game.zoom(1 / 1.2, game.renderer.w / 2, game.renderer.h / 2);
     if (k === 'h') game.goHome();
+    if (k === 'q') game.turnView(-1);
+    if (k === 'e') game.turnView(1);
+    if (k === 't') game.toggleTrees();
     if (k === 'g') game.selectArmy();
     if (k === 'delete' || k === 'backspace') game.demolishSelected();
   });

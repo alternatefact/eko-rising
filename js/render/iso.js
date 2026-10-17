@@ -5,7 +5,9 @@
 // and the markers the interface needs.
 //
 // The camera works in tile units: cam.x, cam.y is the tile at the centre of
-// the screen.
+// the screen. The view can be turned in quarter turns (`rot`), so the far
+// side of a wood or a fence can be seen: buildings have a picture from each
+// side; trees, people and animals look right from any side.
 
 import { T, F, TREE, isWater, treePlanks } from '../world/terrain.js';
 import { hash2 } from '../core/rng.js';
@@ -55,6 +57,8 @@ export class IsoRenderer {
     this.hits = [];
     this.borderVersion = -1;
     this.borders = [];
+    this.rot = 0;
+    this.seeThrough = false;
   }
 
   async load() {
@@ -94,11 +98,59 @@ export class IsoRenderer {
 
   // --- Projection ------------------------------------------------------------------
 
+  // A point on the map, in the turned view's own coordinates; and back.
+  toView(x, y) {
+    const W = this.st?.W || 0;
+    const H = this.st?.H || 0;
+    switch (this.rot) {
+      case 1:
+        return { x: H - y, y: x };
+      case 2:
+        return { x: W - x, y: H - y };
+      case 3:
+        return { x: y, y: W - x };
+      default:
+        return { x, y };
+    }
+  }
+
+  fromView(u, v) {
+    const W = this.st?.W || 0;
+    const H = this.st?.H || 0;
+    switch (this.rot) {
+      case 1:
+        return { x: v, y: H - u };
+      case 2:
+        return { x: W - u, y: H - v };
+      case 3:
+        return { x: W - v, y: u };
+      default:
+        return { x: u, y: v };
+    }
+  }
+
+  // A direction on the map, turned with the view; and back.
+  viewDir(dx, dy) {
+    return turnVec(dx, dy, this.rot);
+  }
+
+  mapDir(dx, dy) {
+    return turnVec(dx, dy, (4 - this.rot) % 4);
+  }
+
+  // How far forward a point stands: things further forward are drawn later.
+  depthAt(x, y) {
+    const v = this.toView(x, y);
+    return v.x + v.y;
+  }
+
   tileToScreen(tx, ty, z = 0) {
     const k = this.cam.zoom;
+    const p = this.toView(tx, ty);
+    const c = this.toView(this.cam.x, this.cam.y);
     return {
-      x: (tx - ty - (this.cam.x - this.cam.y)) * HW * k + this.w / 2,
-      y: (tx + ty - (this.cam.x + this.cam.y)) * HH * k + this.h / 2 - z * ZH * k,
+      x: (p.x - p.y - (c.x - c.y)) * HW * k + this.w / 2,
+      y: (p.x + p.y - (c.x + c.y)) * HH * k + this.h / 2 - z * ZH * k,
     };
   }
 
@@ -106,7 +158,17 @@ export class IsoRenderer {
     const k = this.cam.zoom;
     const u = (sx - this.w / 2) / (HW * k);
     const v = (sy - this.h / 2) / (HH * k);
-    return { x: this.cam.x + (u + v) / 2, y: this.cam.y + (v - u) / 2 };
+    const c = this.toView(this.cam.x, this.cam.y);
+    return this.fromView(c.x + (u + v) / 2, c.y + (v - u) / 2);
+  }
+
+  // Turn the view a quarter turn (+1 clockwise, -1 the other way), keeping
+  // the same spot in the middle of the screen.
+  turn(dir) {
+    this.rot = (((this.rot + dir) % 4) + 4) % 4;
+    for (const [id, s] of this.facing) this.facing.set(id, (s + 2 * dir + 8) % 8);
+    // The pictures from the other sides load the first time they are needed.
+    if (this.rot) this.atlas.loadLazy();
   }
 
   standAt() {
@@ -132,8 +194,9 @@ export class IsoRenderer {
     const k = this.cam.zoom;
     const u = -dx / (HW * k);
     const v = -dy / (HH * k);
-    this.cam.x += (u + v) / 2;
-    this.cam.y += (v - u) / 2;
+    const d = this.mapDir((u + v) / 2, (v - u) / 2);
+    this.cam.x += d.x;
+    this.cam.y += d.y;
     this.clampCam();
   }
 
@@ -174,19 +237,26 @@ export class IsoRenderer {
     const onScreen = (sx, sy, pad = 80) => sx > -pad * z && sx < this.w + pad * z && sy > -pad * z && sy < this.h + 300 * z;
 
     // --- Ground ---
-    const ox = this.w / 2 - (this.cam.x - this.cam.y) * HW * z;
-    const oy = this.h / 2 - (this.cam.x + this.cam.y) * HH * z;
+    // The map's own axes on screen, however the view is turned: the ground
+    // chunks and the fog are drawn through this.
+    const o = this.tileToScreen(0, 0);
+    const ex = this.tileToScreen(1, 0);
+    const ey = this.tileToScreen(0, 1);
+    const ax = ex.x - o.x;
+    const ay = ex.y - o.y;
+    const bx = ey.x - o.x;
+    const by = ey.y - o.y;
     const P = 32;
     for (let cy = Math.floor(minY / CHUNK); cy <= Math.floor(maxY / CHUNK); cy++) {
       for (let cx = Math.floor(minX / CHUNK); cx <= Math.floor(maxX / CHUNK); cx++) {
-        const e = (cx - cy) * CHUNK * HW * z + ox;
-        const f = (cx + cy) * CHUNK * HH * z + oy;
+        const q = this.tileToScreen(cx * CHUNK, cy * CHUNK);
         // Skip chunks entirely off screen.
-        const span = CHUNK * HW * z;
-        if (e + span < 0 || e - span > this.w || f > this.h || f + CHUNK * 2 * HH * z < 0) continue;
+        const xs = [q.x, q.x + ax * CHUNK, q.x + bx * CHUNK, q.x + (ax + bx) * CHUNK];
+        const ys = [q.y, q.y + ay * CHUNK, q.y + by * CHUNK, q.y + (ay + by) * CHUNK];
+        if (Math.max(...xs) < 0 || Math.min(...xs) > this.w || Math.max(...ys) < 0 || Math.min(...ys) > this.h) continue;
         if (!this.ground.ready) continue;
         const c = this.ground.chunk(cx, cy);
-        ctx.setTransform(this.dpr * (HW * z) / P, this.dpr * (HH * z) / P, -this.dpr * (HW * z) / P, this.dpr * (HH * z) / P, this.dpr * e, this.dpr * f);
+        ctx.setTransform((this.dpr * ax) / P, (this.dpr * ay) / P, (this.dpr * bx) / P, (this.dpr * by) / P, this.dpr * q.x, this.dpr * q.y);
         ctx.drawImage(c, 0, 0, c.width, c.height, -0.6, -0.6, c.width + 1.2, c.height + 1.2);
       }
     }
@@ -203,6 +273,7 @@ export class IsoRenderer {
     const add = (depth, draw) => items.push({ depth, draw });
     const falling = new Map();
     for (const f of st.fx) if (f.kind === 'treefall') falling.set(Math.floor(f.y0) * st.W + Math.floor(f.x0), f);
+    const focus = this.focusPoints(view);
 
     // Trees, palms, rocks and bushes.
     for (let y = minY; y <= maxY; y++) {
@@ -216,13 +287,18 @@ export class IsoRenderer {
         const jy = (hash2(x, y, 12) - 0.5) * 0.3;
         const p = this.tileToScreen(x + 0.5 + jx, y + 0.5 + jy);
         if (!onScreen(p.x, p.y)) continue;
-        const depth = x + y + 1;
+        const depth = this.depthAt(x + 0.5, y + 0.5);
         if (trees > 0 && st.felled[i] === TREE.STANDING && !st.occ[i]) {
           const key = treeKey(tt, x, y);
           const fall = falling.get(i);
+          const alpha = this.treeAlpha(x + 0.5, y + 0.5, focus);
           add(depth, () => {
+            // Seen through, a tree still marks its tile: nobody passes there.
+            if (this.seeThrough) this.treeSpot(ctx, x, y);
+            if (alpha < 1) ctx.globalAlpha = alpha;
             if (fall) this.drawFalling(ctx, key, p, fall);
             else this.atlas.draw(ctx, key, p.x, p.y, z);
+            ctx.globalAlpha = 1;
           });
           hits.push({ key, x: p.x, y: p.y, depth, target: { kind: 'tree', i, x: x + 0.5, y: y + 0.5 } });
           continue;
@@ -241,7 +317,12 @@ export class IsoRenderer {
         }
         if (f === F.PALM && !st.occ[i]) {
           const key = `f/${st.amount[i] >= 4 ? 'palmfruit' : 'palm'}/${(x + y * 3) % 3}`;
-          add(depth, () => this.atlas.draw(ctx, key, p.x, p.y, z));
+          const alpha = this.treeAlpha(x + 0.5, y + 0.5, focus);
+          add(depth, () => {
+            if (alpha < 1) ctx.globalAlpha = alpha;
+            this.atlas.draw(ctx, key, p.x, p.y, z);
+            ctx.globalAlpha = 1;
+          });
         } else if ((f === F.ROCK || f === F.IRON) && !st.occ[i]) {
           const key = `f/${f === F.IRON ? 'iron' : 'rock'}/${(x * 3 + y) % 3}`;
           add(depth - 0.2, () => this.atlas.draw(ctx, key, p.x, p.y, z));
@@ -257,9 +338,9 @@ export class IsoRenderer {
     for (const b of st.buildings) {
       if (b.dead || b.x > maxX + 2 || b.y > maxY + 2 || b.x + b.w < minX - 2 || b.y + b.h < minY - 2) continue;
       if (!explored(b.x + b.w / 2, b.y + b.h / 2)) continue;
-      const key = this.buildingKey(b);
-      const p = this.tileToScreen(b.x, b.y);
-      const depth = b.x + b.w / 2 + b.y + b.h / 2 + (BUILDINGS[b.type].flat ? -b.w : 0);
+      const { key, at: corner } = this.buildingSprite(b);
+      const p = this.tileToScreen(corner.x, corner.y);
+      const depth = this.depthAt(b.x + b.w / 2, b.y + b.h / 2) + (BUILDINGS[b.type].flat ? -Math.max(b.w, b.h) : 0);
       const sel = view.selected.has(b.id);
       add(depth, () => {
         if (sel) this.diamond(ctx, b.x, b.y, b.w, b.h, 'rgba(255,224,102,0.35)', '#ffe066');
@@ -277,7 +358,7 @@ export class IsoRenderer {
     }
     for (const s of stacks) {
       const p = this.tileToScreen(s.x, s.y);
-      add(s.x + s.y - 0.4, () => this.atlas.draw(ctx, s.key, p.x, p.y, z));
+      add(this.depthAt(s.x, s.y) - 0.4, () => this.atlas.draw(ctx, s.key, p.x, p.y, z));
     }
 
     // Other peoples' villages, ships and places to find.
@@ -289,36 +370,38 @@ export class IsoRenderer {
       if (f.camp) {
         // A bandit camp is its tents (drawn as buildings) round a fire.
         const key = 'b/campfire/1';
-        const q = this.tileToScreen(f.x - 0.5, f.y - 0.5);
-        add(f.x + f.y + 1, () => {
+        const corner = this.cornerOf({ x: f.x - 0.5, y: f.y - 0.5, w: 2, h: 2 });
+        const q = this.tileToScreen(corner.x, corner.y);
+        add(this.depthAt(f.x + 0.5, f.y + 0.5), () => {
           if (sel) this.ellipse(ctx, f.x + 0.5, f.y + 0.5, 3.4, 'rgba(255,224,102,0.8)');
           this.atlas.draw(ctx, key, q.x, q.y, z);
           if (f.status !== 'conquered') this.drawFlames(ctx, f.x + 0.5, f.y + 0.5, 0.12, t, 1);
         });
-        hits.push({ key, x: q.x, y: q.y, depth: f.x + f.y + 1, target: { kind: 'faction', f } });
+        hits.push({ key, x: q.x, y: q.y, depth: this.depthAt(f.x + 0.5, f.y + 0.5), target: { kind: 'faction', f } });
         continue;
       }
       const key = `v/${f.id}`;
-      add(f.x + f.y + 1, () => {
+      add(this.depthAt(f.x + 0.5, f.y + 0.5), () => {
         if (sel) this.ellipse(ctx, f.x + 0.5, f.y + 0.5, f.radius, 'rgba(255,224,102,0.8)');
         this.atlas.draw(ctx, key, p.x, p.y, z);
         if (f.burning && st.time.t < f.burning) this.drawFlames(ctx, f.x + 0.5, f.y + 0.5, 0.6, t, 3);
       });
-      hits.push({ key, x: p.x, y: p.y, depth: f.x + f.y + 1, target: { kind: 'faction', f } });
+      hits.push({ key, x: p.x, y: p.y, depth: this.depthAt(f.x + 0.5, f.y + 0.5), target: { kind: 'faction', f } });
     }
     for (const sh of st.ships) {
       const x = sh.px + (sh.x - sh.px) * alpha;
       const y = sh.py + (sh.y - sh.py) * alpha;
       const p = this.tileToScreen(x, y, -0.1);
       if (!onScreen(p.x, p.y, 200)) continue;
-      const dir = Math.abs(sh.x - sh.px) >= Math.abs(sh.y - sh.py) ? 'a' : 'b';
+      const along = Math.abs(sh.x - sh.px) >= Math.abs(sh.y - sh.py);
+      const dir = along !== (this.rot % 2 === 1) ? 'a' : 'b';
       const key = `ship/${['portuguese', 'french', 'british'].includes(sh.power) ? sh.power : 'merchant'}/${dir}`;
-      add(x + y, () => this.atlas.draw(ctx, key, p.x, p.y + Math.sin(t * 1.4 + sh.id) * 1.5 * z, z));
+      add(this.depthAt(x, y), () => this.atlas.draw(ctx, key, p.x, p.y + Math.sin(t * 1.4 + sh.id) * 1.5 * z, z));
     }
     for (const poi of st.pois) {
       if (!poi.found || poi.claimed) continue;
       const p = this.tileToScreen(poi.x + 0.5, poi.y + 0.5);
-      add(poi.x + poi.y + 1, () => this.drawPoi(ctx, p, t));
+      add(this.depthAt(poi.x + 0.5, poi.y + 0.5), () => this.drawPoi(ctx, p, t));
     }
 
     // Animals.
@@ -335,12 +418,12 @@ export class IsoRenderer {
       const frames = { walk: 6, run: 6, bite: 4 }[anim] || 1;
       const fps = anim === 'run' ? 14 : anim === 'bite' ? 8 : 9;
       const key = `a/${a.type}/${anim}/${dir}/${Math.floor(at * fps + a.id * 0.37) % frames}`;
-      add(x + y, () => {
+      add(this.depthAt(x, y), () => {
         this.shadow(ctx, p.x, p.y, a.type === 'wolf' ? 9 : 8);
         this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
         if (a.hitT && st.time.t - a.hitT < 0.25 && !a.carcass) this.flash(ctx, p.x, p.y - 8 * z);
       });
-      hits.push({ key, x: p.x, y: p.y, depth: x + y, target: a, small: true, mirror });
+      hits.push({ key, x: p.x, y: p.y, depth: this.depthAt(x, y), target: a, small: true, mirror });
     }
 
     // People.
@@ -358,7 +441,7 @@ export class IsoRenderer {
       const [dir, mirror] = this.dirFor(c, face ? face.x - x : x - c.px, face ? face.y - y : y - c.py, !!face);
       const key = this.frameKey(look, dir, at, c.id);
       const sel = view.selected.has(c.id);
-      add(x + y, () => {
+      add(this.depthAt(x, y), () => {
         if (sel) this.ellipse(ctx, x, y, 0.32, '#ffe066');
         this.shadow(ctx, p.x, p.y, 7);
         this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
@@ -375,7 +458,7 @@ export class IsoRenderer {
           this.hpBar(ctx, top.x, top.y, c.hp / c.maxHp, 22 * z);
         }
       });
-      hits.push({ key, x: p.x, y: p.y, depth: x + y, target: c, small: true, mirror });
+      hits.push({ key, x: p.x, y: p.y, depth: this.depthAt(x, y), target: c, small: true, mirror });
     }
 
     // Soldiers.
@@ -398,7 +481,7 @@ export class IsoRenderer {
       const key = this.frameKey({ look: lookName, anim }, dir, at, u.id);
       const color = u.owner === 'player' ? PLAYER : isHostileOwner(st, 'player', u.owner) ? ENEMY : st.factionMap[u.owner]?.color || st.foreign[u.owner]?.color || '#888';
       const sel = view.selected.has(u.id);
-      add(x + y, () => {
+      add(this.depthAt(x, y), () => {
         if (sel) this.ellipse(ctx, x, y, 0.38, '#ffe066');
         this.teamMark(ctx, p.x, p.y, color);
         if (sel && u.stance === 'hold') this.ellipse(ctx, x, y, 0.5, 'rgba(120,200,255,0.8)');
@@ -408,7 +491,7 @@ export class IsoRenderer {
           this.hpBar(ctx, top.x, top.y, u.hp / u.maxHp, 24 * z);
         }
       });
-      hits.push({ key, x: p.x, y: p.y, depth: x + y, target: u, small: true, mirror });
+      hits.push({ key, x: p.x, y: p.y, depth: this.depthAt(x, y), target: u, small: true, mirror });
     }
 
     items.sort((a, b) => a.depth - b.depth);
@@ -426,7 +509,7 @@ export class IsoRenderer {
     }
 
     // Fog of war over everything.
-    ctx.setTransform(this.dpr * HW * z, this.dpr * HH * z, -this.dpr * HW * z, this.dpr * HH * z, this.dpr * ox, this.dpr * oy);
+    ctx.setTransform(this.dpr * ax, this.dpr * ay, this.dpr * bx, this.dpr * by, this.dpr * o.x, this.dpr * o.y);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.fog, 0, 0, st.W, st.H);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -436,6 +519,7 @@ export class IsoRenderer {
       ctx.fillStyle = tint;
       ctx.fillRect(0, 0, this.w, this.h);
     }
+    if (view.gaps?.length) this.drawGaps(ctx, view.gaps, t);
     if (view.point) this.drawPointer(ctx, view.point, t);
     if (view.box) {
       const { x0, y0, x1, y1 } = view.box;
@@ -471,14 +555,93 @@ export class IsoRenderer {
     return key;
   }
 
+  // Which way the neighbouring fence sections run, as the view is turned:
+  // 1 left, 2 right, 4 up, 8 down (in the turned grid).
   wallMask(b) {
     const st = this.st;
-    const isWall = (x, y) => {
+    const isWall = (dx, dy) => {
+      const d = this.mapDir(dx, dy);
+      const x = b.x + d.x;
+      const y = b.y + d.y;
       if (x < 0 || y < 0 || x >= st.W || y >= st.H) return false;
       const o = st.byId.get(st.occ[y * st.W + x]);
       return !!o && !o.dead && (o.wall || o.gate);
     };
-    return (isWall(b.x - 1, b.y) ? 1 : 0) | (isWall(b.x + 1, b.y) ? 2 : 0) | (isWall(b.x, b.y - 1) ? 4 : 0) | (isWall(b.x, b.y + 1) ? 8 : 0);
+    return (isWall(-1, 0) ? 1 : 0) | (isWall(1, 0) ? 2 : 0) | (isWall(0, -1) ? 4 : 0) | (isWall(0, 1) ? 8 : 0);
+  }
+
+  // The corner of a footprint at the top of the screen, where its picture
+  // is anchored.
+  cornerOf(b) {
+    switch (this.rot) {
+      case 1:
+        return { x: b.x, y: b.y + b.h };
+      case 2:
+        return { x: b.x + b.w, y: b.y + b.h };
+      case 3:
+        return { x: b.x + b.w, y: b.y };
+      default:
+        return { x: b.x, y: b.y };
+    }
+  }
+
+  // A building's picture from the side the view is turned to (farm land and
+  // fences look the same from every side), and where it is anchored.
+  buildingSprite(b) {
+    const key = this.buildingKey(b);
+    const def = BUILDINGS[b.type];
+    let k = key;
+    if (this.rot && !def.wall && !def.gate && def.job?.type !== 'farm') {
+      const turned = `${key}@${this.rot}`;
+      if (this.atlas.has(turned)) {
+        if (this.atlas.loaded(turned)) k = turned;
+        else this.atlas.loadLazy();
+      }
+    }
+    return { key: k, at: this.cornerOf(b) };
+  }
+
+  // Trees and palms in front of what the player is looking at fade, so
+  // nothing hides behind them; with see-through on, all of them do.
+  focusPoints(view) {
+    const st = this.st;
+    const out = [];
+    for (const id of view.selected) {
+      const e = st.byId.get(id);
+      if (!e || e.dead) continue;
+      out.push(e.kind === 'building' ? { x: e.x + e.w / 2, y: e.y + e.h / 2, r: Math.max(e.w, e.h) / 2 } : { x: e.x, y: e.y, r: 0.3 });
+    }
+    for (const t of view.ghost?.tiles || []) {
+      if (out.length > 40) break;
+      out.push({ x: t.x + view.ghost.w / 2, y: t.y + view.ghost.h / 2, r: Math.max(view.ghost.w, view.ghost.h) / 2 });
+    }
+    for (const g of view.gaps || []) out.push({ x: g.x + 0.5, y: g.y + 0.5, r: 0.5 });
+    if (view.point) out.push({ x: view.point.x, y: view.point.y, r: 0.5 });
+    return out.map((f) => ({ ...this.toView(f.x, f.y), r: f.r }));
+  }
+
+  treeSpot(ctx, x, y) {
+    const p = this.tileToScreen(x + 0.5, y + 0.5);
+    const z = this.cam.zoom;
+    ctx.fillStyle = 'rgba(28,64,24,0.55)';
+    ctx.strokeStyle = 'rgba(150,210,110,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, 13 * z, 6.5 * z, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  treeAlpha(x, y, focus) {
+    if (this.seeThrough) return 0.3;
+    if (!focus.length) return 1;
+    const v = this.toView(x, y);
+    for (const f of focus) {
+      const ahead = v.x + v.y - (f.x + f.y);
+      if (ahead <= 0 || ahead > 5 + f.r * 2) continue;
+      if (Math.abs(v.x - v.y - (f.x - f.y)) < 1.5 + f.r) return 0.35;
+    }
+    return 1;
   }
 
   citizenLook(c, job, moving) {
@@ -541,7 +704,10 @@ export class IsoRenderer {
 
   dirFor(e, dx, dy, force = false) {
     let s = this.facing.get(e.id);
-    if (force || Math.abs(dx) + Math.abs(dy) > 0.002) s = sectorOf(dx, dy);
+    if (force || Math.abs(dx) + Math.abs(dy) > 0.002) {
+      const d = this.viewDir(dx, dy);
+      s = sectorOf(d.x, d.y);
+    }
     if (s === undefined) s = 2;
     this.facing.set(e.id, s);
     return SECTOR[s];
@@ -791,7 +957,8 @@ export class IsoRenderer {
   // A tree going over, pivoting on its foot away from the axe.
   drawFalling(ctx, key, p, f) {
     const k = Math.min(1, f.t / f.dur);
-    const away = (f.x0 - f.x1) - (f.y0 - f.y1);
+    const d = this.viewDir(f.x0 - f.x1, f.y0 - f.y1);
+    const away = d.x - d.y;
     const ang = (away >= 0 ? 1 : -1) * Math.min(1.45, k * k * 1.6);
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -906,6 +1073,35 @@ export class IsoRenderer {
     ctx.fillText('?', p.x, p.y - 26 * z + bob + 1);
   }
 
+  // Gaps in the fence, over everything (trees too), so none is missed.
+  drawGaps(ctx, gaps, t) {
+    const z = this.cam.zoom;
+    const pulse = 0.55 + Math.sin(t * 6) * 0.25;
+    for (const g of gaps) {
+      this.diamond(ctx, g.x, g.y, 1, 1, `rgba(231,76,60,${0.25 + pulse * 0.25})`, `rgba(255,90,70,${pulse + 0.2})`);
+      const p = this.tileToScreen(g.x + 0.5, g.y + 0.5, 0.9);
+      ctx.fillStyle = '#e74c3c';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8 * Math.max(0.8, z), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `800 ${Math.round(11 * Math.max(0.8, z))}px Manrope, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', p.x, p.y + 0.5);
+      const a = this.tileToScreen(g.x + 0.5, g.y + 0.5);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y + 8 * Math.max(0.8, z));
+      ctx.lineTo(a.x, a.y);
+      ctx.stroke();
+    }
+  }
+
   // The guide's arrow over what it is talking about; at the screen's edge if
   // that is out of sight.
   drawPointer(ctx, pt, t) {
@@ -964,8 +1160,9 @@ export class IsoRenderer {
       const tile = g.tiles[0];
       const def = BUILDINGS[g.type];
       const fake = { type: g.type, w: g.w, h: g.h, level: this.st.flags.mud && g.type === 'hut' ? 2 : 1, mud: !!this.st.flags.mud && !!def.mudBricks, growth: 0.7, x: tile.x, y: tile.y };
-      const key = def.wall ? `w/${g.type}/3` : def.gate ? `w/gate/h/e${this.st.era >= 2 ? 2 : 0}` : this.buildingKey(fake);
-      const p = this.tileToScreen(tile.x, tile.y);
+      const sprite = def.wall ? { key: `w/${g.type}/3`, at: this.cornerOf(fake) } : def.gate ? { key: `w/gate/h/e${this.st.era >= 2 ? 2 : 0}`, at: this.cornerOf(fake) } : this.buildingSprite(fake);
+      const key = sprite.key;
+      const p = this.tileToScreen(sprite.at.x, sprite.at.y);
       ctx.globalAlpha = 0.7;
       this.atlas.draw(ctx, key, p.x, p.y, z);
       ctx.globalAlpha = 1;
@@ -1067,6 +1264,19 @@ export class IsoRenderer {
       if (url) out[type] = url;
     }
     return out;
+  }
+}
+
+function turnVec(dx, dy, r) {
+  switch (r) {
+    case 1:
+      return { x: -dy, y: dx };
+    case 2:
+      return { x: -dx, y: -dy };
+    case 3:
+      return { x: dy, y: -dx };
+    default:
+      return { x: dx, y: dy };
   }
 }
 

@@ -1025,7 +1025,7 @@ export const LAGOS = {
       say: 'Spearmen are trained from people sitting by the fire. If nobody is free, a volunteer walks in from the villages around.',
       task: 'Train 5 spearmen',
       hint: (st) => `Select the Guard House and press Train. Each spearman costs 6 planks and 8 food. Spearmen: ${st.units.filter((u) => u.owner === 'player' && u.type === 'spearman' && !u.dead).length} of 5.`,
-      point: (st) => building(st, 'warcamp') && { id: building(st, 'warcamp').id },
+      point: (st) => building(st, 'warcamp') && { id: building(st, 'warcamp').id, ui: '#panel [data-act="train"][data-type="spearman"]' },
       done: (st) => st.units.filter((u) => u.owner === 'player' && u.type === 'spearman' && !u.dead).length >= 5,
     },
     {
@@ -1039,7 +1039,7 @@ export const LAGOS = {
       say: '“Their camp is in the far corner of the forest: four of them, and their tents. Go and burn it.”',
       task: 'Clear the bandit camp',
       hint: 'Press 🛡️ Army at the top (or ⬚ Select, then drag a box round them) and tap the bandit camp. Near the camp they go for the bandits and set the tents alight by themselves. Burn every tent and the camp is gone.',
-      point: (st) => st.factionMap.bandits1 && { x: st.factionMap.bandits1.x + 0.5, y: st.factionMap.bandits1.y + 0.5 },
+      point: (st) => st.factionMap.bandits1 && { x: st.factionMap.bandits1.x + 0.5, y: st.factionMap.bandits1.y + 0.5, select: 'army' },
       done: (st) => !st.factionMap.bandits1 || st.factionMap.bandits1.status === 'conquered',
     },
     {
@@ -1049,7 +1049,7 @@ export const LAGOS = {
       say: (st) => `“On our way here we passed a pit of red mud. With mud we can make bricks, and build houses no bandit can burn so easily. Let me go and find it again.”`,
       task: (st) => `Click ${st.founder}, then click the marked place to send him there`,
       hint: 'It is off along the path you came in by. With him selected, tap anywhere on the ground to send him there.',
-      point: (st) => st.mudPit && { x: st.mudPit.x + 0.5, y: st.mudPit.y + 0.5 },
+      point: (st) => st.mudPit && { x: st.mudPit.x + 0.5, y: st.mudPit.y + 0.5, select: founderOf(st)?.id },
       done: (st, api) => {
         const f = founderOf(st);
         if (!st.mudPit || near(f, st.mudPit.x + 0.5, st.mudPit.y + 0.5, 3.5)) {

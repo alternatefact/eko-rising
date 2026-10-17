@@ -74,6 +74,20 @@ fire to enemy tents and huts they pass. A bandit camp is gone when its last
 tent burns. On a phone, ⬚ Select at the top turns a drag into a selection box,
 and taps add or remove soldiers.
 
+The view is a fixed isometric picture that can be turned in quarter turns
+(⟲ ⟳ beside the minimap, or Q and E), so the far side of a wood, a fence or a
+house can be seen; every building is baked from all four sides (those
+pictures load the first time the view is turned). 🌳 (or T) makes the trees
+see-through, and trees in front of whatever is selected fade by themselves.
+While a fence is being built, every gap still open is marked in red on top of
+everything. The guide's yellow arrow points at the tab and card to tap, then
+at a good spot for the building on the map (for a fence, the next gap), and
+at buttons such as Army or Train.
+
+Games save themselves every minute (the autosave); 💾 at the top saves into
+one of three slots, loads any of them, and saves a game to a file or opens
+one, to keep it safe or carry on elsewhere.
+
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%
 faster. His wife keeps the household; everyone who arrives after them works,

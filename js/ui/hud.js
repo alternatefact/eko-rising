@@ -14,7 +14,7 @@ import { canTrain, armyPower } from '../sim/military.js';
 import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
-import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost } from '../sim/index.js';
+import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace } from '../sim/index.js';
 import { STATES, NEXT_UP } from '../regions/index.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
@@ -148,22 +148,28 @@ export class Hud {
     this.highlight();
   }
 
-  // Point at what the guide is talking about: a card in the build bar, a
-  // button, or (through the renderer) something on the map.
+  // Point at what the guide is talking about. A card in the build bar or a
+  // button gets the yellow arrow over the page; something on the map gets
+  // the renderer's arrow. While a building is being placed, the arrow shows
+  // a good spot for it (or the next gap in the fence).
   highlight() {
     const st = this.st;
+    const g = this.game;
     const step = currentStep(st);
-    const pt = step?.point ? (() => {
+    let pt = step?.point ? (() => {
       try {
         return step.point(st);
       } catch (err) {
         return null;
       }
     })() : null;
+    // Some steps need something selected first: the soldiers, or the founder.
+    if (pt?.select === 'army' && !g.myUnits().length) pt = { ui: '#army-btn' };
+    else if (typeof pt?.select === 'number' && !g.view.selected.has(pt.select)) pt = { id: pt.select };
     const key = `${step?.id}|${pt?.build || ''}|${pt?.ui || ''}`;
     if (key !== this.lastHighlight) {
       this.lastHighlight = key;
-      document.querySelectorAll('.pulse').forEach((el) => el.classList.remove('pulse'));
+      this.arrowScrolled = null;
       if (pt?.build) {
         const cat = BUILDINGS[pt.build]?.cat;
         // Open the right tab once, so the card is in sight.
@@ -180,13 +186,66 @@ export class Hud {
       }
     }
     document.querySelectorAll('.pulse').forEach((el) => el.classList.remove('pulse'));
-    if (pt?.build && !this.game.mode.build) {
-      document.querySelector(`.bcard[data-type="${pt.build}"]`)?.classList.add('pulse');
-      if (this.tab !== BUILDINGS[pt.build]?.cat) document.querySelector(`#build-tabs [data-tab="${BUILDINGS[pt.build]?.cat}"]`)?.classList.add('pulse');
+    const placing = g.mode.build || g.mode.demolish || g.mode.move;
+    let el = null;
+    let map = null;
+    if (pt?.build) {
+      const cat = BUILDINGS[pt.build]?.cat;
+      if (g.mode.build === pt.build) {
+        if (this.suggestFor !== pt.build || st.time.t - (this.suggestT || 0) > 1.5 || st.time.t < this.suggestT) {
+          this.suggestFor = pt.build;
+          this.suggestT = st.time.t;
+          this.suggestAt = suggestPlace(st, pt.build);
+        }
+        const s = this.suggestAt;
+        const def = BUILDINGS[pt.build];
+        if (s) map = { x: s.x + def.w / 2, y: s.y + def.h / 2 };
+      } else if (!placing) {
+        document.querySelector(`.bcard[data-type="${pt.build}"]`)?.classList.add('pulse');
+        if (this.tab !== cat) document.querySelector(`#build-tabs [data-tab="${cat}"]`)?.classList.add('pulse');
+        el = $('#buildbar').classList.contains('collapsed') ? '#build-toggle' : this.tab !== cat ? `#build-tabs [data-tab="${cat}"]` : `.bcard[data-type="${pt.build}"]`;
+      }
+    } else if (pt?.ui && shown(document.querySelector(pt.ui))) {
+      document.querySelector(pt.ui).classList.add('pulse');
+      el = pt.ui;
+    } else if (pt && (pt.id || pt.x !== undefined)) {
+      map = pt;
     }
-    if (pt?.ui) document.querySelector(pt.ui)?.classList.add('pulse');
-    // Things on the map get the renderer's arrow (placed every frame).
-    this.game.view.pointTarget = pt && (pt.id || pt.x !== undefined) ? pt : null;
+    this.arrowAt = el;
+    g.view.pointTarget = map;
+  }
+
+  // The yellow arrow over a button or card, kept in place every frame.
+  placeArrow() {
+    const a = this.arrowEl || (this.arrowEl = $('#guide-arrow'));
+    const el = this.arrowAt && document.getElementById('modal').hidden ? document.querySelector(this.arrowAt) : null;
+    if (!el || !shown(el)) {
+      a.hidden = true;
+      return;
+    }
+    // A card scrolled out of sight in the build bar: bring it in.
+    if (el.classList.contains('bcard') && this.arrowScrolled !== this.arrowAt) {
+      this.arrowScrolled = this.arrowAt;
+      el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
+    const r = el.getBoundingClientRect();
+    // Covered by a panel: no arrow until it is in sight again.
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 12));
+    if (top && !el.contains(top) && !top.contains(el)) {
+      a.hidden = true;
+      return;
+    }
+    // Up in the top bar, the arrow points up at it from below.
+    const up = r.top < 120;
+    a.classList.toggle('up', up);
+    a.style.left = `${Math.round(r.left + r.width / 2)}px`;
+    a.style.top = `${Math.round(up ? r.bottom : r.top)}px`;
+    a.hidden = false;
+  }
+
+  // The buttons that turn the view and thin the trees.
+  mapTools() {
+    $('#trees-btn').classList.toggle('on', !!this.game.renderer.seeThrough);
   }
 
   renderTop() {
@@ -470,6 +529,9 @@ export class Hud {
         break;
       case 'menu':
         html = this.menuHtml();
+        break;
+      case 'saves':
+        html = `${this.head('💾 Saved games', esc(st.name))}${this.savesHtml(true)}`;
         break;
       case 'mud':
         html = this.mudHtml();
@@ -897,8 +959,7 @@ export class Hud {
     const g = this.game;
     return `${this.head('☰ Menu', `Map seed ${this.st.seed}`)}
       <div class="list">
-        <button class="btn" data-act="save">💾 Save game</button>
-        <button class="btn" data-act="load" ${g.hasSave() ? '' : 'disabled'}>📂 Load last save</button>
+        <button class="btn" data-act="saves">💾 Save or load a game</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
       </div>
       <div class="list">
@@ -910,6 +971,77 @@ export class Hud {
       ${this.panel?.data === 'log' ? `<h4>History</h4><div class="list">${this.st.log.slice().reverse().map((m) => `<div class="item"><span>${esc(m.text)}</span><span class="muted">d${m.day + 1}</span></div>`).join('')}</div>` : ''}`;
   }
 
+  // The saved games: the autosave and three slots, and files.
+  savesHtml(inGame) {
+    const ago = (t) => {
+      if (!t) return '';
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 60 * 24 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString();
+    };
+    let h = '<div class="list saves">';
+    for (const { slot, save } of this.game.saves()) {
+      const m = save?.meta;
+      const what = m ? `${esc(m.town || '?')} · day ${(m.day || 0) + 1}${m.era ? ` · ${esc(m.era)}` : ''}${m.pop ? ` · ${m.pop} people` : ''}` : 'Empty';
+      h += `<div class="item"><span><b>${slot === 'auto' ? 'Autosave' : `Slot ${slot}`}</b><br><span class="muted">${what}${m?.savedAt ? ` · ${ago(m.savedAt)}` : ''}</span></span><span class="row">`;
+      if (inGame && slot !== 'auto') h += `<button class="btn primary" data-act="slotsave" data-slot="${slot}">Save here</button>`;
+      if (save) h += `<button class="btn" data-act="slotload" data-slot="${slot}">Load</button>`;
+      if (save && slot !== 'auto') h += `<button class="btn" data-act="slotdel" data-slot="${slot}" title="Delete this save" aria-label="Delete">✕</button>`;
+      h += '</span></div>';
+    }
+    h += '</div><h4>Files</h4><div class="row">';
+    if (inGame) h += '<button class="btn" data-act="savefile">⬇ Save to a file</button>';
+    h += '<button class="btn" data-act="openfile">⬆ Open a save file</button></div>';
+    h += `<p class="muted">${inGame ? 'The game saves itself in the autosave every minute. Ctrl+S saves in slot 1. ' : ''}Saves stay in this browser: save to a file to keep a game safe, or to carry on on another device.</p>`;
+    return h;
+  }
+
+  // The saved games from the title screen, before a game is running.
+  showSaves() {
+    if (this.st) {
+      this.openPanel('saves');
+      return;
+    }
+    const box = $('#title-saves');
+    box.hidden = !box.hidden;
+    box.innerHTML = this.savesHtml(false);
+    if (!box.dataset.bound) {
+      box.dataset.bound = '1';
+      box.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-act]');
+        if (el && !el.disabled) this.savesAction(el.dataset.act, el.dataset.slot);
+      });
+    }
+  }
+
+  savesAction(act, slot) {
+    const g = this.game;
+    switch (act) {
+      case 'slotsave':
+        g.save(slot);
+        break;
+      case 'slotload':
+        // Whatever is being played now is kept in the autosave first.
+        if (this.st && slot !== 'auto') g.save('auto');
+        g.load(slot);
+        return true;
+      case 'slotdel':
+        g.deleteSave(slot);
+        break;
+      case 'savefile':
+        g.exportSave();
+        break;
+      case 'openfile':
+        $('#save-file').click();
+        break;
+      default:
+        return false;
+    }
+    const box = $('#title-saves');
+    if (!this.st && box && !box.hidden) box.innerHTML = this.savesHtml(false);
+    this.lastPanelHtml = '';
+    return true;
+  }
+
   onPanelClick(e) {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
@@ -917,7 +1049,15 @@ export class Hud {
     const st = this.st;
     const act = el.dataset.act;
     const sel = this.panel?.kind === 'building' ? this.panel.data : null;
+    if (['slotsave', 'slotload', 'slotdel', 'savefile', 'openfile'].includes(act)) {
+      this.savesAction(act, el.dataset.slot);
+      if (act !== 'slotload') this.renderPanel();
+      return;
+    }
     switch (act) {
+      case 'saves':
+        this.openPanel('saves');
+        return;
       case 'close':
         this.closePanel();
         g.clearSelection();
@@ -1025,11 +1165,8 @@ export class Hud {
         g.cmd('setTax', +el.dataset.v);
         break;
       case 'save':
-        g.save(true);
+        g.save('1');
         break;
-      case 'load':
-        g.load();
-        return;
       case 'territory':
         g.view.showTerritory = !g.view.showTerritory;
         break;
@@ -1090,3 +1227,11 @@ export function renderNigeria(el, onPick) {
     if (g && g.dataset.id) onPick(g.dataset.id);
   });
 }
+
+// Is this element on screen (not hidden, not collapsed away)?
+function shown(el) {
+  if (!el || !el.isConnected) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+}
+

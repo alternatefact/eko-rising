@@ -451,6 +451,43 @@ test('builders carry the planks over and put each building up; nothing builds it
   assert.ok(!cutter.buildSite);
 });
 
+test('the gaps in a fence are found and marked where a section is missing', async () => {
+  const st = fresh(4242);
+  st.res.wood = 999;
+  const { fenceHome } = await import('./story.mjs');
+  assert.ok(sim.fenceGaps(st).gaps.length > 0, 'no fence: open');
+  fenceHome(st);
+  assert.equal(sim.fenceGaps(st).closed, true, 'fenced all round');
+  // Take out each section in turn: where that opens the fence, the gap is
+  // marked on it (or right beside it).
+  let opened = 0;
+  for (const b of st.buildings.filter((x) => x.wall && !x.dead)) {
+    const i = b.y * st.W + b.x;
+    st.occ[i] = 0;
+    const g = sim.fenceGaps(st);
+    if (!g.closed) {
+      opened++;
+      assert.ok(g.gaps.some((p) => Math.abs(p.x - b.x) + Math.abs(p.y - b.y) <= 1), `gap at ${b.x},${b.y} marked (got ${JSON.stringify(g.gaps)})`);
+    }
+    st.occ[i] = b.id;
+  }
+  assert.ok(opened > 0, 'some sections close the way out');
+});
+
+test('the guide suggests a place each building can go', () => {
+  const st = fresh(4242);
+  st.res.wood = 99;
+  for (const type of ['woodcutter', 'hunter', 'hut', 'farm', 'stockpile', 'warcamp']) {
+    const p = sim.suggestPlace(st, type);
+    assert.ok(p, `a place for the ${type}`);
+    assert.ok(sim.canPlace(st, type, p.x, p.y).ok, `and the ${type} fits there`);
+  }
+  const shed = sim.suggestPlace(st, 'woodcutter');
+  let trees = 0;
+  for (let dy = -4; dy <= 5; dy++) for (let dx = -4; dx <= 5; dx++) if (st.trees[(shed.y + dy) * st.W + shed.x + dx] > 0) trees++;
+  assert.ok(trees >= 6, `the wood shed goes by the trees (${trees})`);
+});
+
 test('someone given work changes into its clothes before walking there', () => {
   const st = fresh(22);
   st.migrateT = 1e9;
