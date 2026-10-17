@@ -15,6 +15,8 @@ import { FOW, toon, toonInstanced, WIND, REAL } from './materials.js';
 import { Ground, WATER_Y } from './ground.js';
 import { Flora } from './flora.js';
 import { Effects } from './effects.js';
+import { Characters } from './characters.js';
+import { citizenLook, unitLook } from '../data/people.js';
 import { buildingModel, villageModel, shipModel, mergeModel, disposeModel } from './models.js';
 import { People, Pool } from './people.js';
 
@@ -87,6 +89,7 @@ export class Renderer3D {
     this.ground?.dispose();
     this.flora?.dispose();
     this.effects?.dispose();
+    this.characters?.dispose();
     this.people?.pools && Object.values(this.people.pools).forEach((p) => this.scene.remove(p.mesh));
     this.buildingObjs = new Map();
     this.villageObjs = new Map();
@@ -112,6 +115,8 @@ export class Renderer3D {
     this.flora.update(this.ground.wear, Infinity);
     this.wearAt = 0;
     this.effects = new Effects(this.scene);
+    this.characters = new Characters(this.scene);
+    this.timeScale = 1;
     this.people = new People(this.dynRoot);
     this.fx = {
       arrow: new Pool(this.dynRoot, new THREE.CylinderGeometry(0.008, 0.008, 0.35, 4).rotateX(Math.PI / 2), 'arrow', 64, false),
@@ -522,6 +527,13 @@ export class Renderer3D {
 
     const ppl = this.people;
     ppl.begin();
+    const chars = this.characters;
+    chars.begin();
+    const rate = this.timeScale ?? 1;
+    // Life-like people are skinned and animated one by one; past this many on
+    // screen the rest fall back to the simple figures.
+    let budget = this.mobile ? 90 : 220;
+    const head = this.tmp2 || (this.tmp2 = new THREE.Vector3());
     const seenTile = (x, y) => st.visible[Math.floor(y) * st.W + Math.floor(x)];
     const view3 = this.visibleRect();
     const inView = (x, y) => x > view3.x0 && x < view3.x1 && y > view3.y0 && y < view3.y1;
@@ -539,8 +551,22 @@ export class Renderer3D {
       const y = c.py + (c.y - c.py) * alpha + c.oy;
       if (!inView(x, y) || !seenTile(x, y)) continue;
       const job = c.job ? st.byId.get(c.job) : null;
+      const ground = this.standAt(x, y);
+      if (budget > 0) {
+        const look = citizenLook(st, c, job, !!c.path);
+        const h = ppl.heading(c, x, y);
+        const inst = chars.draw(c.id, look.type, look.anim, x, ground, y, h, dt, rate);
+        if (inst) {
+          budget--;
+          if (c.carry && chars.headTop(inst, head)) ppl.loadAt(c.carry.r, head.x, head.y, head.z, h);
+          if (view.selected.has(c.id)) ppl.selection(x, y, ground, 1, '#ffe066');
+          continue;
+        }
+        // Not ready yet: undo the heading step so the simple figure turns smoothly too.
+        c.hx = undefined;
+      }
       const tool = (c.state === 'gather' && job && job.type !== 'fisher') || (c.state === 'farm' && !c.path) || c.state === 'craft';
-      ppl.citizen(c, x, y, this.standAt(x, y), t, !!c.path, { tool });
+      ppl.citizen(c, x, y, ground, t, !!c.path, { tool });
       if (view.selected.has(c.id)) ppl.selection(x, y, this.standAt(x, y), 1, '#ffe066');
     }
     for (const u of st.units) {
@@ -553,7 +579,18 @@ export class Renderer3D {
       const target = u.order.target ? st.byId.get(u.order.target) : null;
       const swing = u.swingT ? (st.time.t - u.swingT) / 0.3 : 2;
       const tgt = target ? { x: target.kind === 'building' ? target.x + target.w / 2 : target.x, y: target.kind === 'building' ? target.y + target.h / 2 : target.y } : null;
-      ppl.soldier(u, x, y, this.standAt(x, y), t, !!u.path, color, { swing: swing < 1 ? swing : 0, target: tgt });
+      const ground = this.standAt(x, y);
+      const look = budget > 0 ? unitLook(st, u, !!u.path, swing < 2.5) : null;
+      if (look && chars.model(look.type)) {
+        const h = ppl.heading(u, x, y, tgt ? tgt.x - x : undefined, tgt ? tgt.y - y : undefined);
+        if (chars.draw(u.id, look.type, look.anim, x, ground, y, h, dt, rate)) {
+          budget--;
+          ppl.ring(x, ground, y, color);
+          if (view.selected.has(u.id)) ppl.selection(x, y, ground, 1.3, '#ffe066');
+          continue;
+        }
+      }
+      ppl.soldier(u, x, y, ground, t, !!u.path, color, { swing: swing < 1 ? swing : 0, target: tgt });
       if (view.selected.has(u.id)) ppl.selection(x, y, this.standAt(x, y), 1.3, '#ffe066');
     }
     if (view.selectedFaction) {
@@ -569,6 +606,7 @@ export class Renderer3D {
       if (k < 1) ppl.selection(view.order.x, view.order.y, this.groundAt(view.order.x, view.order.y), 0.6 + k * 2, view.order.attack ? '#e74c3c' : '#ffe066');
     }
     ppl.end();
+    chars.end();
 
     this.drawFx(t);
     this.effects.update(dt, st, (x, y) => this.groundAt(x, y), (x, y) => inView(x, y) && st.explored[Math.floor(y) * st.W + Math.floor(x)], this.scale * this.dpr, harmattan);

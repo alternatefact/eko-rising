@@ -22,6 +22,10 @@ kingdoms conquered or paying tribute. Money comes from taxes, the market, trade
 agreements with other kingdoms and merchant ships at the port, and pays for
 buildings, upgrades, trained soldiers and hired fighters.
 
+The founder does not take a job. He walks the town like a supervisor, from one
+workplace to the next, and anyone working within four tiles of him works 15%
+faster. His wife and everyone who arrives after them are assigned to jobs.
+
 Along the way you meet the Awori, Egun, Egba, Ijebu and the Edo war camp, and
 can befriend, trade with, subjugate or conquer each of them. Benin, the
 Portuguese, the Atlantic trade, the French and the British arrive as your
@@ -44,6 +48,13 @@ three looks, chosen from the in-game menu: **Realistic 3D** (the default, with
 life-like textures and leaf-card trees), **Cartoon 3D**, and **Classic 2D**,
 which is also used where WebGL is not available.
 
+In the 3D looks the people of the first age are life-like, rigged and animated
+3D characters made with Higgsfield: the founder, his wife, village women, yam
+farmers, woodcutters, hunters, fishermen, labourers, spearmen and bandits, each
+dressed for their work. They walk, carry loads on their heads, hoe, chop, draw
+bows and fight. Later-age soldiers and anyone drawn while a model is still
+loading use the simpler figures.
+
 ## Code
 
 ```
@@ -54,12 +65,14 @@ js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
 js/regions/   one file per state; lagos.js is chapter one
 js/render3d/  3D view: ground.js land and water, flora.js trees and grass,
-              models.js buildings, palisades, mud walls and lookouts, people.js people and soldiers,
+              models.js buildings, palisades, mud walls and lookouts, people.js simple figures,
+              characters.js the animated 3D characters (chosen in js/data/people.js),
               effects.js fire and smoke
 js/render/    2D canvas renderer, hand-drawn sprites, minimap
 js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings
 art/          story art, portraits, age pictures; art/ground and art/tex hold the
-              cartoon textures, art/real the life-like ones
+              cartoon textures, art/real the life-like ones; art/people holds the
+              3D characters (characters/*.glb) and their shared animations (clips/*.glb)
 brand/        studio logo and favicon
 tests/        headless simulation tests and a scripted player
 ```

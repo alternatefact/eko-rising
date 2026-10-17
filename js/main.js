@@ -122,6 +122,7 @@ class Game {
         if (steps >= MAX_STEPS) this.acc = 0;
       }
       this.pruneSelection();
+      this.renderer.timeScale = this.paused ? 0 : this.speed;
       this.renderer.draw(this.paused ? 1 : Math.min(1, this.acc / sim.STEP), this.view);
       if (this.frame++ % 6 === 0) this.minimap.draw(this.renderer);
       this.hudT += dt;

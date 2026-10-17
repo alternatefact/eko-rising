@@ -8,6 +8,7 @@ import { WALK, isWater } from '../js/world/terrain.js';
 import { createUnit } from '../js/sim/entities.js';
 import { findPath } from '../js/world/path.js';
 import { eventDef } from '../js/sim/events.js';
+import { supervised } from '../js/sim/citizens.js';
 import { makeBot, run, place } from './bot.mjs';
 
 function fresh(seed = 4242) {
@@ -87,14 +88,15 @@ test('workers leave low-priority jobs for high-priority ones', () => {
   st.migrateT = 1e9;
   place(st, 'woodcutter', 'trees');
   advance(st, 3);
-  // Only the founder (farm) and his wife (woodcutter) remain: no one is idle.
+  // Only the founder (who supervises) and his wife (woodcutter) remain: no one is idle.
   for (const c of st.citizens) {
     if (!c.special) c.dead = true;
   }
   st.dirty.cleanup = true;
   advance(st, 3);
   const cutter = st.buildings.find((b) => b.type === 'woodcutter');
-  assert.equal(cutter.workers.length, 1);
+  const field = st.buildings.find((b) => b.type === 'farm');
+  assert.equal(cutter.workers.length + field.workers.length, 1, 'the wife has a job');
   assert.ok(place(st, 'hunter', 'trees'));
   const lodge = st.buildings.find((b) => b.type === 'hunter');
   advance(st, 15);
@@ -103,7 +105,25 @@ test('workers leave low-priority jobs for high-priority ones', () => {
   advance(st, 2);
   assert.equal(lodge.workers.length, 1, 'high priority: someone moved to the lodge');
   const farm = st.buildings.find((b) => b.type === 'farm');
-  assert.equal(cutter.workers.length + farm.workers.length, 1, 'and left their old job');
+  assert.equal(cutter.workers.length + farm.workers.length, 0, 'and left their old job');
+});
+
+test('the founder takes no job and walks the town as a supervisor', () => {
+  const st = fresh(12);
+  st.migrateT = 1e9;
+  place(st, 'woodcutter', 'trees');
+  advance(st, 30);
+  const founder = st.citizens.find((c) => c.special === 'founder');
+  assert.ok(!founder.job, 'no job for the founder');
+  assert.equal(founder.state, 'supervise');
+  for (const b of st.buildings) assert.ok(!b.workers?.includes(founder.id));
+  // Workers near him get the bonus; workers far away do not.
+  const worker = st.citizens.find((c) => c.job && !c.special);
+  worker.x = founder.x + 1;
+  worker.y = founder.y;
+  assert.equal(supervised(st, worker), true);
+  worker.x = founder.x + 30;
+  assert.equal(supervised(st, worker), false);
 });
 
 test('hunger and heavy taxes drive people away', () => {

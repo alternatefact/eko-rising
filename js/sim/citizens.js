@@ -16,6 +16,51 @@ const CARRY_SPEED = 1.7;
 
 const at = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 
+// --- The founder supervises -------------------------------------------------------
+
+// The founder takes no job: he walks from workplace to workplace, and people
+// working within a few tiles of him work faster.
+const SUPERVISE_RANGE = 4;
+export const SUPERVISE_BONUS = 1.15;
+const founderCache = new WeakMap();
+
+function founderOf(st) {
+  let f = founderCache.get(st);
+  if (!f || f.t !== Math.floor(st.time.t)) {
+    const c = st.citizens.find((x) => x.special === 'founder' && !x.dead && !x.hidden);
+    f = { t: Math.floor(st.time.t), c };
+    founderCache.set(st, f);
+  }
+  return f.c;
+}
+
+export function supervised(st, c) {
+  const f = founderOf(st);
+  return !!f && f !== c && f.state === 'supervise' && Math.abs(f.x - c.x) + Math.abs(f.y - c.y) <= SUPERVISE_RANGE;
+}
+
+function supervise(st, c, dt) {
+  if (c.path) {
+    stepMove(st, c, dt, WALK_SPEED * 0.8);
+    return;
+  }
+  c.timer -= dt;
+  if (c.timer > 0) return;
+  c.timer = st.rng.range(7, 13);
+  // Visit a workplace with people at it; otherwise stroll near home.
+  const places = st.buildings.filter((b) => b.owner === 'player' && !b.dead && b.built >= 1 && b.workers?.length);
+  const b = places.length ? st.rng.pick(places) : null;
+  if (b) {
+    c.inspect = b.id;
+    const p = at(b);
+    walkTo(st, c, p.x + st.rng.range(-1, 1), p.y + b.h / 2 + 0.6);
+  } else {
+    c.inspect = 0;
+    const gp = gatheringPoint(st);
+    wander(st, c, gp.x, gp.y, 4);
+  }
+}
+
 function walkTo(st, c, x, y, extra) {
   if (goTo(st, c, x, y, extra)) {
     c.fails = 0;
@@ -88,7 +133,7 @@ export function assignJobs(st) {
   if (!slots.length) return;
   slots.sort((a, b) => b.pri - a.pri || a.b.id - b.b.id);
 
-  const idle = st.citizens.filter((c) => !c.stranger && !c.dead && !c.job && (c.state === 'idle' || c.state === 'movein'));
+  const idle = st.citizens.filter((c) => !c.stranger && !c.dead && !c.job && c.special !== 'founder' && (c.state === 'idle' || c.state === 'movein'));
   for (const s of slots) {
     const p = at(s.b);
     while (s.free > 0) {
@@ -297,6 +342,17 @@ export function updateCitizen(st, c, dt) {
   }
   const def = job ? BUILDINGS[job.type].job : null;
 
+  if (c.special === 'founder') {
+    if (c.job) {
+      releaseFromJob(st, c);
+      return;
+    }
+    if (c.state === 'idle' || c.state === 'movein') {
+      c.state = 'supervise';
+      c.timer = 0;
+    }
+  }
+
   // Townsfolk run for cover when a war band comes near.
   if (st.threats.length && c.state !== 'flee' && c.state !== 'hide' && c.state !== 'leave') {
     c.threatT = (c.threatT || 0) - dt;
@@ -319,6 +375,9 @@ export function updateCitizen(st, c, dt) {
   }
 
   switch (c.state) {
+    case 'supervise':
+      supervise(st, c, dt);
+      return;
     case 'flee': {
       if (stepMove(st, c, dt, WALK_SPEED * 1.25)) {
         c.state = 'hide';
@@ -456,7 +515,7 @@ export function updateCitizen(st, c, dt) {
         }
         c.state = 'gather';
         // Imported iron tools speed up every hand that cuts, digs or picks.
-        c.timer = def.work * (st.tech.tools && def.source !== 'water' ? 0.75 : 1);
+        c.timer = (def.work * (st.tech.tools && def.source !== 'water' ? 0.75 : 1)) / (supervised(st, c) ? SUPERVISE_BONUS : 1);
       }
       return;
     }
@@ -525,7 +584,7 @@ export function updateCitizen(st, c, dt) {
       // Cassava shrugs off the Harmattan far better than yam does.
       const sf = season(st).farm;
       const seasonal = def.product === 'cassava' ? 0.75 + 0.25 * sf : sf;
-      job.growth += (dt / def.grow) * seasonal * (st.tech.tools ? 1.25 : 1);
+      job.growth += (dt / def.grow) * seasonal * (st.tech.tools ? 1.25 : 1) * (supervised(st, c) ? SUPERVISE_BONUS : 1);
       if (job.growth >= 1) {
         job.growth = 1;
         c.state = 'harvest';
@@ -654,7 +713,7 @@ export function updateCitizen(st, c, dt) {
         job.craftT = def.work;
         c.status = '';
       }
-      job.craftT -= dt;
+      job.craftT -= dt * (supervised(st, c) ? SUPERVISE_BONUS : 1);
       if (job.craftT <= 0) {
         job.craftT = 0;
         // Factories also export part of each batch for cash.
@@ -770,6 +829,10 @@ export function citizenStatus(st, c) {
     craft: 'Forging',
     tend: 'Keeping the shrine',
     flee: 'Running for cover!',
+    supervise: (() => {
+      const b = c.inspect ? st.byId.get(c.inspect) : null;
+      return b && !b.dead ? `Inspecting the ${BUILDINGS[b.type].name.toLowerCase()}` : 'Walking the town';
+    })(),
     hide: 'Hiding from raiders',
   };
   return s[c.state] || c.state;

@@ -561,7 +561,7 @@ export class Hud {
     const job = c.job ? st.byId.get(c.job) : null;
     const home = c.home ? st.byId.get(c.home) : null;
     let h = this.head(`${c.female ? '👩🏾' : '👨🏾'} ${esc(c.name)}`, `${esc(c.people)} · from ${esc(c.from)}`);
-    if (c.special === 'founder') h += '<p>The founder of this settlement.</p>';
+    if (c.special === 'founder') h += '<p>The founder of this settlement. He takes no job: he walks from workplace to workplace, and people working near him work faster.</p>';
     if (c.special === 'spouse') h += `<p>Wife of ${esc(st.founder)}, co-founder of ${esc(st.name)}.</p>`;
     h += `<div class="kv"><span>Doing</span><b>${esc(citizenStatus(st, c))}</b>
       <span>Works at</span><b>${job ? esc(BUILDINGS[job.type].name) : c.stranger ? '—' : 'No job yet'}</b>

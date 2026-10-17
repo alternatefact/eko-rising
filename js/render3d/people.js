@@ -223,6 +223,18 @@ export class People {
     }
   }
 
+  // The coloured ring under a soldier, showing whose side they are on.
+  ring(x, ground, y, color) {
+    this.setBase(x, ground, y, 0, SIZE);
+    this.part('ring', color, 0, 0.01, 0);
+  }
+
+  // A load carried on the head of a life-like character.
+  loadAt(r, x, y, z, heading) {
+    this.setBase(x, y, z, heading, SIZE * 0.9);
+    this.load(r, 0.03);
+  }
+
   load(r, y) {
     const color = CARRY[r] || '#c8a06a';
     if (r === 'wood') {
