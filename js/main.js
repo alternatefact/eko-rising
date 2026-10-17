@@ -235,8 +235,70 @@ class Game {
     if (this.hoverAt) this.hover(this.hoverAt.x, this.hoverAt.y);
   }
 
+  // Pull-down mode: tap a building or fence section to remove it, or drag
+  // along a fence to pull down a whole stretch, then build anew in its place.
+  startDemolish() {
+    this.clearSelection();
+    this.hud.closePanel();
+    this.mode = { build: null, demolish: true, line: true, wallStart: null, ghostAt: null };
+    this.view.showTerritory = false;
+    this.canvas.classList.add('building');
+    this.hud.placeBar(true, 'Pull down: tap a building or a fence section, or drag along a fence. You get back part of what it cost.', false, '✓ Pull down');
+    if (this.hoverAt) this.hover(this.hoverAt.x, this.hoverAt.y);
+  }
+
+  demolishTargets(at, end) {
+    const st = this.st;
+    const out = [];
+    const add = (x, y, wallsOnly) => {
+      if (x < 0 || y < 0 || x >= st.W || y >= st.H) return;
+      const b = st.byId.get(st.occ[y * st.W + x]);
+      if (!b || b.dead || b.owner !== 'player' || b.type === 'compound' || b.type === 'campfire') return;
+      if (wallsOnly && !(b.wall || b.gate)) return;
+      if (!out.includes(b)) out.push(b);
+    };
+    if (end) for (const [x, y] of sim.lineTiles(at.x, at.y, end.x, end.y)) add(x, y, true);
+    else add(at.x, at.y, false);
+    return out;
+  }
+
+  demolishGhost(targets) {
+    this.view.ghost = targets.length
+      ? { demolish: true, ids: targets.map((b) => b.id), type: null, w: 1, h: 1, tiles: targets.flatMap((b) => Array.from({ length: b.w * b.h }, (_, k) => ({ x: b.x + (k % b.w), y: b.y + Math.floor(k / b.w), ok: false }))) }
+      : null;
+  }
+
+  demolishTap(at, info) {
+    const [b] = this.demolishTargets(at);
+    if (!b) {
+      this.hud.toast('Nothing of yours to pull down there.');
+      return;
+    }
+    const pull = () => {
+      const r = sim.demolish(this.st, b.id);
+      if (!r.ok) this.hud.toast(r.reason || 'That cannot be pulled down.');
+      this.mode.ghostAt = null;
+      this.view.ghost = null;
+      this.hud.placeBar(true, 'Pulled down. Tap or drag for more, or ✕ when you are done.', false);
+    };
+    if (info?.mouse) {
+      pull();
+      return;
+    }
+    // On touch, the first tap marks it and the button (or a second tap) confirms.
+    const g = this.mode.ghostAt;
+    if (g && g.x === at.x && g.y === at.y) {
+      pull();
+      return;
+    }
+    this.mode.ghostAt = at;
+    this.mode.pending = pull;
+    this.demolishGhost([b]);
+    this.hud.placeBar(true, `Pull down the ${BUILDINGS[b.type].name.toLowerCase()}?`, true, '✓ Pull down');
+  }
+
   cancelBuild() {
-    this.mode = { build: null, line: false, wallStart: null, ghostAt: null };
+    this.mode = { build: null, demolish: false, line: false, wallStart: null, ghostAt: null };
     this.view.ghost = null;
     this.view.showTerritory = false;
     this.canvas.classList.remove('building');
@@ -245,6 +307,10 @@ class Game {
   }
 
   footprintAt(sx, sy) {
+    if (this.mode.demolish) {
+      const p = this.renderer.screenToTile(sx, sy);
+      return { x: Math.floor(p.x), y: Math.floor(p.y) };
+    }
     const def = BUILDINGS[this.mode.build];
     const p = this.renderer.screenToTile(sx, sy);
     return { x: Math.floor(p.x - def.w / 2 + 0.5), y: Math.floor(p.y - def.h / 2 + 0.5) };
@@ -263,6 +329,11 @@ class Game {
 
   hover(sx, sy) {
     this.hoverAt = { x: sx, y: sy };
+    if (this.mode.demolish && this.st) {
+      const at = this.footprintAt(sx, sy);
+      if (!this.mode.ghostAt) this.demolishGhost(this.demolishTargets(this.mode.wallStart || at, this.mode.wallStart ? at : null));
+      return;
+    }
     if (!this.mode.build || !this.st) return;
     const at = this.footprintAt(sx, sy);
     if (this.mode.line && this.mode.wallStart) {
@@ -285,6 +356,11 @@ class Game {
   }
 
   confirmPlace() {
+    if (this.mode.demolish) {
+      this.mode.pending?.();
+      this.mode.pending = null;
+      return;
+    }
     if (!this.mode.ghostAt) return;
     const { x, y } = this.mode.ghostAt;
     if (this.placeAt(x, y) && this.mode.build) {
@@ -296,6 +372,10 @@ class Game {
 
   buildTap(sx, sy, info) {
     const at = this.footprintAt(sx, sy);
+    if (this.mode.demolish) {
+      this.demolishTap(at, info);
+      return;
+    }
     if (this.mode.line) {
       this.wallTap(at);
       return;
@@ -319,6 +399,14 @@ class Game {
   }
 
   wallTap(at) {
+    if (this.mode.demolish) {
+      const s = this.mode.wallStart || at;
+      const n = sim.demolishLine(this.st, s.x, s.y, at.x, at.y);
+      this.mode.wallStart = null;
+      this.view.ghost = null;
+      this.hud.toast(n ? `Pulled down ${n} section${n > 1 ? 's' : ''}.` : 'No fence there to pull down.');
+      return;
+    }
     if (!this.mode.wallStart) {
       this.mode.wallStart = at;
       this.setGhost([[at.x, at.y]]);
@@ -342,6 +430,12 @@ class Game {
   }
 
   wallRelease(sx, sy, moved) {
+    if (this.mode.demolish && !moved) {
+      this.mode.wallStart = null;
+      this.mode.pressed = false;
+      this.demolishTap(this.footprintAt(sx, sy), { mouse: true });
+      return;
+    }
     if (moved && this.mode.wallStart) {
       this.wallTap(this.footprintAt(sx, sy));
     } else if (this.mode.pressed) {
@@ -366,7 +460,7 @@ class Game {
   }
 
   escape() {
-    if (this.mode.build) this.cancelBuild();
+    if (this.mode.build || this.mode.demolish) this.cancelBuild();
     else if (this.view.selected.size || this.hud.panel) {
       this.clearSelection();
       this.hud.closePanel();
@@ -421,7 +515,7 @@ class Game {
 
   tap(sx, sy, info) {
     if (!this.st || this.st.eventQueue.length) return;
-    if (this.mode.build) {
+    if (this.mode.build || this.mode.demolish) {
       if (info.button === 2) this.cancelBuild();
       else this.buildTap(sx, sy, info);
       return;

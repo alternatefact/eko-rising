@@ -151,7 +151,10 @@ const CLOTH = ['#2f4a8a', '#1f3b73', '#c0392b', '#e6a417', '#2e8b57', '#8e44ad',
 export function createCitizen(st, x, y, opts = {}) {
   const origin = opts.origin || pickOrigin(st);
   const female = opts.female ?? st.rng.chance(0.5);
-  const name = opts.name || st.rng.pick(female ? origin.female : origin.male);
+  // A name nobody in town already has, if one can be found.
+  const taken = new Set(st.citizens.filter((x) => !x.dead).map((x) => x.name));
+  let name = opts.name;
+  for (let k = 0; !name || (!opts.name && taken.has(name) && k < 12); k++) name = st.rng.pick(female ? origin.female : origin.male);
   const c = {
     id: newId(st),
     kind: 'citizen',

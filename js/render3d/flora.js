@@ -261,6 +261,7 @@ function realTemplates(mobile) {
   T2.palmCrown = palmCrown();
   T2.palmFruit = palmFruit();
   T2.rocks = rocks();
+  T2.claypit = clayPit();
   T2.grass = grassTuft();
   const out = {};
   for (const [k, s] of Object.entries(T2)) out[k] = s.geometry();
@@ -305,6 +306,7 @@ function cartoonTemplates(mobile) {
   T2.palmCrown = palmCrown();
   T2.palmFruit = palmFruit();
   T2.rocks = rocks();
+  T2.claypit = clayPit();
   T2.grass = grassTuft();
   const out = {};
   for (const [k, s] of Object.entries(T2)) out[k] = s.geometry();
@@ -384,6 +386,39 @@ function rocks() {
         },
       });
     }
+  }
+  return shape;
+}
+
+// A pit of wet red mud for bricks: an irregular puddle, darker and wetter in
+// the middle, with lumps of dug mud around its edge.
+function clayPit() {
+  const shape = new Shape();
+  const r = rnd(41);
+  const wob = [r(), r(), r()];
+  const disc = new THREE.CircleGeometry(0.6, 22).rotateX(-Math.PI / 2);
+  shape.add(disc, mat(0, 0.012, 0), {
+    displace: (v) => {
+      const d = Math.hypot(v.x, v.z);
+      if (d < 0.01) return v;
+      const a = Math.atan2(v.z, v.x);
+      const k = 0.8 + 0.18 * Math.sin(a * 3 + wob[0] * 6) + 0.1 * Math.sin(a * 5 + wob[1] * 6);
+      v.x *= k;
+      v.z *= k;
+      return v;
+    },
+    color: (v, c) => {
+      const d = Math.min(1, Math.hypot(v.x, v.z) / 0.55);
+      c.setRGB(0.36 + d * 0.24, 0.17 + d * 0.13, 0.1 + d * 0.08);
+    },
+  });
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + r() * 0.8;
+    const s = 0.06 + r() * 0.05;
+    shape.add(new THREE.DodecahedronGeometry(1, 0), mat(Math.cos(a) * 0.46, s * 0.3, Math.sin(a) * 0.46, r(), r() * 3, r(), s * 1.4, s * 0.55, s), {
+      displace: (v) => v.multiplyScalar(lump(v, 0.15, 7)),
+      color: (v, c) => c.setRGB(0.62, 0.33, 0.2),
+    });
   }
   return shape;
 }
@@ -501,6 +536,7 @@ function kinds() {
     palmCrown: { mat: fronds, shadow: true, depth: frondDepth },
     palmFruit: { mat: plain, shadow: false },
     rocks: { mat: rock, shadow: true },
+    claypit: { mat: plain, shadow: false },
     grass: { mat: grass, shadow: false },
   };
 }
@@ -625,11 +661,16 @@ export class Flora {
           const ty = y + 0.5;
           const sc = 0.9 + h(2, 9) * 0.5;
           put('rocks', tx, this.groundAt(tx, ty), ty, h(3, 9) * 6.28, sc, sc, sc, f === F.IRON ? '#c98a6a' : '#ffffff');
+        } else if (f === F.CLAY) {
+          const tx = x + 0.5;
+          const ty = y + 0.5;
+          const sc = 0.95 + h(2, 7) * 0.3;
+          put('claypit', tx, this.groundAt(tx, ty), ty, h(3, 7) * 6.28, sc, 1, sc);
         }
         // Bushes at forest edges and scattered over the grass.
         const occupied = st.occ[i] !== 0;
         const worn = wear ? wear[i] > 0.35 : false;
-        if (!occupied && !worn && !trees && f !== F.PALM && (t === T.GRASS || t === T.FOREST || t === T.SAVANNA)) {
+        if (!occupied && !worn && !trees && f !== F.PALM && f !== F.CLAY && (t === T.GRASS || t === T.FOREST || t === T.SAVANNA)) {
           const chance = t === T.FOREST ? 0.5 : t === T.GRASS ? 0.07 : 0.04;
           if (h(5, 2) < chance) {
             const bx = x + 0.2 + h(6, 2) * 0.6;
@@ -640,7 +681,7 @@ export class Flora {
         }
         // Grass tufts.
         const per = grassPer[t] || 0;
-        if (per > 0 && !occupied && !worn) {
+        if (per > 0 && !occupied && !worn && f !== F.CLAY) {
           const count = Math.floor(per) + (h(11, 3) < per % 1 ? 1 : 0);
           for (let j = 0; j < count; j++) {
             const gx = x + h(j, 13);

@@ -50,6 +50,7 @@ export const F = {
   PALM: 1,
   ROCK: 2,
   IRON: 3,
+  CLAY: 4, // a pit of red mud for bricks
 };
 
 export const isWater = (t) => t === T.OCEAN || t === T.LAGOON || t === T.RIVER;

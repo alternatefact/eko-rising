@@ -11,6 +11,23 @@ Play it at **https://alternatefactstudios.com/games/eko-rising/**.
 
 ## How it plays
 
+The game opens with just the founder and his wife, their compound, and a floor
+of mud bricks in front of it where everything they gather is stacked: planks
+laid crosswise, mud bricks in courses, heaps of yams. Two wanderers come up the
+path, a brickmaker and a woodcutter, and are welcomed into the household. You
+put them to work at a Brickmaker's Yard beside the red-mud pit and a
+Woodcutter's Hut by the trees; every building, floor and fence is made of wood
+and mud bricks. When the yams run low the wife asks for a farm, and one of the
+two leaves their work for it. Once the household has gathered enough for a new
+hut and brought in a harvest, an African wolf comes out of the bush, kills the
+brickmaker and is killed by the woodcutter's axe. The founder resolves to fence
+the home in: another stranger arrives, a second woodcutter's hut gets the wood
+in, and a ring of wooden fence (bundles of stakes lashed together) with a gate
+closes the opening. Only then do strangers start arriving on their own. There
+are no raids in these early days; storehouses, granaries and mud walls come
+with the Compound age, and the 🔨 Pull down tool lets you take down a fence
+section or a building and rebuild it in a new place or a new material.
+
 Strangers arrive when your people are fed and happy. They wait at the campfire
 (or the town square once there is a palace) until you build them a home, then
 move in and work wherever they are needed: woodcutters, yam and cassava farmers,
@@ -24,7 +41,8 @@ buildings, upgrades, trained soldiers and hired fighters.
 
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%
-faster. His wife and everyone who arrives after them are assigned to jobs.
+faster. His wife keeps the household; everyone who arrives after them is
+assigned to jobs, and a newcomer who knows a trade takes that work first.
 
 Along the way you meet the Awori, Egun, Egba, Ijebu and the Edo war camp, and
 can befriend, trade with, subjugate or conquer each of them. Benin, the
@@ -65,7 +83,8 @@ js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
 js/regions/   one file per state; lagos.js is chapter one
 js/render3d/  3D view: ground.js land and water, flora.js trees and grass,
-              models.js buildings, palisades, mud walls and lookouts, people.js simple figures,
+              models.js buildings, fences, mud walls and lookouts, stocks.js goods stacked on
+              the storage floors, people.js simple figures and animals,
               characters.js the animated 3D characters (chosen in js/data/people.js),
               effects.js fire and smoke
 js/render/    2D canvas renderer, hand-drawn sprites, minimap

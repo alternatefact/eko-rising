@@ -15,6 +15,7 @@ import { FOW, toon, toonInstanced, WIND, REAL } from './materials.js';
 import { Ground, WATER_Y } from './ground.js';
 import { Flora } from './flora.js';
 import { Effects } from './effects.js';
+import { Stocks } from './stocks.js';
 import { Characters } from './characters.js';
 import { citizenLook, unitLook } from '../data/people.js';
 import { buildingModel, villageModel, shipModel, mergeModel, disposeModel } from './models.js';
@@ -89,6 +90,7 @@ export class Renderer3D {
     this.ground?.dispose();
     this.flora?.dispose();
     this.effects?.dispose();
+    this.stocks?.dispose();
     this.characters?.dispose();
     this.people?.pools && Object.values(this.people.pools).forEach((p) => this.scene.remove(p.mesh));
     this.buildingObjs = new Map();
@@ -115,6 +117,7 @@ export class Renderer3D {
     this.flora.update(this.ground.wear, Infinity);
     this.wearAt = 0;
     this.effects = new Effects(this.scene);
+    this.stocks = new Stocks(this.dynRoot);
     this.characters = new Characters(this.scene);
     this.timeScale = 1;
     this.people = new People(this.dynRoot);
@@ -522,6 +525,7 @@ export class Renderer3D {
     WIND.uStrength.value = harmattan ? 1.6 : 1;
 
     this.syncBuildings(t);
+    this.stocks.update(st, (x, y) => this.groundAt(x, y));
     this.syncVillages(t);
     this.syncShips(alpha, t);
 
@@ -669,6 +673,31 @@ export class Renderer3D {
     }
   }
 
+  // In pull-down mode, a translucent red box over each building that would go.
+  drawDemolish(ids) {
+    if (!this.demoRoot) {
+      this.demoRoot = new THREE.Group();
+      this.dynRoot.add(this.demoRoot);
+      this.demoGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+      this.demoMat = new THREE.MeshBasicMaterial({ color: '#e74c3c', transparent: true, opacity: 0.38, depthWrite: false });
+    }
+    const boxes = this.demoRoot.children;
+    let n = 0;
+    for (const id of ids || []) {
+      const b = this.st.byId.get(id);
+      const o = this.buildingObjs.get(id);
+      if (!b || !o) continue;
+      if (!o.height) o.height = Math.max(0.3, new THREE.Box3().setFromObject(o.group).max.y - o.group.position.y);
+      const m = boxes[n] || this.demoRoot.add(new THREE.Mesh(this.demoGeo, this.demoMat)).children[n];
+      m.visible = true;
+      m.position.set(b.x + b.w / 2, o.group.position.y, b.y + b.h / 2);
+      m.scale.set(b.w + 0.06, o.height + 0.08, b.h + 0.06);
+      m.renderOrder = 5;
+      n++;
+    }
+    for (let k = n; k < boxes.length; k++) boxes[k].visible = false;
+  }
+
   drawGhost(view, t) {
     const st = this.st;
     const tiles = this.fx.tile;
@@ -676,6 +705,7 @@ export class Renderer3D {
     this.circle.visible = false;
     if (!g) {
       if (this.ghost) this.ghost.visible = false;
+      this.drawDemolish(null);
       tiles.end();
       return;
     }
@@ -689,6 +719,11 @@ export class Renderer3D {
       tiles.add(m.compose(v.set(tile.x + g.w / 2, gy, tile.y + g.h / 2), q.identity(), s.set(g.w, 1, g.h)), c.set(tile.ok ? '#2ecc71' : '#e74c3c'));
     }
     tiles.end();
+    this.drawDemolish(g.demolish ? g.ids : null);
+    if (g.demolish) {
+      if (this.ghost) this.ghost.visible = false;
+      return;
+    }
     if (this.ghostType !== g.type) {
       if (this.ghost) this.dynRoot.remove(this.ghost);
       const def = BUILDINGS[g.type];

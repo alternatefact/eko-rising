@@ -124,7 +124,7 @@ export function damage(st, attacker, target, amount) {
 // A raider who burns a building carries off some of your stores.
 function plunder(st, u) {
   u.plunder = (u.plunder || 0) + 1;
-  const goods = ['yam', 'fish', 'meat', 'wood', 'stone', 'iron', 'palmoil', 'weapons'].filter((k) => st.res[k] >= 5);
+  const goods = ['yam', 'fish', 'meat', 'wood', 'bricks', 'stone', 'iron', 'palmoil', 'weapons'].filter((k) => st.res[k] >= 5);
   const k = goods.length ? st.rng.pick(goods) : null;
   const took = k ? Math.min(st.res[k], 10 + st.rng.int(0, 15)) : 0;
   if (k) st.res[k] -= took;

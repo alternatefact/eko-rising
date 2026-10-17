@@ -30,12 +30,12 @@ const ICONS = {
   storehouse: '📦', granary: '🌾', palisade: '🪵', gate: '🚪', well: '💧', shrine: '🕯️', market: '🛍️', quarry: '⛏️',
   watchtower: '🗼', warcamp: '⚔️', palace: '👑', palmpress: '🌴', ironmine: '⚒️', blacksmith: '🔨', canoeyard: '🛶',
   stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
-  bank: '🏦',
+  bank: '🏦', brickyard: '🧱', stockpile: '🧺',
 };
 const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹' };
 // Goods that only show in the top bar once you have some (or reach the age they matter in).
 const TOP_GOODS = [
-  ['wood', 0], ['stone', 0], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
+  ['wood', 0], ['bricks', 0], ['stone', 1], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
   ['salt', 9], ['cloth', 9], ['muskets', 9], ['horses', 9], ['cannon', 9],
 ];
 
@@ -57,6 +57,12 @@ export class Hud {
   mount() {
     this.makeThumbs();
     $('#build-tabs').addEventListener('click', (e) => {
+      if (e.target.closest('button[data-tool="demolish"]')) {
+        if (this.game.mode.demolish) this.game.cancelBuild();
+        else this.game.startDemolish();
+        this.renderBuild(true);
+        return;
+      }
       const b = e.target.closest('button[data-tab]');
       if (!b) return;
       this.tab = b.dataset.tab;
@@ -227,10 +233,12 @@ export class Hud {
 
   renderBuild(force) {
     const st = this.st;
-    const sig = `${this.tab}|${st.era}|${Object.entries(st.res).map(([k, v]) => Math.floor(v / 5)).join()}|${this.game.mode.build}|${st.flags.europeanTrade}|${st.buildings.length}`;
+    const sig = `${this.tab}|${st.era}|${Object.entries(st.res).map(([k, v]) => Math.floor(v / 5)).join()}|${this.game.mode.build}|${this.game.mode.demolish}|${st.flags.europeanTrade}|${st.buildings.length}`;
     if (sig === this.lastBuild && !force) return;
     this.lastBuild = sig;
-    $('#build-tabs').innerHTML = CATEGORIES.map((c) => `<button data-tab="${c.id}" class="${c.id === this.tab ? 'on' : ''}">${c.icon} ${c.name}</button>`).join('');
+    $('#build-tabs').innerHTML =
+      CATEGORIES.map((c) => `<button data-tab="${c.id}" class="${c.id === this.tab ? 'on' : ''}">${c.icon} ${c.name}</button>`).join('') +
+      `<button data-tool="demolish" class="tool ${this.game.mode.demolish ? 'on' : ''}" title="Pull down buildings and fence sections (Delete removes the selected building)">🔨 Pull down</button>`;
     const items = Object.entries(BUILDINGS).filter(([, d]) => d.cat === this.tab && d.buildable !== false);
     $('#build-items').innerHTML = items
       .map(([type, d]) => {
@@ -446,6 +454,10 @@ export class Hud {
     if (def.storage) {
       const s = stat(b, 'storage');
       h += `<h4>Storage</h4><p class="muted">Adds room for ${s.food ? `${Math.round(s.food)} food` : ''}${s.food && s.goods ? ' and ' : ''}${s.goods ? `${Math.round(s.goods)} of each good` : ''}.</p>`;
+      if (b.type === 'stockpile') {
+        const held = Object.keys(RESOURCES).filter((k) => RESOURCES[k].kind !== 'money' && st.res[k] >= 1);
+        h += `<p>${held.length ? `Stacked on your floors: ${held.map((k) => `${RESOURCES[k].icon} ${Math.floor(st.res[k])}`).join(' · ')}` : 'Nothing is stacked here yet.'}</p>`;
+      }
     }
     if (def.job?.type === 'craft' && b.built >= 1) {
       const ins = Object.entries(def.job.inputs).map(([r, n]) => `${RESOURCES[r].icon} ${n} ${RESOURCES[r].name.toLowerCase()}`).join(' + ');
@@ -894,12 +906,13 @@ export class Hud {
     this.toastT = setTimeout(() => (el.hidden = true), 2600);
   }
 
-  placeBar(show, msg, ok) {
+  placeBar(show, msg, ok, okLabel = '✓ Place') {
     const bar = $('#placebar');
     bar.hidden = !show;
     if (!show) return;
     $('#place-msg').textContent = msg;
     $('#place-ok').hidden = !ok;
+    $('#place-ok').textContent = okLabel;
   }
 }
 

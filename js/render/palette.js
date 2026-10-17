@@ -28,6 +28,7 @@ export const ZINC = '#b9c0c4';
 
 export const CARRY = {
   wood: '#7a5230',
+  bricks: '#a9542f',
   yam: '#8b5a2b',
   fish: '#c9d3da',
   meat: '#b03a2e',

@@ -238,8 +238,11 @@ export class People {
   load(r, y) {
     const color = CARRY[r] || '#c8a06a';
     if (r === 'wood') {
-      this.part('load', '#7a5230', 0, y, 0, 0, 0.4, 0, 1.1, 1, 0.9);
-      this.part('load', '#8b6239', 0, y + 0.05, 0, 0, -0.3, 0, 1, 1, 0.8);
+      // A bundle of split planks.
+      for (let k = 0; k < 3; k++) this.part('load', k % 2 ? '#b88a57' : '#c9a06c', 0, y + k * 0.022, 0, 0, 0.1, 0, 1.7, 0.36, 0.55);
+    } else if (r === 'bricks') {
+      // Mud bricks on a head pad, two courses.
+      for (let k = 0; k < 4; k++) this.part('load', k % 3 ? '#b55d34' : '#9c4a2a', (k % 2 - 0.5) * 0.09, y + Math.floor(k / 2) * 0.04, 0, 0, Math.floor(k / 2) * 1.57, 0, 0.42, 0.62, 0.55);
     } else if (r === 'yam' || r === 'cassava' || r === 'garri') {
       this.part('pot', r === 'garri' ? '#e9dcc0' : '#a0703a', 0, y, 0, 0, 0, 0, 1.3, 0.7, 1.3);
       this.part('tuber', r === 'cassava' ? '#a87b4f' : '#7a4a20', -0.02, y + 0.05, 0);
@@ -327,7 +330,28 @@ export class People {
     const p = t * 12 + a.id;
     this.setBase(x, ground, y, h, 1.7);
     if (a.carcass) {
-      this.part('beast', a.type === 'pig' ? '#4b3b33' : '#a57b4c', 0, 0.06, 0, Math.PI / 2, 0, Math.PI / 2);
+      this.part('beast', a.type === 'pig' ? '#4b3b33' : a.type === 'wolf' ? '#9a8566' : '#a57b4c', 0, 0.06, 0, Math.PI / 2, 0, Math.PI / 2);
+      return;
+    }
+    if (a.type === 'wolf') {
+      // The African (golden) wolf: lean and long-legged, tawny grey with a
+      // dark saddle, a long snout, big pointed ears and a bushy tail carried
+      // low. It lunges when it bites.
+      this.setBase(x, ground, y, h, 1.95);
+      const lunge = a.phase === 'maul' || a.phase === 'fight' ? Math.max(0, Math.sin(t * 9 + a.id)) * 0.05 : 0;
+      const bob = moving ? Math.abs(Math.sin(p * 1.6)) * 0.01 : 0;
+      this.part('beast', '#8f7b5c', 0, 0.2 + bob, lunge, Math.PI / 2, 0, 0, 0.72, 1.4, 0.78);
+      this.part('beast', '#5c4a36', 0, 0.228 + bob, lunge - 0.01, Math.PI / 2, 0, 0, 0.52, 1.05, 0.42);
+      this.part('beastHead', '#8a7658', 0, 0.255 + bob, 0.19 + lunge, 0, 0, 0, 1.05, 0.95, 1.15);
+      this.part('beastHead', '#6b5a43', 0, 0.24 + bob, 0.245 + lunge, 0, 0, 0, 0.5, 0.42, 1.0);
+      this.part('beastHead', '#1e1712', 0, 0.245 + bob, 0.285 + lunge, 0, 0, 0, 0.18, 0.15, 0.15);
+      this.part('horn', '#5c4a36', -0.026, 0.31 + bob, 0.175 + lunge, 0.1, 0, -0.18, 2.6, 0.62, 1.6);
+      this.part('horn', '#5c4a36', 0.026, 0.31 + bob, 0.175 + lunge, 0.1, 0, 0.18, 2.6, 0.62, 1.6);
+      this.part('beastLeg', '#6b5a43', 0, 0.225 + bob, -0.12 + lunge, 0.55 + Math.sin(p) * 0.12, 0, 0, 2.4, 1.15, 2.4);
+      const run = moving ? 1.7 : 1;
+      for (const [lx, lz, ph] of [[-0.03, 0.08, 0], [0.03, 0.08, Math.PI], [-0.03, -0.08, Math.PI], [0.03, -0.08, 0]]) {
+        this.part('beastLeg', '#7a6750', lx, 0.18 + bob, lz + lunge * 0.5, moving ? Math.sin(p * run + ph) * 0.8 : 0, 0, 0, 1.05, 1.35, 1.05);
+      }
       return;
     }
     const pig = a.type === 'pig';

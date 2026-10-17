@@ -13,8 +13,8 @@ export const ERAS = [
   },
   {
     name: 'Compound', yo: 'Agbo-ilé', year: 1440,
-    req: { pop: 8 }, cost: { wood: 60, food: 40, cowries: 20 },
-    blurb: 'Your household becomes a lineage compound. Mud-brick houses, shrines, markets, palm oil and — once the ships bring it — cassava and garri.',
+    req: { pop: 8 }, cost: { wood: 60, bricks: 40, food: 40, cowries: 20 },
+    blurb: 'Your household becomes a lineage compound. Mud-brick houses, mud walls, storehouses and granaries, shrines, markets, palm oil and — once the ships bring it — cassava and garri.',
   },
   {
     name: 'Town', yo: 'Ìlú', year: 1472,

@@ -611,6 +611,17 @@ input {
   color: var(--ink);
 }
 
+/* The pull-down tool sits apart from the building tabs. */
+.tabs button.tool {
+  margin-left: auto;
+}
+
+.tabs button.tool.on {
+  background: #b03a2e;
+  color: #fff;
+  border-radius: 8px;
+}
+
 .items {
   grid-column: 1 / -1;
   display: flex;

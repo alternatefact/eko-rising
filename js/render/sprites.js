@@ -279,6 +279,34 @@ const DRAW = {
     rect(ctx, 25, 42, 4, 3, '#7f8c8d');
   },
 
+  brickyard(ctx, b, t, st) {
+    earthPatch(ctx, 0, 4, 64, 58);
+    // Mixing pit under a thatched shade.
+    ellipse(ctx, 20, 22, 14, 9, '#6e3420');
+    ellipse(ctx, 20, 22, 9, 5, '#4c2416');
+    for (const [x, y] of [[6, 10], [34, 10], [6, 32], [34, 32]]) line(ctx, x, y, x, y + 10, '#5a3a20', 2);
+    gableRoof(ctx, 2, 4, 36, 14, st.era);
+    // Rows of bricks drying in the sun.
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 5; c++) rect(ctx, 6 + c * 10, 42 + r * 6, 8, 4, r < 2 ? '#b8643a' : '#8e4426');
+    }
+    for (let k = 0; k < 6; k++) rect(ctx, 46 + (k % 2) * 7, 28 - Math.floor(k / 2) * 4, 6, 4, k % 3 ? '#b55d34' : '#9c4a2a');
+    circle(ctx, 54, 12, 4, '#7a4a2a');
+  },
+
+  // A floor of mud bricks, with what is stored on it stacked on top.
+  stockpile(ctx, b, t, st) {
+    rect(ctx, 1, 1, 62, 62, '#a9542f');
+    ctx.strokeStyle = 'rgba(80,30,15,0.45)';
+    ctx.lineWidth = 0.8;
+    for (let y = 1; y < 63; y += 5) {
+      line(ctx, 1, y, 63, y, 'rgba(80,30,15,0.45)', 0.8);
+      for (let x = (y % 10 === 1 ? 1 : 5); x < 63; x += 10) line(ctx, x, y, x, y + 5, 'rgba(80,30,15,0.35)', 0.8);
+    }
+    if (!st?.buildings || b.built < 1) return;
+    drawStacks(ctx, b, st);
+  },
+
   hunter(ctx, b, t, st) {
     earthPatch(ctx, 0, 4, 64, 58);
     hut(ctx, 22, 26, 16, {});
@@ -685,6 +713,38 @@ function nigeriaFlag(ctx, x, y, t) {
   }
 }
 
+// What a storage floor holds, in the same order the 3D view stacks it: each
+// floor tile is one spot of up to 20 of one good.
+const STACK_ORDER = ['wood', 'bricks', 'stone', 'yam', 'cassava', 'garri', 'fish', 'meat', 'palmoil', 'iron', 'weapons', 'salt', 'cloth'];
+function drawStacks(ctx, b, st) {
+  const floors = st.buildings.filter((f) => f.type === 'stockpile' && f.owner === 'player' && !f.dead && f.built >= 1);
+  const spotsBefore = floors.filter((f) => f.id < b.id).length * 4;
+  let s = 0;
+  for (const r of STACK_ORDER) {
+    let n = Math.floor(st.res[r] || 0);
+    while (n > 0) {
+      const take = Math.min(n, 20);
+      const local = s - spotsBefore;
+      if (local >= 4) return;
+      if (local >= 0) {
+        const x = (local % 2) * 32 + 4;
+        const y = Math.floor(local / 2) * 32 + 4;
+        const h = Math.max(3, Math.round((take / 20) * 14));
+        const c = { wood: ['#c9a06c', '#9a7448'], bricks: ['#b55d34', '#8e4426'], stone: ['#a7a197', '#7d786f'], yam: ['#8b5a2b', '#5f3a17'], cassava: ['#c49a6c', '#8b6a44'], fish: ['#c9d3da', '#8b6239'], meat: ['#9c3b2c', '#6b2519'], palmoil: ['#e2621b', '#5a3a20'], garri: ['#efe3c4', '#b8a27c'] }[r] || ['#c8a06a', '#8b6239'];
+        if (r === 'yam' || r === 'cassava') {
+          for (let k = 0; k < Math.ceil(take / 3); k++) ellipse(ctx, x + 6 + (k % 4) * 5, y + 18 - Math.floor(k / 4) * 4, 3.4, 2, k % 2 ? c[0] : c[1]);
+        } else {
+          rect(ctx, x + 2, y + 22 - h, 20, h, c[1]);
+          rect(ctx, x + 2, y + 22 - h, 20, 3, c[0]);
+          for (let yy = y + 25 - h; yy < y + 22; yy += 3) line(ctx, x + 2, yy, x + 22, yy, 'rgba(0,0,0,0.18)', 0.6);
+        }
+      }
+      n -= take;
+      s++;
+    }
+  }
+}
+
 export function drawBuilding(ctx, b, t, st, neighbours) {
   const fn = DRAW[b.type];
   if (!fn) {
@@ -753,8 +813,14 @@ export function drawVillage(ctx, f, t, ownerColor) {
 function carried(ctx, r, x, y) {
   switch (r) {
     case 'wood':
-      rect(ctx, x - 6, y - 2, 12, 2.5, CARRY.wood);
-      rect(ctx, x - 5, y - 4.5, 10, 2.5, '#8b6239');
+      rect(ctx, x - 7, y - 2, 14, 1.8, '#c9a06c');
+      rect(ctx, x - 6.5, y - 3.8, 13, 1.8, '#b88a57');
+      rect(ctx, x - 7, y - 5.6, 14, 1.8, '#c9a06c');
+      break;
+    case 'bricks':
+      rect(ctx, x - 5, y - 3, 4.6, 2.6, CARRY.bricks);
+      rect(ctx, x + 0.4, y - 3, 4.6, 2.6, '#9c4a2a');
+      rect(ctx, x - 2.5, y - 5.6, 4.6, 2.6, '#9c4a2a');
       break;
     case 'yam':
       ellipse(ctx, x, y - 2, 6, 3.4, '#a0703a');
@@ -909,7 +975,7 @@ export function drawAnimal(ctx, a, t, moving) {
   const face = a.facing || 1;
   if (a.carcass) {
     shadow(ctx, 0, 1, 7, 2.5);
-    ellipse(ctx, 0, -2, 7, 3, a.type === 'pig' ? '#4b3b33' : '#a57b4c');
+    ellipse(ctx, 0, -2, 7, 3, a.type === 'pig' ? '#4b3b33' : a.type === 'wolf' ? '#9a8566' : '#a57b4c');
     circle(ctx, 2, -1, 1.6, '#8e2b20');
     return;
   }
@@ -917,7 +983,16 @@ export function drawAnimal(ctx, a, t, moving) {
   shadow(ctx, 0, 0, 7, 2.5);
   ctx.save();
   ctx.scale(face, 1);
-  if (a.type === 'pig') {
+  if (a.type === 'wolf') {
+    // Lean, long-legged and tawny-grey, ears up, tail out behind.
+    for (const dx of [-4.5, -2.5, 3, 5]) line(ctx, dx, -4.5, dx + (moving ? Math.sin(t * 18 + dx) * 1.5 : 0), 0, '#5d4e3a', 1.2);
+    ellipse(ctx, 0, -7 - bob, 7, 3, '#a08a68');
+    line(ctx, -6.5, -7.5 - bob, -10.5, -9.5 - bob, '#6e5c44', 2);
+    ellipse(ctx, 7, -9.5 - bob, 3, 2.3, '#9a8566');
+    ellipse(ctx, 9.6, -8.8 - bob, 1.8, 1.1, '#7d6a50');
+    line(ctx, 6, -11 - bob, 5.4, -14 - bob, '#6e5c44', 1.3);
+    line(ctx, 7.8, -11 - bob, 8.2, -14 - bob, '#6e5c44', 1.3);
+  } else if (a.type === 'pig') {
     for (const dx of [-4, -1.5, 2, 4]) line(ctx, dx, -3, dx, 0, '#2f2520', 1.4);
     ellipse(ctx, 0, -5 - bob, 7, 4, '#4b3b33');
     ellipse(ctx, 6, -5.5 - bob, 3, 2.4, '#3e302a');

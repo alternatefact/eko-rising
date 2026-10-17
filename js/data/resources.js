@@ -1,14 +1,15 @@
 // Goods of the land and goods from across the sea. Food types share the
-// granary; everything else except money shares the storehouse. Money is never
-// capped. `price` is what the local market pays; imports come by ship.
+// granary space; each other good has its own room in the storehouses. Money
+// is never capped. Wood and mud bricks are what every building is made of. `price` is what the local market pays; imports come by ship.
 
 export const RESOURCES = {
   yam: { name: 'Yam', icon: '🍠', kind: 'food', price: 2 },
   garri: { name: 'Garri', icon: '🥣', kind: 'food', price: 5 },
   fish: { name: 'Fish', icon: '🐟', kind: 'food', price: 2 },
   meat: { name: 'Bushmeat', icon: '🍖', kind: 'food', price: 3 },
-  wood: { name: 'Wood', icon: '🌲', kind: 'goods', price: 2 },
-  stone: { name: 'Stone', icon: '🧱', kind: 'goods', price: 3 },
+  wood: { name: 'Wood', icon: '🪵', kind: 'goods', price: 2 },
+  bricks: { name: 'Mud bricks', icon: '🧱', kind: 'goods', price: 2 },
+  stone: { name: 'Stone', icon: '🪨', kind: 'goods', price: 3 },
   cassava: { name: 'Cassava', icon: '🌿', kind: 'goods', price: 2 },
   palmoil: { name: 'Palm oil', icon: '🌴', kind: 'goods', price: 5 },
   iron: { name: 'Iron', icon: '⚒️', kind: 'goods', price: 6 },
@@ -22,7 +23,7 @@ export const RESOURCES = {
 };
 
 export const FOOD = ['yam', 'garri', 'fish', 'meat'];
-export const GOODS = ['wood', 'stone', 'cassava', 'palmoil', 'iron', 'weapons', 'salt', 'cloth', 'muskets', 'horses', 'cannon'];
+export const GOODS = ['wood', 'bricks', 'stone', 'cassava', 'palmoil', 'iron', 'weapons', 'salt', 'cloth', 'muskets', 'horses', 'cannon'];
 export const ALL_RES = [...FOOD, ...GOODS, 'cowries'];
 
 // The money changes with the age: cowrie shells, then the pound of the

@@ -8,6 +8,8 @@ import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStrang
 import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction } from './factions.js';
 import { sendShip, launchWarBand, armyPower, declareWar } from './military.js';
 import { findLanding } from './world.js';
+import { spawnWolf } from './animals.js';
+import { takeIn } from './citizens.js';
 import { DAY } from './economy.js';
 
 // Helpers handed to region event code, so regions never reach into internals.
@@ -30,6 +32,10 @@ export function makeApi(st) {
     strangers: (n, nearX, nearY) => {
       for (let k = 0; k < n; k++) spawnStranger(st, null, nearX, nearY);
     },
+    // One newcomer walking in from the bush: { female, calling, guest, near, quiet }.
+    wanderer: (opts) => spawnStranger(st, null, undefined, undefined, opts),
+    wolf: () => spawnWolf(st),
+    welcome: (ids) => ids.forEach((id) => takeIn(st, st.byId.get(id))),
     faction: (def, at) => {
       const i = findLanding(st, at[0] * st.W, at[1] * st.H, 0, null);
       const spot = i >= 0 ? { x: i % st.W, y: Math.floor(i / st.W) } : { x: Math.floor(at[0] * st.W), y: Math.floor(at[1] * st.H) };
@@ -222,6 +228,9 @@ export function objectives(st) {
   const out = [];
   for (const o of list) {
     if (st.objDone[o.id]) continue;
+    // Some goals only appear once the story reaches them; during the opening
+    // story, only its own goals show.
+    if (o.when ? !o.when(st) : st.flags.opening && !st.flags.openingDone) continue;
     let done = false;
     try {
       done = o.done(st);
@@ -234,6 +243,7 @@ export function objectives(st) {
         for (const [k, v] of Object.entries(o.reward)) addRes(st, k, v);
       }
       notify(st, `✅ Goal complete: ${o.text}${o.reward ? ` (reward: ${Object.entries(o.reward).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}`, 'good');
+      o.then?.(st, makeApi(st));
       continue;
     }
     out.push(o);

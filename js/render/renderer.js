@@ -226,6 +226,7 @@ export class Renderer {
       if (f === F.PALM) drawPalm(g, bx + 16, by + 20, st.amount[i] >= 4, hash2(x, y, seed + 91));
       else if (f === F.ROCK) drawRocks(g, bx, by, x, y, seed, '#958d82', '#b9b2a6');
       else if (f === F.IRON) drawRocks(g, bx, by, x, y, seed, '#7d4a33', '#a8694a');
+      else if (f === F.CLAY) drawClay(g, bx, by, x, y, seed);
     }
   }
 
@@ -530,6 +531,7 @@ export class Renderer {
       ctx.fillStyle = tile.ok ? 'rgba(46,204,113,0.35)' : 'rgba(231,76,60,0.4)';
       ctx.fillRect(tile.x, tile.y, g.w, g.h);
     }
+    if (g.demolish) return;
     if (g.tiles.length === 1) {
       const tile = g.tiles[0];
       ctx.save();
@@ -648,6 +650,37 @@ function drawPalm(g, x, y, fruit, h) {
     g.fillStyle = '#d35400';
     g.beginPath();
     g.arc(tx, ty + 2, 2.6, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+// A pit of wet red mud: a dark, wet middle and lumps of dug mud at the edge.
+function drawClay(g, bx, by, x, y, seed) {
+  const cx = bx + 16;
+  const cy = by + 16;
+  g.fillStyle = '#9a5132';
+  g.beginPath();
+  for (let k = 0; k <= 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    const r = 15 + (hash2(x * 13 + k, y, seed + 131) - 0.5) * 6;
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r * 0.85;
+    if (k === 0) g.moveTo(px, py);
+    else g.lineTo(px, py);
+  }
+  g.fill();
+  g.fillStyle = '#6a3220';
+  g.beginPath();
+  g.ellipse(cx + 1, cy + 1, 9, 7, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = 'rgba(255,220,200,0.18)';
+  g.beginPath();
+  g.ellipse(cx - 2, cy - 2, 4, 2, -0.4, 0, Math.PI * 2);
+  g.fill();
+  for (let k = 0; k < 3; k++) {
+    g.fillStyle = '#b4653d';
+    g.beginPath();
+    g.ellipse(bx + 4 + hash2(x + k, y, seed + 133) * 24, by + 4 + hash2(x, y + k, seed + 137) * 24, 3, 2, 0, 0, Math.PI * 2);
     g.fill();
   }
 }

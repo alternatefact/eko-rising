@@ -432,13 +432,73 @@ const BUILD = {
   woodcutter(g) {
     earthPad(g, 2, 2);
     gableHouse(g, 0.75, 0.75, 1.1, 0.9, 0.5, { windows: false });
-    const log = cyl(0.1, 0.1, 0.8, 8);
-    for (let k = 0; k < 5; k++) {
-      const m = mesh(log, C.wood(), 1.45 + (k % 3) * 0.02, 0.1 + Math.floor(k / 3) * 0.18, 1.2 + (k % 3) * 0.2);
-      m.rotation.z = Math.PI / 2;
+    // Logs waiting to be split.
+    const log = cyl(0.09, 0.09, 0.7, 8);
+    for (let k = 0; k < 3; k++) {
+      const m = mesh(log, C.wood(), 1.6, 0.09 + (k === 2 ? 0.15 : 0), 0.35 + (k === 2 ? 0.1 : k * 0.2));
+      m.rotation.x = Math.PI / 2;
       g.add(m);
     }
-    g.add(mesh(cyl(0.14, 0.16, 0.18, 10), toon('#b98b5a'), 0.5, 0.09, 1.55));
+    // A sawing trestle with a log on it, and split planks stacked beside it.
+    for (const [x, z] of [[0.95, 1.45], [0.95, 1.85], [1.55, 1.45], [1.55, 1.85]]) {
+      const leg = mesh(cyl(0.02, 0.02, 0.36, 4), C.wood(), x, 0.16, z);
+      leg.rotation.z = x < 1.2 ? 0.25 : -0.25;
+      g.add(leg);
+    }
+    const onTrestle = mesh(cyl(0.07, 0.07, 0.95, 7), toon('#9a6b3f'), 1.25, 0.34, 1.65);
+    onTrestle.rotation.z = Math.PI / 2;
+    g.add(onTrestle);
+    const plank = box(0.62, 0.03, 0.1);
+    for (let k = 0; k < 6; k++) g.add(mesh(plank, toon('#c49a6c'), 0.45 + (k % 2) * 0.02, 0.02 + Math.floor(k / 2) * 0.032, 1.42 + (k % 2) * 0.12));
+    g.add(mesh(cyl(0.14, 0.16, 0.18, 10), toon('#b98b5a'), 0.35, 0.09, 1.85));
+  },
+
+  // Brickmaker's yard: a shade over the mixing pit, wooden moulds, rows of
+  // red bricks drying in the sun, and a water pot.
+  brickyard(g) {
+    earthPad(g, 2, 2);
+    for (const [x, z] of [[0.15, 0.15], [1.05, 0.15], [0.15, 0.95], [1.05, 0.95]]) g.add(mesh(cyl(0.03, 0.035, 0.62, 6), C.wood(), x, 0.31, z));
+    g.add(mesh(prism(1.1, 1.0, 0.3), C.thatch(), 0.6, 0.6, 0.55));
+    g.add(mesh(cyl(0.34, 0.3, 0.05, 14), toon('#6e3420'), 0.6, 0.03, 0.55));
+    g.add(mesh(cyl(0.26, 0.26, 0.02, 14), toon('#4c2416'), 0.6, 0.06, 0.55));
+    const brick = box(0.15, 0.065, 0.08);
+    const dry = toon('#b8643a', { map: 'mud' });
+    const fresh = toon('#8e4426', { map: 'mud' });
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 5; c++) {
+        g.add(mesh(brick, r < 2 ? dry : fresh, 0.18 + c * 0.2, 0.035, 1.25 + r * 0.17));
+      }
+    }
+    // A small stack of finished bricks.
+    for (let k = 0; k < 9; k++) {
+      const m = mesh(brick, dry, 1.55 + (k % 3) * 0.0, 0.035 + Math.floor(k / 3) * 0.068, 0.3 + (k % 3) * 0.09);
+      m.rotation.y = Math.floor(k / 3) % 2 ? Math.PI / 2 : 0;
+      g.add(m);
+    }
+    for (const [x, z] of [[1.45, 0.95], [1.75, 0.95]]) {
+      for (const [w, d, dx, dz] of [[0.2, 0.02, 0, -0.05], [0.2, 0.02, 0, 0.05], [0.02, 0.12, -0.1, 0], [0.02, 0.12, 0.1, 0]]) g.add(mesh(box(w, 0.05, d), C.wood(), x + dx, 0.03, z + dz));
+    }
+    g.add(mesh(cyl(0.11, 0.08, 0.22, 10), toon('#7a4a2a'), 1.75, 0.11, 0.25));
+  },
+
+  // A floor of laid mud bricks in front of the compound. What is stored on it
+  // is drawn separately (render3d/stocks.js), because it changes all the time.
+  stockpile(g) {
+    const a = toon('#b8683f', { map: 'mud' });
+    const b2 = toon('#c87c4e', { map: 'mud' });
+    const brick = box(0.3, 0.07, 0.15);
+    // A bed of mortar under the bricks shows in the joints.
+    g.add(mesh(box(1.96, 0.05, 1.96), toon('#7a4a2e', { map: 'mud' }), 1, 0.025, 1));
+    for (let r = 0; r < 12; r++) {
+      const off = r % 2 ? 0.15 : 0;
+      for (let c = -1; c < 7; c++) {
+        const x = 0.15 + c * 0.31 + off;
+        if (x < 0.1 || x > 1.9) continue;
+        g.add(mesh(brick, (r * 7 + c * 3) % 5 === 0 ? b2 : a, x, 0.035, 0.09 + r * 0.153));
+      }
+    }
+    // A border of bricks on edge.
+    for (const [w, d, x, z] of [[2, 0.07, 1, 0.02], [2, 0.07, 1, 1.98], [0.07, 2, 0.02, 1], [0.07, 2, 1.98, 1]]) g.add(mesh(box(w, 0.1, d), b2, x, 0.05, z));
   },
 
   hunter(g) {
@@ -797,15 +857,25 @@ function wall(g, n, earth) {
     if (!straight) bastion(g, 0.5, 0.5, 0.4, 1.12);
     return;
   }
-  // Palisade: sharpened logs of uneven height, lashed to a rail.
+  // Wooden fence: bundles of four or five sharpened stakes lashed together
+  // with rope, set close in a line and tied to two rails.
   const spots = [[0.5, 0.5]];
-  for (const [, [x, z]] of arms) spots.push([0.5 + (x - 0.5) * 0.35, 0.5 + (z - 0.5) * 0.35], [0.5 + (x - 0.5) * 0.7, 0.5 + (z - 0.5) * 0.7], [x, z]);
+  for (const [, [x, z]] of arms) spots.push([0.5 + (x - 0.5) * 0.5, 0.5 + (z - 0.5) * 0.5]);
   if (spots.length === 1) spots.push([0.25, 0.5], [0.75, 0.5]);
+  const rope = toon('#c8a46a');
   for (const [x, z] of spots) {
-    const h = 0.82 + (Math.sin(x * 91 + z * 57) * 0.5 + 0.5) * 0.25;
-    const r = 0.065 + (Math.cos(x * 37 + z * 13) * 0.5 + 0.5) * 0.02;
-    g.add(mesh(cyl(r, r * 1.1, h, 7), C.wood(), x, h / 2, z));
-    g.add(mesh(cone(r, 0.17, 7), C.wood(), x, h + 0.085, z));
+    const seed = Math.sin(x * 91 + z * 57) * 0.5 + 0.5;
+    const n = seed > 0.5 ? 5 : 4;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + seed;
+      const sx = x + Math.cos(a) * 0.075;
+      const sz = z + Math.sin(a) * 0.075;
+      const h = 0.78 + ((Math.sin((sx + sz) * 113) * 0.5 + 0.5) * 0.28);
+      const r = 0.042 + (k % 2) * 0.008;
+      g.add(mesh(cyl(r, r * 1.08, h, 6), C.wood(), sx, h / 2, sz));
+      g.add(mesh(cone(r, 0.14, 6), C.wood(), sx, h + 0.07, sz));
+    }
+    for (const y of [0.24, 0.6]) g.add(mesh(cyl(0.125, 0.125, 0.05, 10), rope, x, y, z));
   }
   for (const [, [x, z]] of arms) {
     for (const y of [0.3, 0.62]) {

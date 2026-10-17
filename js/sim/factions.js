@@ -334,7 +334,7 @@ function claimPoi(st, p) {
   p.claimed = true;
   const r = p.reward || {};
   const got = [];
-  for (const k of ['yam', 'garri', 'fish', 'meat', 'wood', 'stone', 'iron', 'palmoil', 'weapons', 'salt', 'cloth', 'cowries']) {
+  for (const k of ['yam', 'garri', 'fish', 'meat', 'wood', 'bricks', 'stone', 'iron', 'palmoil', 'weapons', 'salt', 'cloth', 'cowries']) {
     if (r[k]) {
       const n = Math.floor(addRes(st, k, r[k]));
       if (n) got.push(`${n} ${k}`);

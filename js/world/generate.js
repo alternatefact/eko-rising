@@ -129,20 +129,23 @@ export function generateWorld(region, seed) {
   }
 
   // --- The player's starting land --------------------------------------
+  // A clearing for the homestead, wider on the side the camera looks from so
+  // the house and its storage floor are never hidden behind trees.
   const start = findStart(terrain, W, H, tp.start, rng);
-  for (let dy = -6; dy <= 6; dy++) {
-    for (let dx = -6; dx <= 6; dx++) {
+  for (let dy = -7; dy <= 8; dy++) {
+    for (let dx = -7; dx <= 8; dx++) {
       const x = start.x + dx;
       const y = start.y + dy;
       if (x < 0 || y < 0 || x >= W || y >= H) continue;
       const i = idx(x, y);
       const d2 = dx * dx + dy * dy;
+      const front = dx >= -2 && dy >= 1;
       if (isWater(terrain[i])) continue;
-      if (d2 <= 20) {
+      if (d2 <= 20 || (front && d2 <= 42)) {
         terrain[i] = T.GRASS;
         trees[i] = 0;
         feature[i] = F.NONE;
-      } else if (d2 <= 36 && terrain[i] === T.FOREST && rng.chance(0.6)) {
+      } else if (d2 <= 49 && terrain[i] === T.FOREST && rng.chance(0.6)) {
         terrain[i] = T.GRASS;
         trees[i] = rng.chance(0.3) ? 20 : 0;
       }
@@ -171,6 +174,50 @@ export function generateWorld(region, seed) {
       }
     }
     break;
+  }
+
+  // Red mud for bricks: one pit a short walk from home, and more along the
+  // river banks and lagoon shores where clay settles.
+  const clayPit = (cx, cy, r) => {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2) continue;
+        const i = idx(x, y);
+        const t = terrain[i];
+        if (isWater(t) || t === T.HILL || t === T.MANGROVE || feature[i] === F.IRON) continue;
+        if (dx * dx + dy * dy > r * r + 1 || (dx * dx + dy * dy > 2 && !rng.chance(0.7))) continue;
+        if (t === T.FOREST || t === T.SAVANNA) terrain[i] = T.GRASS;
+        trees[i] = 0;
+        feature[i] = F.CLAY;
+        amount[i] = 140 + rng.int(0, 100);
+      }
+    }
+  };
+  for (let k = 0; k < 60; k++) {
+    const a = rng.range(0, Math.PI * 2);
+    const r = rng.range(8.5, 10.5);
+    const ox = Math.round(start.x + Math.cos(a) * r);
+    const oy = Math.round(start.y + Math.sin(a) * r);
+    if (ox < 4 || oy < 4 || ox >= W - 4 || oy >= H - 4) continue;
+    let ok = true;
+    for (let dy = -2; dy <= 2 && ok; dy++) {
+      for (let dx = -2; dx <= 2 && ok; dx++) {
+        const t = terrain[idx(ox + dx, oy + dy)];
+        if (isWater(t) || t === T.HILL || feature[idx(ox + dx, oy + dy)] === F.ROCK) ok = false;
+      }
+    }
+    if (!ok) continue;
+    clayPit(ox, oy, 2);
+    break;
+  }
+  for (let i = 0; i < n; i++) {
+    const t = terrain[i];
+    if ((t !== T.GRASS && t !== T.SAVANNA) || nearCoast[i] < 1 || nearCoast[i] > 2 || feature[i]) continue;
+    const x = i % W;
+    const y = (i / W) | 0;
+    if (hash2(x, y, seed + 31) < 0.012 && Math.hypot(x - start.x, y - start.y) > 12) clayPit(x, y, rng.int(1, 2));
   }
 
   // Everything that matters must be reachable on foot from home.

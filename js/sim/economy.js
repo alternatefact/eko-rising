@@ -257,6 +257,8 @@ export function addMood(st, label, v, days) {
 // --- Strangers arriving and leaving -----------------------------------------------
 
 export function updateMigration(st, dt) {
+  // During the opening story, newcomers arrive only when the story sends them.
+  if (st.flags.opening && !st.flags.openingDone) return;
   st.migrateT -= dt;
   if (st.migrateT > 0) return;
   const h = st.happy;
@@ -278,14 +280,14 @@ export function updateMigration(st, dt) {
   }
 }
 
-export function spawnStranger(st, origin, nearX, nearY) {
+export function spawnStranger(st, origin, nearX, nearY, opts = {}) {
   const gp = gatheringPoint(st);
   const cx = nearX ?? gp.x;
   const cy = nearY ?? gp.y;
   let spot = -1;
   for (let k = 0; k < 30 && spot < 0; k++) {
     const a = st.rng.range(0, Math.PI * 2);
-    const r = nearX !== undefined ? st.rng.range(0, 2) : st.rng.range(16, 24);
+    const r = nearX !== undefined ? st.rng.range(0, 2) : st.rng.range(opts.near ? 11 : 16, opts.near ? 15 : 24);
     const x = Math.floor(cx + Math.cos(a) * r);
     const y = Math.floor(cy + Math.sin(a) * r);
     if (x < 1 || y < 1 || x >= st.W - 1 || y >= st.H - 1) continue;
@@ -294,8 +296,11 @@ export function spawnStranger(st, origin, nearX, nearY) {
     spot = i;
   }
   if (spot < 0) return null;
-  const c = createCitizen(st, spot % st.W, Math.floor(spot / st.W), { origin, stranger: true, state: 'arrive' });
+  const c = createCitizen(st, spot % st.W, Math.floor(spot / st.W), { origin, stranger: true, state: 'arrive', female: opts.female });
+  if (opts.calling) c.calling = opts.calling;
+  if (opts.guest) c.guest = true;
   st.stats.arrived++;
+  if (opts.quiet) return c;
   if (st.stats.arrived <= 3 || st.rng.chance(0.35)) {
     notify(st, `👋 ${c.name}, ${c.female ? 'a woman' : 'a man'} of the ${c.people} from ${c.from}, is coming to ${st.name}.`, 'good', c);
   }

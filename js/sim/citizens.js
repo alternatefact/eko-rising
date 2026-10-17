@@ -73,7 +73,8 @@ function walkTo(st, c, x, y, extra) {
 // --- Homes ---------------------------------------------------------------
 
 export function houseStrangers(st) {
-  const waiting = st.citizens.filter((c) => c.stranger && !c.dead && (c.state === 'wait' || c.state === 'arrive'));
+  // Guests (newcomers the story introduces) wait to be welcomed first.
+  const waiting = st.citizens.filter((c) => c.stranger && !c.dead && !c.guest && (c.state === 'wait' || c.state === 'arrive'));
   if (!waiting.length) return;
   for (const b of st.buildings) {
     if (b.owner !== 'player' || b.built < 1 || b.dead) continue;
@@ -104,6 +105,21 @@ export function houseStrangers(st) {
   }
 }
 
+// A newcomer the household has welcomed moves into the compound.
+export function takeIn(st, c) {
+  const home = st.buildings.find((b) => b.type === 'compound' && b.owner === 'player' && !b.dead);
+  if (!c || c.dead || !home) return;
+  c.guest = false;
+  c.stranger = false;
+  c.home = home.id;
+  c.homelessDays = 0;
+  if (!home.residents.includes(c.id)) home.residents.push(c.id);
+  c.state = 'movein';
+  const p = at(home);
+  walkTo(st, c, p.x, p.y);
+  st.dirty.jobs = true;
+}
+
 // --- Jobs ------------------------------------------------------------------
 
 function isFoodJob(b) {
@@ -112,10 +128,11 @@ function isFoodJob(b) {
 }
 
 // Player priority (0 low, 1 normal, 2 high), plus a nudge toward food when
-// stores run low. Workers leave lower-priority work to fill higher.
+// stores run low (or once the household has gone hungry). Workers leave
+// lower-priority work to fill higher.
 export function effPriority(st, b) {
   let p = b.priority * 2;
-  if (isFoodJob(b) && st.foodLow) p += 1;
+  if (isFoodJob(b) && (st.foodLow || st.flags.feedFirst)) p += 1;
   return p;
 }
 
@@ -133,16 +150,29 @@ export function assignJobs(st) {
   if (!slots.length) return;
   slots.sort((a, b) => b.pri - a.pri || a.b.id - b.b.id);
 
-  const idle = st.citizens.filter((c) => !c.stranger && !c.dead && !c.job && c.special !== 'founder' && (c.state === 'idle' || c.state === 'movein'));
+  // The founder and his wife run the household; everyone else works.
+  const idle = st.citizens.filter((c) => !c.stranger && !c.dead && !c.job && !c.special && (c.state === 'idle' || c.state === 'movein'));
+  // Someone who knows a trade takes that work first, if it is waiting and
+  // nothing more urgent is.
+  const top = slots[0].pri;
+  for (let j = idle.length - 1; j >= 0; j--) {
+    const c = idle[j];
+    const s = c.calling && slots.find((x) => x.free > 0 && x.b.type === c.calling && x.pri >= top);
+    if (!s) continue;
+    idle.splice(j, 1);
+    startJob(st, c, s.b);
+    s.free--;
+  }
   for (const s of slots) {
     const p = at(s.b);
     while (s.free > 0) {
       let worker = null;
       if (idle.length) {
+        // Someone who already knows the trade goes first, then whoever is nearest.
         let k = 0;
         let bestD = Infinity;
         idle.forEach((c, j) => {
-          const d = Math.hypot(c.x - p.x, c.y - p.y);
+          const d = Math.hypot(c.x - p.x, c.y - p.y) - (c.calling === s.b.type ? 1000 : 0);
           if (d < bestD) {
             bestD = d;
             k = j;
@@ -173,7 +203,8 @@ function poach(st, pri, target) {
   }
   if (!from) return null;
   const c = st.byId.get(from.workers[from.workers.length - 1]);
-  if (!c) return null;
+  // Nobody is called away in the middle of fighting for their life.
+  if (!c || c.state === 'fight' || c.state === 'attacked') return null;
   notifyOnce(
     st,
     `poach-${target.type}`,
@@ -220,7 +251,7 @@ function headToStore(st, c) {
   if (!store) {
     c.state = 'storewait';
     c.timer = 3;
-    notifyOnce(st, `nostore-${RESOURCES[c.carry.r].kind}`, 30, `📦 Nowhere to store ${RESOURCES[c.carry.r].name.toLowerCase()}. Build a ${RESOURCES[c.carry.r].kind === 'food' ? 'granary' : 'storehouse'}.`, 'bad');
+    notifyOnce(st, `nostore-${RESOURCES[c.carry.r].kind}`, 30, `📦 Nowhere to store ${RESOURCES[c.carry.r].name.toLowerCase()}. Build a ${st.era < 1 ? 'Storage Floor' : RESOURCES[c.carry.r].kind === 'food' ? 'granary' : 'storehouse'}.`, 'bad');
     return;
   }
   c.storeId = store.id;
@@ -238,7 +269,9 @@ function deliver(st, c) {
     c.state = 'storewait';
     c.timer = 3;
     const kind = RESOURCES[c.carry.r].kind;
-    notifyOnce(st, `full-${kind}`, 150, `📦 Your ${kind === 'food' ? 'granaries are' : 'storehouses are'} full. Build another ${kind === 'food' ? 'granary' : 'storehouse'}${kind === 'food' ? '' : ' or sell at the market'}.`, 'bad');
+    const what = RESOURCES[c.carry.r].name.toLowerCase();
+    if (st.era < 1) notifyOnce(st, `full-${kind}`, 150, `📦 No room left for ${what} on your storage floor. Build another Storage Floor beside it.`, 'bad');
+    else notifyOnce(st, `full-${kind}`, 150, `📦 Your ${kind === 'food' ? 'granaries are' : 'storehouses are'} full. Build another ${kind === 'food' ? 'granary' : 'storehouse'} or storage floor${kind === 'food' ? '' : ', or sell at the market'}.`, 'bad');
     return false;
   }
   const n = addRes(st, c.carry.r, c.carry.n);
@@ -259,6 +292,8 @@ function sourcePred(st, kind) {
       return (i) => st.feature[i] === F.IRON && st.amount[i] > 0;
     case 'palm':
       return (i) => st.feature[i] === F.PALM && st.amount[i] >= 4;
+    case 'clay':
+      return (i) => st.feature[i] === F.CLAY && st.amount[i] > 0;
     case 'water':
       return (i) => WALK[st.terrain[i]] > 0 && !isWater(st.terrain[i]) && adjacentToWater(st, i) && !(st.occ[i] && st.byId.get(st.occ[i])?.wall);
     default:
@@ -293,7 +328,7 @@ function takeFromSource(st, i, job) {
   return n;
 }
 
-const SOURCE_NAME = { tree: 'trees', rock: 'rock', iron: 'iron ore', palm: 'ripe palm trees', water: 'open water' };
+const SOURCE_NAME = { tree: 'trees', rock: 'rock', iron: 'iron ore', palm: 'ripe palm trees', water: 'open water', clay: 'red mud' };
 
 // --- The update ---------------------------------------------------------------
 
@@ -318,7 +353,7 @@ function shelterFor(st, c) {
   return best;
 }
 
-function resume(st, c) {
+export function resume(st, c) {
   c.hidden = false;
   c.path = null;
   if (c.stranger) c.state = 'arrive';
@@ -342,12 +377,12 @@ export function updateCitizen(st, c, dt) {
   }
   const def = job ? BUILDINGS[job.type].job : null;
 
-  if (c.special === 'founder') {
+  if (c.special) {
     if (c.job) {
       releaseFromJob(st, c);
       return;
     }
-    if (c.state === 'idle' || c.state === 'movein') {
+    if (c.special === 'founder' && (c.state === 'idle' || c.state === 'movein')) {
       c.state = 'supervise';
       c.timer = 0;
     }
@@ -377,6 +412,12 @@ export function updateCitizen(st, c, dt) {
   switch (c.state) {
     case 'supervise':
       supervise(st, c, dt);
+      return;
+    // Caught by a wild animal (see sim/animals.js): frozen in place, or
+    // standing to fight it off. The animal ends the struggle either way.
+    case 'attacked':
+    case 'fight':
+      c.path = null;
       return;
     case 'flee': {
       if (stepMove(st, c, dt, WALK_SPEED * 1.25)) {
@@ -639,7 +680,7 @@ export function updateCitizen(st, c, dt) {
       let best = null;
       let bestD = def.radius;
       for (const a of st.animals) {
-        if (a.dead || a.carcass || (a.reserved && a.reserved !== c.id)) continue;
+        if (a.dead || a.carcass || a.type === 'wolf' || (a.reserved && a.reserved !== c.id)) continue;
         const d = Math.hypot(a.x - lodge.x, a.y - lodge.y);
         if (d < bestD) {
           bestD = d;
@@ -808,16 +849,18 @@ export function citizenStatus(st, c) {
     arrive: 'Walking to the fire',
     wait: gatheringPoint(st).town ? 'Waiting in the town square for a home' : 'Waiting at the fire for a home',
     movein: 'Moving into a new home',
-    idle: 'Looking for work',
+    idle: c.special === 'spouse' ? 'Keeping the household' : 'Looking for work',
+    attacked: 'Attacked by a wolf!',
+    fight: 'Fighting off a wolf!',
     leave: 'Leaving for good',
     towork: `Going to the ${job ? BUILDINGS[job.type].name.toLowerCase() : 'work'}`,
     stuck: 'Cannot find a way',
     seek: 'Looking for a source',
     tosource: 'Heading out',
-    gather: 'Working',
+    gather: job?.type === 'brickyard' ? 'Digging red mud' : job?.type === 'woodcutter' ? 'Felling a tree' : 'Working',
     return: 'Bringing it back',
-    process: 'Preparing goods',
-    tostore: 'Carrying to the store',
+    process: job?.type === 'woodcutter' ? 'Splitting logs into planks' : job?.type === 'brickyard' ? 'Moulding mud bricks' : 'Preparing goods',
+    tostore: `Carrying ${c.carry ? RESOURCES[c.carry.r].name.toLowerCase() : 'it'} to the ${job && st.byId.get(c.storeId)?.type === 'stockpile' ? 'storage floor' : 'store'}`,
     storewait: 'Waiting for storage space',
     farm: 'Tending the yam mounds',
     harvest: 'Harvesting',

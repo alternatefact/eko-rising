@@ -57,6 +57,7 @@ const WORK = {
   farm: 'pull',
   cassava: 'pull',
   woodcutter: 'swing',
+  brickyard: 'pull',
   quarry: 'swing',
   ironmine: 'swing',
   blacksmith: 'swing',
@@ -72,6 +73,7 @@ const JOB_MODEL = {
   hunter: 'hunter',
   fisher: 'fisher',
   canoeyard: 'fisher',
+  brickyard: 'labourer',
   quarry: 'labourer',
   ironmine: 'labourer',
   blacksmith: 'labourer',
@@ -88,7 +90,8 @@ export function citizenLook(st, c, job, moving) {
   else type = (job && JOB_MODEL[job.type]) || 'labourer';
   const female = type === 'wife' || type === 'woman';
   let anim = 'idle';
-  if (moving) {
+  if (c.state === 'fight') anim = 'swing';
+  else if (moving) {
     if (c.carry) anim = female ? 'womancarry' : 'carry';
     else if (type === 'founder') anim = 'strut';
     else anim = female ? 'womanwalk' : 'walk';

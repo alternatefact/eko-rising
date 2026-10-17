@@ -11,16 +11,18 @@ import { armyPower } from '../js/sim/military.js';
 import { stat } from '../js/data/buildings.js';
 
 const BUILD_ORDER = [
+  ['brickyard', 'clay'],
   ['woodcutter', 'trees'],
+  ['farm', 'home'],
   ['hut', 'home'],
   ['fisher', 'water'],
+  ['stockpile', 'home'],
   ['hut', 'home'],
   ['woodcutter', 'trees'],
-  ['storehouse', 'home'],
-  ['granary', 'home'],
-  ['farm', 'home'],
+  ['brickyard', 'clay'],
   ['hunter', 'trees'],
   ['hut', 'home'],
+  ['stockpile', 'home'],
   ['farm', 'home'],
   ['hut', 'home'],
 ];
@@ -49,6 +51,7 @@ function score(st, x, y, pref, home) {
       if (pref === 'water' && isWater(st.terrain[i])) n++;
       if (pref === 'rock' && st.feature[i] === F.ROCK) n++;
       if (pref === 'palm' && st.feature[i] === F.PALM) n++;
+      if (pref === 'clay' && st.feature[i] === F.CLAY) n++;
     }
   }
   return -n + d * 0.4;
@@ -197,6 +200,9 @@ export function botTick(bot) {
   const food = st.res.yam + st.res.fish + st.res.meat + st.res.garri;
   if (food < pop * 3 && count(st, 'farm') < 2 + pop / 5) place(st, 'farm');
   if (count(st, 'woodcutter') < 2 + Math.floor(pop / 12)) place(st, 'woodcutter', 'trees');
+  if (count(st, 'brickyard') < 2 + Math.floor(pop / 15)) place(st, 'brickyard', 'clay');
+  const full = Math.max(st.res.wood, st.res.bricks) >= st.cap.goods - 5 || food >= st.cap.food - 5;
+  if (full && st.era < 1 && count(st, 'stockpile') < 6) place(st, 'stockpile');
   if (st.res.wood >= st.cap.goods - 5 && count(st, 'storehouse') < 4) place(st, 'storehouse');
   if (food >= st.cap.food - 5 && count(st, 'granary') < 4) place(st, 'granary');
 
@@ -209,7 +215,7 @@ export function botTick(bot) {
       if (!count(st, type)) place(st, type, pref);
     }
     if (st.flags.cassava) for (const [type, pref] of [['cassava', 'home'], ['garri', 'home']]) if (!count(st, type)) place(st, type, pref);
-    if (!count(st, 'palace') && st.res.wood >= 140 && st.res.stone >= 50 && st.res.cowries >= 150) place(st, 'palace');
+    if (!count(st, 'palace') && st.res.wood >= 140 && st.res.bricks >= 80 && st.res.stone >= 30 && st.res.cowries >= 150) place(st, 'palace');
   }
   const wc = built(st, 'warcamp');
   if (wc && pop > 10) {

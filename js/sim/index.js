@@ -34,7 +34,7 @@ export function newGame(opts = {}) {
   const world = generateWorld(region, seed);
   const n = world.W * world.H;
   const st = {
-    version: 2,
+    version: 3,
     regionId: region.id,
     region,
     seed,
@@ -53,7 +53,7 @@ export function newGame(opts = {}) {
     rng: new Rng(seed ^ 0x9e3779b9),
     time: { t: 0, day: 0, dayT: 0, year: ERAS[0].year },
     era: 0,
-    res: { ...Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])), yam: 30, wood: 40, cowries: 50 },
+    res: { ...Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])), yam: 24, wood: 20, bricks: 14, cowries: 50 },
     harbour: { ship: null, next: 0, sailing: false },
     tech: {},
     luxury: {},
@@ -110,16 +110,18 @@ export function newGame(opts = {}) {
   };
   for (const [k, v] of Object.entries(region.foreign)) st.foreign[k] = { name: v.name, color: v.color, hostile: false, trade: false };
 
-  // Home: the compound, a yam field beside it, and the strangers' fire.
+  // Home: the compound, a storage floor of mud bricks in front of it with
+  // what the couple carried here stacked on it, and the strangers' fire.
   const sx = world.start.x;
   const sy = world.start.y;
   const compound = createBuilding(st, 'compound', sx - 1, sy - 1, { instant: true });
-  const farmSpot = findSpot(st, 'farm', sx, sy, 3, 7) || { x: sx + 2, y: sy - 1 };
-  const farm = createBuilding(st, 'farm', farmSpot.x, farmSpot.y, { instant: true });
-  farm.growth = 0.45;
+  const floorSpot = [[sx - 1, sy + 3], [sx, sy + 3], [sx + 3, sy], [sx - 4, sy], [sx - 1, sy - 4]].map(([x, y]) => ({ x, y })).find((p) => footprintOk(st, 'stockpile', p.x, p.y, true).ok)
+    || findSpot(st, 'stockpile', sx, sy, 3, 6) || { x: sx - 1, y: sy + 3 };
+  createBuilding(st, 'stockpile', floorSpot.x, floorSpot.y, { instant: true });
   const fireSpot = findSpot(st, 'campfire', sx, sy, 6, 10) || { x: sx - 6, y: sy + 3 };
   createBuilding(st, 'campfire', fireSpot.x, fireSpot.y, { instant: true });
 
+  // Just the two of them. Strangers come soon (see the region's opening).
   const awori = ORIGINS[0];
   const founder = createCitizen(st, sx, sy + 1, { origin: awori, female: false, name: st.founder, stranger: false, state: 'idle', special: 'founder', cloth: '#2f4a8a' });
   const spouse = createCitizen(st, sx, sy + 1, { origin: awori, female: true, name: st.spouse, stranger: false, state: 'idle', special: 'spouse', cloth: '#c0392b' });
@@ -127,14 +129,7 @@ export function newGame(opts = {}) {
     c.home = compound.id;
     compound.residents.push(c.id);
   }
-  // The founder is already at work in the field; the wife waits for the
-  // player's first building.
-  founder.job = farm.id;
-  farm.workers.push(founder.id);
-  founder.state = 'towork';
-
-  // Someone has already heard about the new farm.
-  createCitizen(st, fireSpot.x, fireSpot.y + 2, { state: 'wait' });
+  st.flags.opening = true;
 
   region.factions.forEach((def, k) => initFaction(st, def, world.factionSpots[k]));
   region.pois.forEach((p, k) => {
@@ -302,6 +297,7 @@ function footprintOk(st, type, x, y, ignoreTerritory) {
       if (isWater(t) || t === T.FORD) return { ok: false, reason: 'You cannot build on water.' };
       if (t === T.MANGROVE && def.place !== 'shore') return { ok: false, reason: 'Too swampy. Only jetties and canoe yards sit in the mangroves.' };
       if (st.feature[i] === F.ROCK || st.feature[i] === F.IRON) return { ok: false, reason: 'Rock is in the way.' };
+      if (st.feature[i] === F.CLAY) return { ok: false, reason: 'A red-mud pit is in the way. Build beside it.' };
       if (def.place === 'fertile' && !(t === T.GRASS || t === T.SAVANNA || t === T.FOREST)) return { ok: false, reason: 'Yams need fertile soil.' };
       if (adjacentToWater(st, i)) shore = true;
     }
@@ -324,6 +320,7 @@ function footprintOk(st, type, x, y, ignoreTerritory) {
   if (def.place === 'rock' && !near(F.ROCK, def.near)) return { ok: false, reason: 'Must be near rocky outcrops.' };
   if (def.place === 'iron' && !near(F.IRON, def.near)) return { ok: false, reason: 'Must be built on an iron deposit your scouts found.' };
   if (def.place === 'palm' && near(F.PALM, def.near) < 3) return { ok: false, reason: 'Needs a grove of palm trees nearby.' };
+  if (def.place === 'clay' && near(F.CLAY, def.near) < 2) return { ok: false, reason: 'Must be built beside a red-mud pit.' };
   return { ok: true };
 }
 
@@ -398,6 +395,17 @@ export function demolish(st, id) {
   for (const [k, v] of Object.entries(cost)) if (k !== 'food') st.res[k] += Math.floor(v * (b.built >= 1 ? 0.4 : 1));
   removeBuilding(st, b);
   return { ok: true };
+}
+
+// Pull down every fence, wall and gate section along a line.
+export function demolishLine(st, x0, y0, x1, y1) {
+  let n = 0;
+  for (const [x, y] of lineTiles(x0, y0, x1, y1)) {
+    if (x < 0 || y < 0 || x >= st.W || y >= st.H) continue;
+    const b = st.byId.get(st.occ[y * st.W + x]);
+    if (b && !b.dead && (b.wall || b.gate) && demolish(st, b.id).ok) n++;
+  }
+  return n;
 }
 
 export function setPriority(st, id, p) {
@@ -540,7 +548,7 @@ const CTOR = { terrain: Uint8Array, trees: Uint8Array, feature: Uint8Array, amou
 export function deserialize(json) {
   const data = JSON.parse(json);
   const region = REGIONS[data.regionId];
-  if (!region || data.version !== 2) throw new Error('This save is from an older version of the game. Please start a new game.');
+  if (!region || data.version !== 3) throw new Error('This save is from an older version of the game. Please start a new game.');
   const st = { ...data };
   delete st.arrays;
   delete st.rngState;
