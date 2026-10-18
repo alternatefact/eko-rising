@@ -1754,6 +1754,13 @@ label.check small {
   color: #ffb4ab;
 }
 
+/* The email link looks like the other buttons. */
+.fb-card a.btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .fb-email {
   user-select: all;
   color: var(--gold);

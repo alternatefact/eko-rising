@@ -1,10 +1,11 @@
 // Feedback from players: a short form (a star rating and three optional
-// answers) sent to the studio by the website's server, with a little context
-// the game gathers itself and shows the player. The game asks for it now and
-// then at a natural pause (the end of the guided opening, a chapter won, a
-// long session), each only once, and not at all for a week after someone has
-// written. Where there is no server to send to, the player can copy the
-// message and email it instead.
+// answers), with a little context the game gathers itself and shows the
+// player. On its own the game sends it by email: the player's email app
+// opens with the message written, and it can be copied too. Where a server
+// is set (<meta name="eko-feedback-url">), it is posted there instead. The
+// game asks for feedback now and then at a natural pause (the end of the
+// guided opening, a chapter won, a long session), each only once, and not at
+// all for a week after someone has written.
 
 import { ERAS, population, currentStep } from '../sim/index.js';
 
@@ -28,10 +29,9 @@ export function noteError(e) {
 window.addEventListener('error', (e) => noteError(e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => noteError(e.reason));
 
-// The website's server takes the feedback; another host can point elsewhere
-// with <meta name="eko-feedback-url">.
+// A server that takes feedback, if one is set; none means email.
 function endpoint() {
-  return document.querySelector('meta[name="eko-feedback-url"]')?.content || '/api/game-feedback';
+  return (document.querySelector('meta[name="eko-feedback-url"]')?.content || '').trim();
 }
 
 function remembered() {
@@ -123,7 +123,7 @@ export class Feedback {
     const stars = STARS.map((label, k) => `<button type="button" class="fb-star" data-star="${k + 1}" aria-label="${k + 1} of 5: ${esc(label)}" aria-pressed="false">★</button>`).join('');
     this.el.innerHTML = `<div class="fb-card" role="dialog" aria-modal="true" aria-labelledby="fb-title">
       <div class="panel-head"><h2 id="fb-title">💬 Tell us what you think</h2><button type="button" class="close" data-fb="close" aria-label="Close">✕</button></div>
-      <p class="muted">Your message goes straight to the alternatefact Studios team. A few words help us make Eko Rising better.</p>
+      <p class="muted">Your message goes ${endpoint() ? 'straight' : 'by email'} to the alternatefact Studios team. A few words help us make Eko Rising better.</p>
       <form novalidate>
         <div class="fb-rate"><span class="fb-q">How are you enjoying it?</span><div class="fb-stars" role="group" aria-label="Rating">${stars}</div><span class="fb-star-label muted"></span></div>
         <label class="fb-field"><span class="fb-q">What did you enjoy?</span><textarea name="liked" rows="2" maxlength="2000"></textarea></label>
@@ -162,6 +162,11 @@ export class Feedback {
     if (!b) return;
     if (b.dataset.fb === 'close') this.close();
     if (b.dataset.fb === 'copy') this.copy();
+    if (b.dataset.fb === 'mail') {
+      // The link opens the email app; whether it was sent is up to them.
+      remember({ sentAt: Date.now() });
+      this.status('Press send in your email app. Thank you!');
+    }
   }
 
   written() {
@@ -198,6 +203,10 @@ export class Feedback {
       this.status('That email address does not look right. Fix it, or leave it empty.', true);
       return;
     }
+    if (!endpoint()) {
+      this.emailView(data, false);
+      return;
+    }
     this.sending = true;
     const btn = f.querySelector('[data-fb="send"]');
     btn.disabled = true;
@@ -215,7 +224,7 @@ export class Feedback {
       else if (r.status === 422 && Array.isArray(body?.detail)) this.status(`Please check the form: ${String(body.detail[0]?.msg || '').replace(/^Value error, /, '')}`, true);
       else throw new Error(`HTTP ${r.status}`);
     } catch (err) {
-      this.fallback(data);
+      this.emailView(data, true);
       return;
     } finally {
       this.sending = false;
@@ -229,26 +238,34 @@ export class Feedback {
       <div class="row"><button type="button" class="btn primary big" data-fb="close">Back to the game</button></div>`;
   }
 
-  // No server to send to (offline, or the game is played somewhere else):
-  // the message, ready to copy into an email.
-  fallback(data) {
+  // By email: the player's email app opens with the message written (when the
+  // device has one), and the message can be copied to send any other way.
+  // Also where a set server could not be reached.
+  emailView(data, failed) {
+    const stars = data.rating ? `${'★'.repeat(data.rating)}${'☆'.repeat(5 - data.rating)}` : '';
+    const subject = `Eko Rising feedback${stars ? `: ${stars}` : ''}`;
     const answers = [
       data.liked && `Enjoyed: ${data.liked}`,
       data.problems && `Confusing, too hard or broken: ${data.problems}`,
       data.wish && `Would like next: ${data.wish}`,
     ].filter(Boolean);
-    const lines = [
-      `Eko Rising feedback${data.rating ? `: ${'★'.repeat(data.rating)}${'☆'.repeat(5 - data.rating)}` : ''}`,
-      ...answers,
-      '',
-      ...Object.entries(data.context).map(([k, v]) => `${k}: ${v}`),
-    ];
-    this.fallbackText = lines.join('\n');
-    this.el.querySelector('.fb-card').innerHTML = `<div class="panel-head"><h2>📮 Could not send it from here</h2><button type="button" class="close" data-fb="close" aria-label="Close">✕</button></div>
-      <p>Please copy your message and email it to us at <b class="fb-email">${esc(STUDIO_EMAIL)}</b>. Nothing you wrote is lost.</p>
-      <textarea class="fb-copy" rows="8" readonly>${esc(this.fallbackText)}</textarea>
+    const context = Object.entries(data.context).map(([k, v]) => `${k}: ${v}`);
+    this.fallbackText = [subject, ...answers, '', ...context].join('\n');
+    // Email links can only be so long: the answers first, then as much of the
+    // context as fits (the copy box always has all of it).
+    let body = [...answers, ''];
+    for (const line of context) {
+      if (encodeURIComponent([...body, line].join('\n')).length > 1700) break;
+      body.push(line);
+    }
+    body = body.join('\n');
+    while (encodeURIComponent(body).length > 1800) body = body.slice(0, -40);
+    const mailto = `mailto:${STUDIO_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    this.el.querySelector('.fb-card').innerHTML = `<div class="panel-head"><h2>${failed ? '📮 Could not send it from here' : '📧 Send it by email'}</h2><button type="button" class="close" data-fb="close" aria-label="Close">✕</button></div>
+      <p>${failed ? 'It can go by email instead. ' : ''}Your email app opens with the message written: just press send. If it does not open, copy the message and email it to us at <b class="fb-email">${esc(STUDIO_EMAIL)}</b>.</p>
+      <textarea class="fb-copy" rows="7" readonly>${esc(this.fallbackText)}</textarea>
       <p class="fb-status" role="status" aria-live="polite"></p>
-      <div class="row"><button type="button" class="btn primary big" data-fb="copy">📋 Copy the message</button><button type="button" class="btn big" data-fb="close">Close</button></div>`;
+      <div class="row"><a class="btn primary big" href="${esc(mailto)}" data-fb="mail">📧 Open my email app</a><button type="button" class="btn big" data-fb="copy">📋 Copy the message</button><button type="button" class="btn big" data-fb="close">Close</button></div>`;
   }
 
   copy() {

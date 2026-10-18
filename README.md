@@ -6,8 +6,8 @@ how the history of Nigeria goes: trade with the Portuguese or send them away,
 stand up to Benin and the British, and unite the peoples of the land into
 **The New Nigeria**.
 
-An original game by [alternatefact Studios](https://alternatefactstudios.com/).
-Play it at **https://alternatefactstudios.com/games/eko-rising/**.
+An original game by alternatefact Studios. For now the game is its own
+project, kept apart from the studio website.
 
 ## How it plays
 
@@ -131,14 +131,16 @@ menu, and the end-of-game screens: a star rating and three optional answers
 (what they enjoyed, what was confusing or broken, what they would like next),
 and an email if they want a reply. The game adds its version, where the
 player is (land, day, age, guide step), screen size, browser and the last
-errors it hit, and lists them under "Also sent with it". It posts to the
-studio website's `/api/game-feedback` (set by `<meta name="eko-feedback-url">`
-in `index.html`), which emails the studio. The game asks for feedback at most
-once a session, at a natural pause (the end of the guided opening, a chapter
-won, or after 25 minutes), each reason only once, and not for a week after
-someone has sent some. Where there is no server (offline, or a copy hosted
-elsewhere) the player gets their message ready to copy and the studio's email
-address.
+errors it hit, and lists them under "Also sent with it". On its own the game
+sends it by email: the player's email app opens with the message written to
+the studio, and the message can be copied too. If the game is ever served
+next to a server that takes feedback (the studio website has one,
+`/api/game-feedback`), set `<meta name="eko-feedback-url">` in `index.html`
+to its address and feedback is posted there instead, falling back to email
+if it cannot be reached. The game asks for feedback at most once a session,
+at a natural pause (the end of the guided opening, a chapter won, or after
+25 minutes), each reason only once, and not for a week after someone has
+sent some.
 
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%
@@ -230,14 +232,17 @@ npm test
 
 They also run on every push.
 
-## Publishing on the studio site
+## Publishing
 
-The live game is a copy of this folder at
-`frontend/public/games/eko-rising/` in the `Alternatefact-site` repository.
-To release a new version, copy everything except `tests/`, `tools/`,
+The game is plain static files: any web host that serves this folder can run
+it. Everything a player needs is here except `tests/`, `tools/`,
 `package.json`, `README.md`, `.github/` and what only the baker needs
 (`js/render3d/`, `js/vendor/`, `art/people/`, `art/tex/`, `art/ground/`,
-`art/real/tex/`) into that folder and deploy the site.
+`art/real/tex/`), which can be left out of a release.
+
+For now the game is kept apart from the studio website. An older copy of it
+sits in the `Alternatefact-site` repository (`frontend/public/games/eko-rising/`)
+and is no longer updated from here.
 
 ## Ownership
 
