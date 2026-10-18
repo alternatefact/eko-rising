@@ -136,6 +136,7 @@ export class Hud {
     this.renderBuild();
     this.renderModal();
     this.renderAlert();
+    this.game.feedback?.check();
     if (this.panel) this.renderPanel();
     $('#speed-btn').innerHTML = this.game.paused ? '▶<span>Paused</span>' : `⏩<span>${this.game.speed}×</span>`;
     $('#speed-btn').classList.toggle('on', this.game.paused);
@@ -516,6 +517,7 @@ export class Hud {
       <div class="body"><h2>The New Nigeria</h2>
       <div class="text">In the year ${st.time.year}, in the House of Assembly at ${esc(st.name)}, every people of the land speaks with one voice. What began as ${esc(st.founder)} and ${esc(st.spouse)}'s ${st.region.id === 'ogun' ? 'camp on the road north' : 'yam farm by the lagoon'} is now the heart of a new nation.\n\n${chapter} is complete. ${unified(st).length} peoples united, ${population(st)} people in your city, ${st.stats.conquered} villages conquered, ${st.stats.trained} soldiers trained.\n\n${next}</div>
       <div class="choices"><button class="choice" data-end="continue"><b>Keep building</b><span>Your city is yours to grow.</span></button>
+      <button class="choice" data-end="feedback"><b>💬 Tell us what you thought</b><span>A few words help us make the next chapter better.</span></button>
       <button class="choice" data-end="title"><b>Back to the map of Nigeria</b></button></div>
       <p class="owner">Eko Rising — an original game by alternatefact Studios.</p></div></div>`;
   }
@@ -527,6 +529,7 @@ export class Hud {
       <div class="choices"><button class="choice" data-end="restart"><b>Try again on a new map</b><span>With the guide, step by step.</span></button>
       <button class="choice" data-end="restart-free"><b>Start again without the guide</b><span>A new map; build whatever you think matters first.</span></button>
       <button class="choice" data-end="load"><b>Load a saved game</b></button>
+      <button class="choice" data-end="feedback"><b>💬 Tell us what happened</b><span>Too hard? Something unfair or broken? We want to know.</span></button>
       <button class="choice" data-end="title"><b>Back to the title</b></button></div></div></div>`;
   }
 
@@ -1067,6 +1070,7 @@ export class Hud {
       </div>
       <div class="list">
         <button class="btn" data-act="log">📜 Message history</button>
+        <button class="btn" data-act="feedback">💬 Send feedback</button>
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
       <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home. Tap one of your people, then a tree or a workplace, to give orders.</p>
@@ -1296,6 +1300,10 @@ export class Hud {
         break;
       case 'title':
         g.toTitle();
+        return;
+      case 'feedback':
+        this.closePanel();
+        g.feedback.open('menu');
         return;
       default:
     }

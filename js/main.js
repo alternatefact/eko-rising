@@ -7,6 +7,7 @@ import { IsoRenderer } from './render/iso.js';
 import { Minimap } from './render/minimap.js';
 import { Hud, renderNigeria } from './ui/hud.js';
 import { bindInput } from './ui/input.js';
+import { Feedback, noteError } from './ui/feedback.js';
 
 const MAX_STEPS = 12;
 
@@ -101,6 +102,7 @@ class Game {
     this.renderer = null;
     this.minimap = new Minimap(document.getElementById('minimap'));
     this.hud = new Hud(this);
+    this.feedback = new Feedback(this);
     this.view = { selected: new Set(), selectedFaction: null, ghost: null, box: null, order: null, showTerritory: false };
     this.mode = { build: null, line: false, wallStart: null, ghostAt: null };
     this.speed = 1;
@@ -253,6 +255,7 @@ class Game {
       this.frameStep(dt);
     } catch (err) {
       if (!this.frameError) console.error(err);
+      if (this.frameError?.message !== err?.message) noteError(err);
       this.frameError = err;
       // Most likely the camera is somewhere it should not be: back home.
       if (!Number.isFinite(this.renderer.cam.x) || !Number.isFinite(this.renderer.cam.y) || !Number.isFinite(this.renderer.cam.zoom)) this.goHome();
@@ -408,6 +411,8 @@ class Game {
       document.getElementById('modal').hidden = true;
       this.paused = true;
       this.hud.openPanel('saves', 'load');
+    } else if (kind === 'feedback') {
+      this.feedback.open(this.st?.gameOver?.victory ? 'victory screen' : 'defeat screen');
     } else if (kind === 'restart' || kind === 'restart-free') {
       // Starting over after losing everything: with the guide, or without it.
       this.newGame({ region: this.st.regionId, founder: this.st.founder, spouse: this.st.spouse, name: this.st.region.defaultName, ...(kind === 'restart-free' ? { guide: false } : {}) });
@@ -1200,6 +1205,7 @@ async function boot() {
   document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
   document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));
   document.getElementById('ng-saves').addEventListener('click', () => ready.then(() => game.hud.showSaves()));
+  document.getElementById('ng-feedback').addEventListener('click', () => game.feedback.open('title screen'));
   document.getElementById('save-file').addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';

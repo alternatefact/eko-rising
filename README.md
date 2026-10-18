@@ -126,6 +126,20 @@ one of three slots, loads any of them, and saves a game to a file or opens
 one, to keep it safe or carry on elsewhere. The ☰ menu has *Save game* and
 *Load game*, and ⌂ beside the map brings the view back to the village.
 
+Players can send feedback from the title screen (💬 Send feedback), the ☰
+menu, and the end-of-game screens: a star rating and three optional answers
+(what they enjoyed, what was confusing or broken, what they would like next),
+and an email if they want a reply. The game adds its version, where the
+player is (land, day, age, guide step), screen size, browser and the last
+errors it hit, and lists them under "Also sent with it". It posts to the
+studio website's `/api/game-feedback` (set by `<meta name="eko-feedback-url">`
+in `index.html`), which emails the studio. The game asks for feedback at most
+once a session, at a natural pause (the end of the guided opening, a chapter
+won, or after 25 minutes), each reason only once, and not for a week after
+someone has sent some. Where there is no server (offline, or a copy hosted
+elsewhere) the player gets their message ready to copy and the studio's email
+address.
+
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%
 faster. His wife keeps the household; everyone who arrives after them works,
@@ -184,7 +198,8 @@ js/render3d/  the 3D models the sprites are baked from: models.js buildings, fen
               walls, flora.js trees, stocks.js goods on the floors, people.js animals and
               loads, characters.js the rigged characters (listed in js/data/people.js)
 tools/bake/   the sprite baker
-js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings
+js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings,
+              feedback.js (the feedback form and when to ask for it)
 art/          story art, portraits, age pictures; art/iso the baked sprite sheets;
               art/real the life-like textures (ground textures are used by the game,
               the rest by the baker); art/people the 3D characters and their shared

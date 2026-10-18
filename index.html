@@ -7,6 +7,8 @@
     <title>Eko Rising — Build Lagos | alternatefact Studios</title>
     <meta name="description" content="Eko Rising: start as a farmer and his wife by the lagoon, grow a compound into a town and a port city, face the Portuguese, the Edo, the British — and unite the land into The New Nigeria. A free strategy game from alternatefact Studios." />
     <meta name="author" content="alternatefact Studios" />
+    <!-- Where player feedback is sent: the studio website's server. -->
+    <meta name="eko-feedback-url" content="/api/game-feedback" />
     <meta name="copyright" content="© 2026 alternatefact Studios. All rights reserved." />
     <link rel="canonical" href="https://alternatefactstudios.com/games/eko-rising/" />
     <meta property="og:type" content="website" />
@@ -75,6 +77,8 @@
       <input type="file" id="save-file" accept=".json,application/json" hidden />
 
       <div id="modal" hidden></div>
+      <div id="feedback" hidden></div>
+      <div id="feedback-ask" role="status" hidden></div>
       <div id="toast" hidden></div>
 
       <div id="title">
@@ -95,6 +99,7 @@
                 <button id="ng-start" class="btn primary big">Begin in Lagos</button>
                 <button id="ng-continue" class="btn big" hidden>Continue</button>
                 <button id="ng-saves" class="btn big">📂 Saved games</button>
+                <button id="ng-feedback" class="btn big">💬 Send feedback</button>
               </div>
               <div id="title-saves" hidden></div>
             </div>
@@ -119,6 +124,7 @@
               <li><b>Full stores:</b> a warning at the top tells you when there is no room left. Workers wait at their workplaces with their loads until you build another Storage Floor, granary or storehouse.</li>
               <li><b>Soldiers:</b> choose <i>Stand your ground</i> or <i>Fight any close by</i>. Fighting soldiers go for enemies, tents and huts that come near. On a phone, press ⬚ Select and drag a box round the soldiers you want, or tap them one by one.</li>
               <li><b>Seeing behind things:</b> ⟲ ⟳ beside the map turn the view a quarter turn (Q and E on a keyboard), 🌳 makes the trees see-through (T), and ⌂ brings you back to the village (H). Trees in front of whatever you have selected fade by themselves. While you build a fence, every gap still open is marked in red, even behind the trees.</li>
+              <li><b>Tell us what you think:</b> 💬 Send feedback, here or in the ☰ menu, goes straight to the alternatefact Studios team. We read every message.</li>
               <li><b>Saving:</b> 💾 at the top saves in one of three slots; the game also saves itself every minute. The ☰ menu has Save game and Load game. Save to a file to keep a game safe or carry on on another device.</li>
               <li><b>Controls:</b> drag to move the map, pinch or scroll to zoom. Tap to select. With soldiers selected, tap the ground to move or an enemy to attack. On a computer: right-click to command, Shift-drag to box-select, WASD to scroll. The game runs at a walking pace; press the speed button for 2× or 3×.</li>
             </ul>
