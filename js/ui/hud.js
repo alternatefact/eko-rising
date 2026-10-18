@@ -14,7 +14,7 @@ import { canTrain, armyPower } from '../sim/military.js';
 import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
-import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace } from '../sim/index.js';
+import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace, canRepair, repairCost } from '../sim/index.js';
 import { STATES, NEXT_UP, LOCKED } from '../regions/index.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
@@ -619,7 +619,13 @@ export class Hud {
       h += `<h4></h4><div class="row"><button class="btn danger" data-act="demolish">Cancel</button></div><p class="muted">Cancelling gives back everything it cost.</p>`;
       return h;
     }
-    if (!def.invulnerable) h += `<h4>Condition</h4><div class="bar"><i style="width:${Math.round((b.hp / b.maxHp) * 100)}%;background:${b.hp / b.maxHp > 0.5 ? '' : '#e2574c'}"></i></div>`;
+    // Damaged: what mending it takes, first, where it is seen. A wreck is
+    // good for nothing else until it is mended.
+    const hurt = b.owner === 'player' && !def.invulnerable && (b.repairing || b.wrecked || b.hp < b.maxHp);
+    if (hurt) {
+      h += this.repairHtml(b);
+      if (b.wrecked) return h;
+    } else if (!def.invulnerable) h += `<h4>Condition</h4><div class="bar"><i style="width:${Math.round((b.hp / b.maxHp) * 100)}%;background:${b.hp / b.maxHp > 0.5 ? '' : '#e2574c'}"></i></div>`;
     if (def.job?.type === 'farm') h += `<h4>${b.type === 'cassava' ? 'Cassava' : 'Yams'}</h4><div class="bar"><i style="width:${Math.round(b.growth * 100)}%;background:#7bbf3f"></i></div><p class="muted">${season(st).name}: crops grow at ×${season(st).farm}.</p>`;
     if (def.workers) {
       h += `<h4>Workers ${b.workers.length}/${def.workers}</h4><div class="list">`;
@@ -695,6 +701,31 @@ export class Hud {
       h += `<button class="btn danger" data-act="demolish">Pull down</button></div>`;
       h += `<p class="muted">${def.movable ? 'Sheds and farm land can be moved. ' : ''}Pulling down gives back half of what it cost.</p>`;
     }
+    return h;
+  }
+
+  // Damage and mending: what it takes, who is doing it, how far along.
+  repairHtml(b) {
+    const st = this.st;
+    const g = this.game;
+    const pct = Math.round((b.hp / b.maxHp) * 100);
+    let h = `<h4>🔨 ${b.repairing ? 'Being repaired' : b.wrecked ? 'Wrecked' : 'Damaged'} · ${pct}%</h4><div class="bar"><i style="width:${pct}%;background:${b.repairing ? '#f2b84b' : pct > 50 ? '' : '#e2574c'}"></i></div>`;
+    if (b.repairing) {
+      const stage = siteStage(b);
+      h += `<p>${esc(stage.name)}${b.got < b.need ? ` (${Math.floor(b.got)} of ${b.need} brought)` : ''}.</p><div class="list">`;
+      const crew = (b.builders || []).map((id) => st.byId.get(id)).filter((c) => c && !c.dead);
+      for (const c of crew) h += `<div class="item click" data-act="citizen" data-id="${c.id}"><span>${esc(c.name)}</span><span class="muted">${esc(citizenStatus(st, c))}</span></div>`;
+      if (!crew.length) h += `<div class="item"><span class="muted">Nobody is free to mend it. Whoever sits by the fire comes, or ${esc(st.founder)} when he has nothing else to do. Or tap one of your people, then this building.</span></div>`;
+      return `${h}</div>`;
+    }
+    const can = canRepair(st, b);
+    const cost = can.cost || repairCost(st, b);
+    const by = g.repairBy ? st.byId.get(g.repairBy) : null;
+    const who = by && !by.dead && by.special !== 'spouse' ? by : null;
+    if (b.wrecked) h += '<p>The roof has fallen in and a wall is down. Nobody can sleep here until it is mended.</p>';
+    h += `<p class="muted">Mending it takes ${costText(cost, st)}${b.wrecked ? ', the old roof timbers stacked on the storage floor' : ''}. ${who ? `${esc(who.name)} will do it.` : 'Whoever is free will do it.'}</p>`;
+    h += `<div class="row"><button class="btn ${can.ok ? 'primary' : ''} big" data-act="repair" ${can.ok ? '' : `disabled title="${esc(can.reason)}"`}>🔨 Repair</button></div>`;
+    if (!can.ok) h += `<p class="muted warn">${esc(can.reason)}</p>`;
     return h;
   }
 
@@ -1167,6 +1198,13 @@ export class Hud {
       case 'diplo': {
         const r = g.cmd('diplo', el.dataset.f, el.dataset.a);
         if (r && !r.ok && r.reason) this.toast(r.reason);
+        break;
+      }
+      case 'repair': {
+        const r = g.cmd('repair', sel, g.repairBy || null);
+        if (r && !r.ok) this.toast(r.reason);
+        else if (r?.ok) this.toast(r.by ? `🔨 ${r.by} goes to mend it.` : '🔨 Whoever is free will come and mend it.');
+        g.repairBy = null;
         break;
       }
       case 'upgrade': {

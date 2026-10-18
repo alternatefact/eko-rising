@@ -19,11 +19,15 @@ guide* after losing everything) to skip it: the founders arrive with a few
 settlers and some food and planks, and you build whatever you think matters
 first.
 
-Àdìó and Àdùkẹ́ walk up a forest path to an abandoned house in a clearing:
-“Let's settle in this abandoned house. Let's build a community here.” The
-forest around it is a wall: nobody walks through standing trees, so footpaths
-lead out to the other peoples, and clearing trees opens new ground and new
-ways through. You tap Àdìó, then a tree; he fells it, cuts it into planks
+Àdìó and Àdùkẹ́ walk up a forest path to an abandoned house in a wide
+clearing, and find it wrecked: the roof fallen in, a wall down. Its old roof
+timbers lie stacked on the storage floor in front of it. The guide has you
+tap Àdìó, then the house, then 🔨 Repair (the arrow points at each in
+turn); he carries the timbers over and puts the roof back on, and only then
+can anyone sleep there. The forest around the clearing is a wall: nobody
+walks through standing trees, so footpaths lead out to the other peoples,
+and clearing trees opens new ground and new ways through. Next you tap
+Àdìó, then a tree; he fells it, cuts it into planks
 where it lies, and carries them home four at a time to the storage floor in
 front of the house, going back to the same tree until it is used up (a
 rainforest tree gives 12 planks, a savanna or shade tree 8, a mangrove 6).
@@ -79,6 +83,12 @@ tent burns. On a phone, ⬚ Select at the top turns a drag into a selection box,
 and taps add or remove soldiers. 🚩 *Set the gathering point* (in the army
 panel or a Guard House) plants a flag on the map: newly trained soldiers walk
 to it, and *Go to the flag* calls the army there.
+
+Nothing mends by itself. A damaged building shows a 🔨 beside its health
+bar; tap it (or tap one of your people, then it) and press 🔨 Repair. The
+repair costs a share of what the building cost, as much as it has lost, and
+needs the materials in the stores; builders carry them over and do the work
+like a new building, and the hammer swings while they do.
 
 When the stores are full, a warning stays at the top of the screen (above the
 build bar on a phone) naming what has no room, how many workers are held up,

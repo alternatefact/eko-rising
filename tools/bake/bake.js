@@ -274,6 +274,11 @@ function bakeBuildings(turns = [0]) {
       }
     }
   }
+  // The founders' house as they find it: a wreck, until it is mended.
+  for (const r of turns) {
+    const b = { id: 3, type: 'compound', w: 3, h: 3, level: 1, built: 1, wreck: true, workers: [] };
+    keep(r ? `b/compound/wreck@${r}` : 'b/compound/wreck', shoot(turned(buildingModel(b, fakeSt(0), NO), 3, 3, r)));
+  }
   if (turns[0] !== 0) return;
   // Fence and wall sections join their neighbours: one picture for each of
   // the sixteen ways they can.

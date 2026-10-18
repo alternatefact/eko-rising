@@ -48,6 +48,7 @@ const spouseOf = (st) => st.citizens.find((c) => c.special === 'spouse' && !c.de
 const guests = (st) => (st.flags.wanderers || []).map((id) => st.byId.get(id)).filter((c) => c && !c.dead);
 const his = (female) => (female ? 'her' : 'his');
 const building = (st, type) => st.buildings.find((b) => b.type === type && b.owner === 'player' && !b.dead);
+const home = (st) => building(st, 'compound');
 const workersOf = (st, type) => st.citizens.filter((c) => !c.dead && st.byId.get(c.job)?.type === type);
 const names = (list) => list.map((c) => c.name).join(' and ');
 // Bricks the kingdom upgrade needs for everything standing now.
@@ -159,6 +160,8 @@ export const LAGOS = {
   width: 112,
   height: 84,
   defaultName: 'Èkó',
+  // The founders find the house wrecked, and mend it first.
+  wreckedStart: true,
 
   terrain: {
     coastY: 0.885,
@@ -262,7 +265,7 @@ export const LAGOS = {
       title: 'Ẹ káàbọ̀ — the land by the lagoon',
       art: '🌅',
       text: (st) =>
-        `${st.founder} and ${st.spouse} have walked for days, south from Ìsẹ́rí, with a cutlass, a hoe and a basket of seed yams. Where the forest meets the great lagoon they find a house standing alone in a clearing: empty, its owners long gone.\n\n“Let’s settle in the abandoned house,” says ${st.founder}. “Let’s build a community here.”\n\nThe forest all around is a wall, and the trees are all the wood you need. One day this could be the greatest city in Africa — and what it becomes is up to you.`,
+        `${st.founder} and ${st.spouse} have walked for days, south from Ìsẹ́rí, with a cutlass, a hoe and a basket of seed yams. Where the forest meets the great lagoon they find a house standing alone in a wide clearing: empty, its owners long gone, its roof fallen in.\n\n“The walls still stand,” says ${st.founder}. “We will mend it, settle here, and build a community.”\n\nThe forest all around is a wall, and the trees are all the wood you need. One day this could be the greatest city in Africa — and what it becomes is up to you.`,
       choices: [{ label: 'Settle here', hint: 'Take it one step at a time: the guide at the top left shows what to do next.' }],
     },
     {
@@ -853,7 +856,7 @@ export const LAGOS = {
       id: 'arrive',
       enter: (st, api) => api.queue('intro'),
       who: 'founder',
-      say: (st) => `“Let’s settle in this abandoned house, ${st.spouse}. Let’s build a community here.”`,
+      say: (st) => `“Look at it, ${st.spouse}: the roof has fallen in and a wall is down. But the walls still stand, and the old roof timbers are good. We can mend it.”`,
       task: 'Watch them walk up to the house',
       hint: 'Drag the map to look around. Scroll or pinch to zoom.',
       point: (st) => founderOf(st) && { id: founderOf(st).id },
@@ -861,9 +864,45 @@ export const LAGOS = {
       done: (st) => founderOf(st)?.state !== 'movein',
     },
     {
+      id: 'mender',
+      who: 'guide',
+      say: (st) => `Before anything else, the house must be mended. ${st.founder} will do it himself.`,
+      task: (st) => `Click ${st.founder} to select him`,
+      hint: 'He wears the blue wrapper. The arrow shows where he is.',
+      point: (st) => founderOf(st) && { id: founderOf(st).id },
+      done: (st) => st.tut.sig.select === founderOf(st)?.id || !!home(st)?.repairing || !home(st)?.wrecked,
+    },
+    {
+      id: 'pickhouse',
+      who: 'founder',
+      say: '“Let me see what needs doing.”',
+      task: (st) => `With ${st.founder} selected, click the broken house`,
+      hint: 'The arrow points at it. A 🔨 beside a building means it is damaged and can be mended.',
+      point: (st) => home(st) && { id: home(st).id, select: founderOf(st)?.id },
+      done: (st) => st.tut.sig.pickrepair === home(st)?.id || !!home(st)?.repairing || !home(st)?.wrecked,
+    },
+    {
+      id: 'repair',
+      who: 'guide',
+      say: (st) => `The house panel shows what is broken and what mending it takes: 8 planks, the old roof timbers stacked on the storage floor in front of it. ${st.founder} will carry them over and put the roof back on.`,
+      task: 'Click 🔨 Repair',
+      hint: 'The button is in the panel that opened. If you closed it, click the house again.',
+      point: (st) => home(st) && { ui: '#panel [data-act="repair"]', id: home(st).id },
+      done: (st) => !!home(st)?.repairing || !home(st)?.wrecked,
+    },
+    {
+      id: 'mending',
+      who: 'founder',
+      say: (st) => `“Hand me those timbers, ${st.spouse}. We will sleep under a roof tonight.”`,
+      task: (st) => `Watch ${st.founder} mend the house`,
+      hint: 'He carries the planks over from the storage floor and puts the roof back on. Click the house to see how far along he is.',
+      point: (st) => founderOf(st) && { id: founderOf(st).id },
+      done: (st) => !home(st)?.wrecked,
+    },
+    {
       id: 'select',
       who: 'guide',
-      say: (st) => `Everything here starts with wood, and wood starts with a tree. ${st.founder} will cut the first one himself.`,
+      say: (st) => `The house stands again. Now: everything here starts with wood, and wood starts with a tree. ${st.founder} will cut the first one himself.`,
       task: (st) => `Click ${st.founder} to select him`,
       hint: 'He wears the blue wrapper. The arrow shows where he is.',
       point: (st) => founderOf(st) && { id: founderOf(st).id },

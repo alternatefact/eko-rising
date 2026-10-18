@@ -185,6 +185,7 @@ export function hire(st, buildingId, hireId) {
   const b = st.byId.get(buildingId);
   const h = HIRES.find((x) => x.id === hireId);
   if (!b || !h || !BUILDINGS[b.type].hires) return { ok: false, reason: 'You cannot hire here.' };
+  if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
   if (h.era > st.era) return { ok: false, reason: 'Not available in this age yet.' };
   if (armySize(st) >= armyCap(st)) return { ok: false, reason: 'Your army is at its limit. Build a Training Ground.' };
   if (st.res.cowries < h.cost) return { ok: false, reason: 'Not enough money.' };

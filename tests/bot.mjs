@@ -174,6 +174,10 @@ function trade(bot) {
 export function botTick(bot) {
   const st = bot.st;
   answerEvents(bot);
+  // Anything damaged is mended as soon as there is the material for it.
+  for (const b of st.buildings) {
+    if (b.owner === 'player' && !b.dead && b.built >= 1 && !b.repairing && (b.wrecked || b.hp < b.maxHp * 0.7)) sim.repair(st, b.id);
+  }
 
   if (bot.step < BUILD_ORDER.length) {
     const [type, pref] = BUILD_ORDER[bot.step];

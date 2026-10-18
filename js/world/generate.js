@@ -152,8 +152,8 @@ export function generateWorld(region, seed) {
   }
   const waterAng = wx || wy ? Math.atan2(wy, wx) : rng.range(0, Math.PI * 2);
   const forestAng = waterAng + Math.PI;
-  for (let dy = -15; dy <= 15; dy++) {
-    for (let dx = -15; dx <= 15; dx++) {
+  for (let dy = -21; dy <= 21; dy++) {
+    for (let dx = -21; dx <= 21; dx++) {
       const x = start.x + dx;
       const y = start.y + dy;
       if (x < 1 || y < 1 || x >= W - 1 || y >= H - 1) continue;
@@ -163,8 +163,9 @@ export function generateWorld(region, seed) {
       let diff = Math.abs(Math.atan2(dy, dx) - forestAng) % (Math.PI * 2);
       if (diff > Math.PI) diff = Math.PI * 2 - diff;
       const wob = fbm(x * 0.35, y * 0.35, seed + 41, 2);
-      const inner = 7.4 + wob * 1.8;
-      const outer = 12 + wob * 3.5;
+      // Room enough for a village: the open ground runs 11 to 13 tiles out.
+      const inner = 11 + wob * 2;
+      const outer = 16 + wob * 3.5;
       if (d <= inner) {
         terrain[i] = T.GRASS;
         trees[i] = 0;
@@ -207,7 +208,7 @@ export function generateWorld(region, seed) {
   // A rocky outcrop within a short walk, so every start can quarry stone.
   for (let k = 0; k < 40; k++) {
     const a = rng.range(0, Math.PI * 2);
-    const r = rng.range(14, 18);
+    const r = rng.range(19, 23);
     const ox = Math.round(start.x + Math.cos(a) * r);
     const oy = Math.round(start.y + Math.sin(a) * r);
     if (ox < 3 || oy < 3 || ox >= W - 3 || oy >= H - 3 || isWater(terrain[idx(ox, oy)])) continue;
@@ -339,7 +340,7 @@ export function generateWorld(region, seed) {
     const px = i % W;
     const py = (i / W) | 0;
     const d = Math.hypot(px - start.x, py - start.y);
-    if (d < 15 || d > 24) continue;
+    if (d < 20 || d > 28) continue;
     for (const [ox, oy] of [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 2], [-3, -2]]) {
       const cx = px + ox;
       const cy = py + oy;
@@ -370,8 +371,8 @@ export function generateWorld(region, seed) {
     // No path long enough: any open ground at that distance will do.
     for (let k = 0; k < 200 && !mudPit; k++) {
       const a = rng.range(0, Math.PI * 2);
-      const cx = Math.round(start.x + Math.cos(a) * 17);
-      const cy = Math.round(start.y + Math.sin(a) * 17);
+      const cx = Math.round(start.x + Math.cos(a) * 21);
+      const cy = Math.round(start.y + Math.sin(a) * 21);
       if (cx < 4 || cy < 4 || cx >= W - 4 || cy >= H - 4 || isWater(terrain[idx(cx, cy)]) || from.cost[idx(cx, cy)] === Infinity) continue;
       clayPit(cx, cy, 2);
       wear(trail(cx, cy));

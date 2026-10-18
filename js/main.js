@@ -908,11 +908,22 @@ class Game {
         } else this.hud.toast(r.reason);
         return;
       }
-      if (hit?.kind === 'building' && hit.owner === 'player' && hit.built < 1 && who.special !== 'spouse') {
+      // A damaged building: it opens, with them ready to mend it.
+      const def = hit?.kind === 'building' ? BUILDINGS[hit.type] : null;
+      if (def && hit.owner === 'player' && hit.built >= 1 && !hit.repairing && (hit.wrecked || hit.hp < hit.maxHp) && !def.invulnerable && who.special !== 'spouse') {
+        this.repairBy = who.id;
+        this.view.selected.clear();
+        this.view.selected.add(hit.id);
+        this.view.selectedFaction = null;
+        this.hud.openPanel('building', hit.id);
+        sim.signal(this.st, 'pickrepair', hit.id);
+        return;
+      }
+      if (hit?.kind === 'building' && hit.owner === 'player' && (hit.built < 1 || hit.repairing) && who.special !== 'spouse') {
         const r = sim.assignBuilder(this.st, who.id, hit.id);
         if (r.ok) {
           this.view.order = { x: hit.x + hit.w / 2, y: hit.y + hit.h / 2, at: performance.now() };
-          if (!r.same) this.hud.toast(`🔨 ${who.name} is going to help build the ${BUILDINGS[hit.type].name.toLowerCase()}.`);
+          if (!r.same) this.hud.toast(`🔨 ${who.name} is going to ${hit.repairing ? 'help mend' : 'help build'} the ${def.name.toLowerCase()}.`);
         } else this.hud.toast(r.reason);
         return;
       }
@@ -968,6 +979,7 @@ class Game {
       sim.signal(this.st, 'select', hit.id);
       this.hud.openPanel('citizen', hit.id);
     } else if (hit.kind === 'building') {
+      this.repairBy = null;
       this.view.selected.add(hit.id);
       this.hud.openPanel('building', hit.id);
     } else if (hit.kind === 'faction') {

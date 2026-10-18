@@ -328,8 +328,115 @@ function cassavaPlant(group, x, z, growth) {
 
 // --- Buildings ---------------------------------------------------------------------
 
+// A mud house fallen into ruin: walls standing open to the sky, bare rafters
+// where the roof was, one end broken down to a stump, and a scrap of thatch
+// still hanging on. `gap` is the end that has fallen ('left' or 'right').
+function ruin(group, cx, cz, w, d, wallH, opts = {}) {
+  const wallM = C.mud();
+  const t = 0.07;
+  const s = opts.gap === 'left' ? -1 : 1;
+  group.add(mesh(box(w + 0.08, 0.07, d + 0.08), C.mudDark(), cx, 0.035, cz));
+  group.add(mesh(box(w - 0.12, 0.02, d - 0.12), toon('#4a3322'), cx, 0.075, cz));
+  // The back wall, cut short at the broken end.
+  const back = w * 0.78;
+  group.add(mesh(box(back, wallH, t), wallM, cx - (s * (w - back)) / 2, 0.05 + wallH / 2, cz - d / 2 + t / 2));
+  // The front wall, with its doorway.
+  group.add(mesh(box(w * 0.85, wallH * 0.92, t), wallM, cx - (s * w * 0.15) / 2, 0.05 + (wallH * 0.92) / 2, cz + d / 2 - t / 2));
+  door(group, cx - s * w * 0.15, 0.07, cz + d / 2 + 0.01, 0.24, wallH * 0.66);
+  // The standing end, and the broken one: a jagged stump.
+  group.add(mesh(box(t, wallH, d), wallM, cx - (s * (w - t)) / 2, 0.05 + wallH / 2, cz));
+  [0.3, 0.12, 0.42, 0.2].forEach((k, i) => {
+    const hh = wallH * k;
+    group.add(mesh(box(t, hh, d / 4), wallM, cx + (s * (w - t)) / 2, 0.05 + hh / 2, cz - d / 2 + d / 8 + (i * d) / 4));
+  });
+  // Bare rafters where the roof was, fewer toward the broken end.
+  const roofH = d * 0.45;
+  const lean = Math.atan2(roofH, d / 2);
+  const len = Math.hypot(d / 2, roofH) + 0.12;
+  const n = Math.max(3, Math.round(w / 0.42));
+  for (let k = 0; k < n; k++) {
+    const f = k / (n - 1);
+    if (s * (f - 0.5) > 0.22) continue;
+    const x = cx - w / 2 + 0.12 + f * (w - 0.24);
+    for (const side of [-1, 1]) {
+      if ((k + (side > 0 ? 1 : 0)) % 3 === 2) continue;
+      const r = mesh(box(0.035, 0.035, len), C.wood(), x, wallH + 0.05 + roofH / 2, cz + (side * d) / 4);
+      r.rotation.x = side * lean;
+      group.add(r);
+    }
+  }
+  // The ridge pole, snapped: one half still up, the other down in the room.
+  group.add(mesh(box(w * 0.55, 0.05, 0.05), C.wood(), cx - (s * w * 0.2), wallH + roofH + 0.03, cz));
+  const fallen = mesh(box(w * 0.5, 0.05, 0.05), C.wood(), cx + (s * w * 0.27), wallH * 0.62, cz + 0.05);
+  fallen.rotation.z = s * -0.62;
+  group.add(fallen);
+  // A scrap of thatch still on the good end.
+  if (opts.thatch) {
+    const keep = mesh(prism(w * opts.thatch, d + 0.38, roofH), C.thatch(), cx - (s * w * (1 - opts.thatch)) / 2, wallH + 0.04, cz);
+    group.add(keep);
+  }
+  return group;
+}
+
+// The house as the founders find it: the roofs fallen in, a wall down,
+// thatch and old timbers lying about the yard, weeds coming up.
+function wreckedCompound(g) {
+  earthPad(g, 3, 3);
+  ruin(g, 1.5, 0.45, 2.8, 0.8, 0.55, { gap: 'right', thatch: 0.42 });
+  ruin(g, 1.5, 2.55, 2.8, 0.8, 0.55, { gap: 'left' });
+  const wing = ruin(new THREE.Group(), 0, 0, 1.4, 0.7, 0.5, { gap: 'right', thatch: 0.5 });
+  wing.rotation.y = Math.PI / 2;
+  wing.position.set(0.4, 0, 1.5);
+  g.add(wing);
+  // The far wing has all but fallen: low wall stumps.
+  for (const [x, z, w, d, hh] of [[2.6, 1.5, 0.07, 1.3, 0.2], [2.85, 1.5, 0.07, 1.3, 0.12], [2.72, 0.88, 0.32, 0.07, 0.16]]) {
+    g.add(mesh(box(w, hh, d), C.mud(), x, 0.05 + hh / 2, z));
+  }
+  // What came down, lying in the yard. A fixed pattern, so it never changes.
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const [x, z, r] of [[2.35, 0.95, 0.24], [0.95, 1.6, 0.2], [2.2, 2.05, 0.22], [2.75, 2.35, 0.16]]) {
+    const heap = mesh(ball(r, 1), C.thatch(), x, 0.04, z);
+    heap.scale.set(1.4, 0.32, 1);
+    heap.rotation.y = rnd() * Math.PI;
+    g.add(heap);
+  }
+  for (let k = 0; k < 7; k++) {
+    const p = mesh(box(0.42 + rnd() * 0.2, 0.03, 0.06), C.wood(), 0.9 + rnd() * 1.4, 0.04 + (k % 2) * 0.02, 1.0 + rnd() * 1.0);
+    p.rotation.y = rnd() * Math.PI;
+    p.rotation.z = (rnd() - 0.5) * 0.25;
+    g.add(p);
+  }
+  for (let k = 0; k < 6; k++) {
+    const lump = mesh(box(0.1 + rnd() * 0.06, 0.06, 0.09), C.mudDark(), 2.8 + rnd() * 0.25, 0.04, 0.9 + rnd() * 1.2);
+    lump.rotation.y = rnd() * Math.PI;
+    g.add(lump);
+  }
+  // Weeds along the walls, and the courtyard well gone dry.
+  for (let k = 0; k < 12; k++) {
+    const x = 0.25 + rnd() * 2.6;
+    const z = [0.95, 2.05, 0.15, 2.9][k % 4] + (rnd() - 0.5) * 0.12;
+    for (let j = 0; j < 3; j++) {
+      const h = 0.08 + rnd() * 0.08;
+      const blade = mesh(cone(0.025, h, 4), j ? C.leafDark() : toon('#6f8f3a'), x + (rnd() - 0.5) * 0.08, 0.05 + h / 2, z + (rnd() - 0.5) * 0.08);
+      blade.rotation.z = (rnd() - 0.5) * 0.6;
+      g.add(blade);
+    }
+  }
+  g.add(mesh(cyl(0.18, 0.18, 0.04, 12), toon('#5c4a36'), 1.5, 0.05, 1.5));
+  g2(g, 'mortar', 1.1, 1.75);
+  const pot = mesh(ball(0.075, 1), toon('#9c5a33'), 1.95, 0.05, 1.75);
+  pot.scale.y = 0.6;
+  pot.rotation.z = 1.2;
+  g.add(pot);
+}
+
 const BUILD = {
   compound(g, b, st) {
+    if (b.wreck) {
+      wreckedCompound(g);
+      return;
+    }
     earthPad(g, 3, 3);
     const big = (b.level || 1) >= 2;
     const roofOpts = { roof: st.era >= 3 ? C.zinc() : C.thatch(), wall: C.mud(), windows: false };

@@ -127,6 +127,13 @@ export function newGame(opts = {}) {
   const sx = world.start.x;
   const sy = world.start.y;
   const compound = createBuilding(st, 'compound', sx - 1, sy - 1, { instant: true });
+  // In Lagos the house is a wreck: the roof has fallen in and a wall is down.
+  // Its old roof timbers lie stacked on the floor, enough to mend it.
+  if (region.wreckedStart) {
+    compound.wrecked = true;
+    compound.hp = Math.round(compound.maxHp * 0.3);
+    for (const [k, v] of Object.entries(BUILDINGS.compound.wreckCost)) st.res[k] += v;
+  }
   const floorSpot = [[sx - 1, sy + 3], [sx, sy + 3], [sx + 3, sy], [sx - 4, sy], [sx - 1, sy - 4]].map(([x, y]) => ({ x, y })).find((p) => footprintOk(st, 'stockpile', p.x, p.y, true).ok)
     || findSpot(st, 'stockpile', sx, sy, 3, 6) || { x: sx - 1, y: sy + 3 };
   createBuilding(st, 'stockpile', floorSpot.x, floorSpot.y, { instant: true });
@@ -208,6 +215,7 @@ function freeStart(st, region, home) {
       createUnit(st, type, x, y, 'player', { order: { t: 'guard', x: x + 0.5, y: y + 0.5 } });
     }
   }
+  if (home.wrecked) notify(st, '🏚️ The house is a wreck: nobody can sleep in it. Tap it and press 🔨 Repair: the old roof timbers on the storage floor are enough to mend it.', 'bad', { x: home.x + 1.5, y: home.y + 1.5 });
   st.dirty.jobs = true;
   st.dirty.build = true;
 }
@@ -311,9 +319,6 @@ function everySecond(st) {
     st.reach = reachable(st.terrain, st.W, st.H, st.start.x, st.start.y, st.trees, st.felled);
   }
   computeThreats(st);
-  for (const b of st.buildings) {
-    if (b.owner === 'player' && b.built >= 1 && b.hp < b.maxHp && st.time.t - (b.hitT || 0) > 12) b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.02);
-  }
   // Soldiers near a hospital are patched up.
   const hospital = st.buildings.find((b) => b.type === 'hospital' && b.owner === 'player' && !b.dead && b.built >= 1);
   if (hospital) {
@@ -758,6 +763,64 @@ export function togglePause(st, id) {
     }
   }
   st.dirty.jobs = true;
+}
+
+// --- Repairs -----------------------------------------------------------------------
+
+// What mending a damaged building takes: a share of what it cost, as much as
+// it has lost. The wrecked house the founders find needs the old timbers
+// lying in its yard.
+export function repairCost(st, b) {
+  const def = BUILDINGS[b.type];
+  if (b.wrecked) return { ...def.wreckCost };
+  const lost = Math.max(0, 1 - b.hp / b.maxHp);
+  const base = materialsOf((b.mud && def.mudCost) || def.repairBase || def.cost);
+  if (!Object.keys(base).length) base.wood = 6;
+  const out = {};
+  for (const [k, v] of Object.entries(base)) {
+    const n = Math.ceil(v * lost * 0.6);
+    if (n > 0) out[k] = n;
+  }
+  return out;
+}
+
+export function canRepair(st, b) {
+  if (!b || b.dead || b.owner !== 'player' || b.built < 1) return { ok: false, reason: 'Only your own finished buildings can be repaired.' };
+  const def = BUILDINGS[b.type];
+  if (def.invulnerable) return { ok: false, reason: 'Nothing to mend.' };
+  if (b.repairing) return { ok: false, reason: 'It is already being repaired.' };
+  if (b.hp >= b.maxHp && !b.wrecked) return { ok: false, reason: 'It needs no repairs.' };
+  const cost = repairCost(st, b);
+  if (!canAfford(st, cost)) {
+    const short = Object.entries(cost).filter(([k, v]) => (st.res[k] || 0) < v).map(([k, v]) => `${v - Math.floor(st.res[k] || 0)} more ${k === 'wood' ? 'planks' : k}`);
+    return { ok: false, reason: `Not enough to mend it: you need ${short.join(' and ')}.`, cost };
+  }
+  return { ok: true, cost };
+}
+
+// Start mending a damaged building. The materials leave the stores now; the
+// builders carry them over and do the work (`by`, if given, goes himself).
+export function repair(st, id, by) {
+  const b = st.byId.get(id);
+  const can = canRepair(st, b);
+  if (!can.ok) return can;
+  spend(st, can.cost);
+  const def = BUILDINGS[b.type];
+  const lost = b.maxHp - b.hp;
+  const work = b.wrecked ? def.wreckWork || 30 : Math.max(6, buildWork(def) * (lost / b.maxHp) * 0.6);
+  b.repairing = true;
+  b.haul = { ...can.cost };
+  b.need = Object.values(can.cost).reduce((a, v) => a + v, 0);
+  b.got = 0;
+  b.fixRate = lost / work;
+  b.builders = [];
+  b.blockedT = undefined;
+  const c = by ? st.byId.get(by) : null;
+  let who = null;
+  if (c && !c.dead && c.kind === 'citizen' && builderOrder(st, c, b).ok) who = c.name;
+  st.dirty.build = true;
+  tutSignal(st, 'repair', b.id);
+  return { ok: true, cost: can.cost, by: who };
 }
 
 // --- Orders ------------------------------------------------------------------------

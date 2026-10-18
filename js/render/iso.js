@@ -355,10 +355,11 @@ export class IsoRenderer {
         if (b.built < 1) this.drawConstruction(ctx, key, p, b);
         else this.atlas.draw(ctx, key, p.x, p.y, z);
         if (b.type === 'campfire') this.drawFlames(ctx, b.x + 1, b.y + 1, 0.12, t, 1);
-        if (b.built < 1 && sel) this.siteLabel(ctx, b);
+        if ((b.built < 1 || b.repairing) && sel) this.siteLabel(ctx, b);
         if (b.hp < b.maxHp && b.built >= 1 && !BUILDINGS[b.type].invulnerable) {
           const top = this.tileToScreen(b.x + b.w / 2, b.y + b.h / 2, 1.3);
           this.hpBar(ctx, top.x, top.y, b.hp / b.maxHp, 40 * z);
+          if (b.owner === 'player') this.repairBadge(ctx, top.x + 20 * z + 10, top.y + 1, b.repairing, t);
         }
         if (b.hitT && st.time.t - b.hitT < 0.3) this.diamond(ctx, b.x, b.y, b.w, b.h, 'rgba(255,120,60,0.3)');
       });
@@ -550,6 +551,7 @@ export class IsoRenderer {
       const n = this.wallMask(b);
       return `w/gate/${n & 12 && !(n & 3) ? 'v' : 'h'}/e${st.era >= 2 ? 2 : 0}`;
     }
+    if (b.wrecked && this.atlas.has(`b/${b.type}/wreck`)) return `b/${b.type}/wreck`;
     const level = b.level || 1;
     let key = `b/${b.type}/${level}${b.mud && def.mudBricks && !(b.type === 'hut' && level !== 2 && level < 3) ? 'm' : ''}`;
     if (b.type === 'hut') key = `b/hut/${level}${level >= 2 ? 'm' : ''}`;
@@ -759,14 +761,17 @@ export class IsoRenderer {
   // What is under a point on the screen: the front-most thing drawn there.
   pickScreen(sx, sy) {
     const z = this.cam.zoom;
+    // People and animals first, even behind a wall or a tree: they are small,
+    // and they are what a tap is most often for.
     for (let k = this.hits.length - 1; k >= 0; k--) {
       const h = this.hits[k];
-      if (h.small) {
-        const box = this.atlas.box(h.key, h.x, h.y, z, h.mirror);
-        if (box && sx >= box.left - 4 && sx <= box.left + box.w + 4 && sy >= box.top - 4 && sy <= box.top + box.h + 2) return h.target;
-        continue;
-      }
-      if (this.atlas.solidAt(h.key, h.x, h.y, z, h.mirror, sx, sy)) return h.target;
+      if (!h.small) continue;
+      const box = this.atlas.box(h.key, h.x, h.y, z, h.mirror);
+      if (box && sx >= box.left - 4 && sx <= box.left + box.w + 4 && sy >= box.top - 4 && sy <= box.top + box.h + 2) return h.target;
+    }
+    for (let k = this.hits.length - 1; k >= 0; k--) {
+      const h = this.hits[k];
+      if (!h.small && this.atlas.solidAt(h.key, h.x, h.y, z, h.mirror, sx, sy)) return h.target;
     }
     // Nothing standing there: the ground (a building's floor, say).
     const p = this.screenToTile(sx, sy);
@@ -841,6 +846,27 @@ export class IsoRenderer {
     ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, 5);
     ctx.fillStyle = frac > 0.5 ? '#2ecc71' : frac > 0.25 ? '#f1c40f' : '#e74c3c';
     ctx.fillRect(x - w / 2, y, w * Math.max(0, frac), 3);
+  }
+
+  // A hammer beside a damaged building's bar: tap it to mend it. It swings
+  // while someone is at work on it.
+  repairBadge(ctx, x, y, working, t) {
+    const r = 8;
+    ctx.fillStyle = working ? 'rgba(242,184,75,0.95)' : 'rgba(40,24,14,0.85)';
+    ctx.strokeStyle = working ? '#fff4d6' : '#f2b84b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y);
+    if (working) ctx.rotate(Math.sin(t * 9) * 0.5);
+    ctx.font = '10px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🔨', 0, 1);
+    ctx.restore();
   }
 
   flash(ctx, x, y) {

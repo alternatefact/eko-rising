@@ -126,8 +126,20 @@ export function storyAct(bot) {
     if (fn() !== false) bot.did[key] = true;
   };
   switch (step.id) {
+    // The wrecked house first: select the founder, click the house, Repair.
+    case 'mender':
     case 'select':
       sim.signal(st, 'select', f.id);
+      break;
+    case 'pickhouse':
+      sim.signal(st, 'pickrepair', building(st, 'compound').id);
+      break;
+    case 'repair':
+      once('repair', () => {
+        const r = sim.repair(st, building(st, 'compound').id, f.id);
+        bot.log.push(`repair: ${r.ok ? `ok, by ${r.by}` : r.reason}`);
+        return r.ok;
+      });
       break;
     case 'chop':
       once('chop', () => {

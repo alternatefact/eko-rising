@@ -13,6 +13,7 @@ import { findNear, adjacentToWater } from './world.js';
 import { goTo, stepMove, wander } from './move.js';
 import { notify, notifyOnce, releaseFromJob, removeCitizen, markTile, leaveSite } from './entities.js';
 import { addRes, roomFor, gatheringPoint, season, totalFood, population, sendAway } from './economy.js';
+import { tutSignal } from './story.js';
 
 const WALK_SPEED = 2.1;
 const CARRY_SPEED = 1.7;
@@ -81,7 +82,7 @@ export function houseHomeless(st) {
   const homeless = st.citizens.filter((c) => !c.dead && !c.stranger && !c.guest && !c.home && c.state !== 'leave');
   if (!homeless.length) return;
   for (const b of st.buildings) {
-    if (b.owner !== 'player' || b.built < 1 || b.dead || !BUILDINGS[b.type].housing) continue;
+    if (b.owner !== 'player' || b.built < 1 || b.dead || b.wrecked || !BUILDINGS[b.type].housing) continue;
     const cap = stat(b, 'housing');
     while (b.residents.length < cap && homeless.length) {
       const c = homeless.shift();
@@ -283,7 +284,8 @@ function endTask(st, c) {
 
 // Nothing goes up by itself. Builders (anyone sitting by the fire, and the
 // founder when he has nothing else to do) walk to the stores, carry the
-// planks over a load at a time, and then put the building up.
+// planks over a load at a time, and then put the building up. Repairs go
+// the same way: the materials are carried over, then the damage is mended.
 const LOAD = 8;
 export const BUILD_STATES = new Set(['fetch', 'tosite', 'build']);
 
@@ -294,8 +296,10 @@ export function freeBuilders(st) {
   return out;
 }
 
+export const isSite = (b) => !!b && !b.dead && (b.built < 1 || !!b.repairing);
+
 export function buildingSites(st) {
-  return st.buildings.filter((b) => b.owner === 'player' && !b.dead && b.built < 1);
+  return st.buildings.filter((b) => b.owner === 'player' && isSite(b));
 }
 
 export function assignBuilders(st) {
@@ -341,7 +345,7 @@ export function assignBuilder(st, c, b) {
   if (!c || c.dead || c.kind !== 'citizen') return { ok: false, reason: 'Pick one of your people first.' };
   if (c.stranger || c.guest) return { ok: false, reason: `${c.name} has not joined you yet.` };
   if (c.special === 'spouse') return { ok: false, reason: `${c.name} keeps the house.` };
-  if (!b || b.dead || b.owner !== 'player' || b.built >= 1) return { ok: false, reason: 'That is not a building site.' };
+  if (!b || b.owner !== 'player' || !isSite(b)) return { ok: false, reason: 'That is not a building site.' };
   if (c.buildSite === b.id) return { ok: true, same: true };
   leaveSite(st, c);
   if (c.special === 'founder') c.task = null;
@@ -360,7 +364,7 @@ export function assignBuilder(st, c, b) {
   }
   c.hidden = false;
   startBuild(st, c, b);
-  notify(st, `🔨 ${c.name} goes to help build the ${BUILDINGS[b.type].name.toLowerCase()}.`, 'info', c);
+  notify(st, `🔨 ${c.name} goes to ${b.repairing ? 'mend' : 'help build'} the ${BUILDINGS[b.type].name.toLowerCase()}.`, 'info', c);
   return { ok: true };
 }
 
@@ -402,7 +406,7 @@ function goToSite(st, c, b) {
   const within = Math.max(b.w, b.h) / 2 + 0.9;
   if (walkTo(st, c, p.x, p.y, { within }) || walkTo(st, c, p.x, p.y, { within, partial: true })) return;
   b.blockedT = st.time.t;
-  notifyOnce(st, `site-${b.id}`, 60, `🚧 Nobody can get to the ${BUILDINGS[b.type].name.toLowerCase()} to build it.`, 'bad', p);
+  notifyOnce(st, `site-${b.id}`, 60, `🚧 Nobody can get to the ${BUILDINGS[b.type].name.toLowerCase()} to ${b.repairing ? 'mend' : 'build'} it.`, 'bad', p);
   leaveSite(st, c);
   afterBuild(st, c);
 }
@@ -428,6 +432,25 @@ function afterBuild(st, c) {
 
 function finishSite(st, b) {
   b.built = 1;
+  releaseBuilders(st, b);
+}
+
+// Mended: as good as new, and a wrecked house can be slept in again.
+function finishRepair(st, b) {
+  const wreck = b.wrecked;
+  b.repairing = false;
+  b.wrecked = false;
+  b.hp = b.maxHp;
+  b.haul = {};
+  b.got = b.need = 0;
+  releaseBuilders(st, b);
+  const name = levelName(b).toLowerCase();
+  notify(st, wreck ? `🏠 The ${name} is mended: the roof is back on and the walls are whole.` : `🔨 The ${name} is repaired.`, 'good', at(b));
+  tutSignal(st, 'repaired', b.id);
+  st.dirty.jobs = true;
+}
+
+function releaseBuilders(st, b) {
   for (const id of b.builders) {
     const c = st.byId.get(id);
     if (!c || c.dead || c.buildSite !== b.id) continue;
@@ -439,7 +462,7 @@ function finishSite(st, b) {
 
 function updateBuilder(st, c, dt) {
   const b = c.buildSite ? st.byId.get(c.buildSite) : null;
-  if (!b || b.dead || b.built >= 1) {
+  if (!isSite(b)) {
     leaveSite(st, c);
     afterBuild(st, c);
     return;
@@ -477,7 +500,13 @@ function updateBuilder(st, c, dt) {
         return;
       }
       c.status = '';
-      b.built += (dt / b.work) * (supervised(st, c) ? SUPERVISE_BONUS : 1) * (st.tech.tools ? 1.25 : 1);
+      const pace = (supervised(st, c) ? SUPERVISE_BONUS : 1) * (st.tech.tools ? 1.25 : 1);
+      if (b.repairing) {
+        b.hp = Math.min(b.maxHp, b.hp + b.fixRate * dt * pace);
+        if (b.hp >= b.maxHp) finishRepair(st, b);
+        return;
+      }
+      b.built += (dt / b.work) * pace;
       if (b.built >= 1) finishSite(st, b);
       return;
     }
@@ -486,6 +515,7 @@ function updateBuilder(st, c, dt) {
 
 // What stage a building site has reached.
 export function siteStage(b) {
+  if (b.repairing) return b.got < b.need ? { n: 0, name: 'Bringing the materials' } : { n: 2, name: 'Mending' };
   if (b.built >= 1) return null;
   if (b.got < b.need) return { n: 0, name: 'Bringing the materials' };
   if (b.built < 0.3) return { n: 1, name: BUILDINGS[b.type].flat ? 'Marking out the ground' : 'Putting up the frame' };
@@ -1478,11 +1508,11 @@ export function citizenStatus(st, c) {
     tosite: (() => {
       const b = st.byId.get(c.buildSite);
       const what = b ? BUILDINGS[b.type].name.toLowerCase() : 'building';
-      return c.carry ? `Carrying ${Math.round(c.carry.n)} ${c.carry.r === 'wood' ? 'planks' : c.carry.r} to the ${what}` : `Going to build the ${what}`;
+      return c.carry ? `Carrying ${Math.round(c.carry.n)} ${c.carry.r === 'wood' ? 'planks' : c.carry.r} to the ${what}` : `Going to ${b?.repairing ? 'mend' : 'build'} the ${what}`;
     })(),
     build: (() => {
       const b = st.byId.get(c.buildSite);
-      return `Building the ${b ? BUILDINGS[b.type].name.toLowerCase() : 'house'}`;
+      return `${b?.repairing ? 'Mending' : 'Building'} the ${b ? BUILDINGS[b.type].name.toLowerCase() : 'house'}`;
     })(),
   };
   return s[c.state] || c.state;

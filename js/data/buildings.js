@@ -37,7 +37,9 @@ export const CATEGORIES = [
 export const BUILDINGS = {
   compound: {
     name: "Founder's Compound", yo: 'Ilé Baálé', cat: 'town', era: 0, w: 3, h: 3,
-    cost: {}, hp: 1200, housing: 5, influence: 11, mudBricks: 6,
+    cost: {}, hp: 1200, housing: 5, influence: 14, mudBricks: 6,
+    // Mending it: from war damage, a share of this; as found, its own fallen timbers.
+    repairBase: { wood: 20 }, wreckCost: { wood: 8 }, wreckWork: 30,
     unique: true, buildable: false, trains: ['scout'], hires: true, tower: { range: 5.5, dmg: 5, cd: 1.5 },
     upgrades: [
       { name: 'Extended Compound', era: 1, cost: { wood: 30, bricks: 25, cowries: 20 }, housing: 8, desc: 'More rooms around a second courtyard.' },

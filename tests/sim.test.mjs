@@ -20,6 +20,10 @@ function fresh(seed = 4242) {
   sim.chooseEvent(st, 0); // the intro
   st.tut.done = true;
   st.flags.openingDone = true;
+  // The house was mended in the opening.
+  const home = st.buildings.find((b) => b.type === 'compound');
+  home.wrecked = false;
+  home.hp = home.maxHp;
   st.res.wood = 40;
   for (const c of st.citizens) {
     c.path = null;
@@ -79,11 +83,11 @@ test('the start has water for fishing and rock for a quarry within reach', () =>
       if (st.feature[i] === 2) rock = Math.min(rock, d);
     }
     assert.ok(water <= 12, `water ${water} tiles away (seed ${seed})`);
-    assert.ok(rock <= 20, `rock ${rock} tiles away (seed ${seed})`);
+    assert.ok(rock <= 24, `rock ${rock} tiles away (seed ${seed})`);
   }
 });
 
-test('a new game starts with just the couple walking up to an abandoned house in a clearing', () => {
+test('a new game starts with just the couple walking up to a wrecked house in a wide clearing', () => {
   const st = sim.newGame({ seed: 9 });
   assert.equal(st.citizens.length, 2);
   assert.deepEqual(st.citizens.map((c) => c.special).sort(), ['founder', 'spouse']);
@@ -91,7 +95,9 @@ test('a new game starts with just the couple walking up to an abandoned house in
   const home = st.buildings.find((b) => b.type === 'compound');
   const floor = st.buildings.find((b) => b.type === 'stockpile');
   assert.ok(Math.hypot(floor.x - home.x, floor.y - home.y) <= 5, 'the floor is right by the house');
-  assert.equal(st.res.wood, 0, 'no planks yet: they come from the trees');
+  assert.ok(home.wrecked && home.hp < home.maxHp / 2, 'the house is a wreck');
+  assert.equal(st.res.wood, 8, 'only the old roof timbers, enough to mend it: planks come from the trees');
+  assert.deepEqual(sim.repairCost(st, home), { wood: 8 });
   assert.equal(st.res.bricks, 0, 'no bricks: mud comes later');
   assert.equal(st.eventQueue[0].id, 'intro');
   // They come up the path and walk in.
@@ -102,17 +108,22 @@ test('a new game starts with just the couple walking up to an abandoned house in
   // Forest closes in around the clearing; lone trees stand near the house.
   let ring = 0;
   let lone = 0;
-  for (let dy = -13; dy <= 13; dy++) {
-    for (let dx = -13; dx <= 13; dx++) {
+  let open = 0;
+  for (let dy = -20; dy <= 20; dy++) {
+    for (let dx = -20; dx <= 20; dx++) {
       const i = (home.y + 1 + dy) * st.W + home.x + 1 + dx;
       const d = Math.hypot(dx, dy);
-      if (!treeBlocks(st.trees, st.felled, st.terrain, i)) continue;
+      if (!treeBlocks(st.trees, st.felled, st.terrain, i)) {
+        if (d <= 10 && WALK[st.terrain[i]]) open++;
+        continue;
+      }
       if (d <= 6.5) lone++;
       else ring++;
     }
   }
-  assert.ok(ring >= 60, `forest around the clearing (${ring} trees)`);
+  assert.ok(ring >= 150, `forest around the clearing (${ring} trees)`);
   assert.ok(lone >= 2, `lone trees near the house (${lone})`);
+  assert.ok(open >= 270, `room to build: ${open} open tiles within 10 of the house`);
   // The red-mud pit they passed on the way lies off along the path, unseen.
   const pit = st.mudPit;
   const d = Math.hypot(pit.x - home.x, pit.y - home.y);
@@ -152,7 +163,7 @@ test('trees are walls: a forest tree is felled, cut into 12 planks and carried h
   assert.ok(st.reach[tree], 'the ground is open now');
 });
 
-test('the guided opening plays from the abandoned house to a town of red mud', () => {
+test('the guided opening plays from the wrecked house to a town of red mud', () => {
   const st = sim.newGame({ seed: 4242 });
   const seen = [];
   const at = {};
@@ -164,7 +175,7 @@ test('the guided opening plays from the abandoned house to a town of red mud', (
     };
   });
   assert.ok(!st.gameOver, st.gameOver?.reason);
-  const want = ['arrive', 'select', 'chop', 'planks', 'stack', 'strangers', 'woodshed', 'cutters', 'antelope', 'hunt', 'fire', 'farm', 'farming', 'wolves', 'fence', 'settle', 'bandits', 'recover', 'guardhouse', 'soldiers', 'camp', 'mudpit', 'brickshed', 'bricks', 'upgrade', 'end', null];
+  const want = ['arrive', 'mender', 'pickhouse', 'repair', 'mending', 'select', 'chop', 'planks', 'stack', 'strangers', 'woodshed', 'cutters', 'antelope', 'hunt', 'fire', 'farm', 'farming', 'wolves', 'fence', 'settle', 'bandits', 'recover', 'guardhouse', 'soldiers', 'camp', 'mudpit', 'brickshed', 'bricks', 'upgrade', 'end', null];
   assert.deepEqual(seen, want, `steps: ${seen.join(' ')}\n${bot.log.slice(-8).join('\n')}`);
   assert.ok(st.tut.done);
   // The wood shed is one man's work; the other newcomer took up the bow.
@@ -192,12 +203,32 @@ test('the guided opening plays from the abandoned house to a town of red mud', (
 
 test('the opening is played step by step: nothing moves on until the player acts', () => {
   const st = sim.newGame({ seed: 77 });
-  advance(st, 20);
-  assert.equal(sim.currentStep(st).id, 'select');
-  advance(st, 60);
-  assert.equal(sim.currentStep(st).id, 'select', 'waits for the player to select the founder');
-  assert.equal(st.citizens.length, 2, 'nobody else arrives meanwhile');
   const founder = st.citizens.find((c) => c.special === 'founder');
+  const home = st.buildings.find((b) => b.type === 'compound');
+  advance(st, 20);
+  // First the wrecked house: select the founder, click the house, Repair.
+  assert.equal(sim.currentStep(st).id, 'mender');
+  advance(st, 60);
+  assert.equal(sim.currentStep(st).id, 'mender', 'waits for the player to select the founder');
+  assert.equal(st.citizens.length, 2, 'nobody else arrives meanwhile');
+  sim.signal(st, 'select', founder.id);
+  advance(st, 2);
+  assert.equal(sim.currentStep(st).id, 'pickhouse');
+  sim.signal(st, 'pickrepair', home.id);
+  advance(st, 2);
+  assert.equal(sim.currentStep(st).id, 'repair');
+  advance(st, 30);
+  assert.ok(home.wrecked && !home.repairing, 'nobody mends it until Repair is pressed');
+  const r = sim.repair(st, home.id, founder.id);
+  assert.ok(r.ok && r.by === founder.name, 'he goes himself');
+  assert.equal(st.res.wood, 0, 'the old timbers are used');
+  advance(st, 2);
+  assert.equal(sim.currentStep(st).id, 'mending');
+  advance(st, 60);
+  assert.ok(!home.wrecked && home.hp === home.maxHp, 'the house is mended');
+  assert.equal(sim.currentStep(st).id, 'select');
+  advance(st, 30);
+  assert.equal(sim.currentStep(st).id, 'select', 'waits for the player to select the founder again');
   sim.signal(st, 'select', founder.id);
   advance(st, 2);
   assert.equal(sim.currentStep(st).id, 'chop');
@@ -906,4 +937,32 @@ test('without the guide you start free, and Ogun starts with settlers, soldiers 
     for (let dy = -3; dy <= 3 && !ok; dy++) for (let dx = -3; dx <= 3 && !ok; dx++) ok = !!og.reach[(f.y + dy) * og.W + f.x + dx];
     assert.ok(ok, `${f.id} can be reached`);
   }
+});
+
+test('damaged buildings stay damaged until repaired with materials, then a builder mends them', () => {
+  const st = fresh(12);
+  st.migrateT = 1e9;
+  st.res.wood = 60;
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  finish(st);
+  const shed = st.buildings.find((b) => b.type === 'woodcutter');
+  const { damage } = awaitImport();
+  damage(st, null, shed, shed.maxHp * 0.6);
+  const hurt = shed.hp;
+  advance(st, 60);
+  assert.equal(shed.hp, hurt, 'nothing mends by itself');
+  const cost = sim.repairCost(st, shed);
+  assert.ok(cost.wood > 0 && cost.wood < 6, `a share of what it cost (${JSON.stringify(cost)})`);
+  st.res.wood = 0;
+  const no = sim.repair(st, shed.id);
+  assert.equal(no.ok, false);
+  assert.match(no.reason, /planks/);
+  st.res.wood = 20;
+  assert.ok(sim.repair(st, shed.id).ok);
+  assert.equal(st.res.wood, 20 - cost.wood, 'the materials are paid');
+  assert.ok(shed.repairing);
+  advance(st, 90);
+  assert.ok(!shed.repairing && shed.hp === shed.maxHp, 'mended');
+  assert.ok(st.log.some((m) => /repaired/.test(m.text)));
+  assert.equal(sim.repair(st, shed.id).ok, false, 'nothing left to mend');
 });

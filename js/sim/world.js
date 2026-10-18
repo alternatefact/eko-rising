@@ -241,7 +241,7 @@ export function fenceGaps(st, max = 12) {
       }
     }
   }
-  ring = n ? ring / n : 7.5;
+  ring = n ? ring / n : 11;
   const gaps = [];
   const start = cy * W + cx;
   for (let k = 0; k < max; k++) {
@@ -283,7 +283,9 @@ export function fenceGaps(st, max = 12) {
           if (fence(j)) byFence = true;
         }
       }
-      const score = shut * 10 + (byFence ? 15 : 0) - Math.abs(d - ring) * 2;
+      // Fence on both sides: a missing section, the surest place of all.
+      const between = (fence(i - 1) && fence(i + 1)) || (fence(i - W) && fence(i + W)) || (fence(i - W - 1) && fence(i + W + 1)) || (fence(i - W + 1) && fence(i + W - 1));
+      const score = shut * 10 + (byFence ? 40 : 0) + (between ? 30 : 0) - Math.abs(d - ring) * 2;
       if (score > bestScore) {
         bestScore = score;
         best = i;

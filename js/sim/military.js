@@ -120,7 +120,12 @@ export function damage(st, attacker, target, amount) {
     const f = st.factionMap[target.owner];
     if (f && f.status !== 'hostile') declareWar(st, f, true);
   }
-  if (target.hp > 0) return;
+  if (target.hp > 0) {
+    if (target.kind === 'building' && target.owner === 'player' && target.built >= 1 && !target.repairing && target.hp < target.maxHp * 0.75) {
+      notifyOnce(st, 'damaged', 90, `🔨 The ${BUILDINGS[target.type].name.toLowerCase()} is damaged. When the fighting is over, tap it and press Repair to mend it.`, 'bad', { x: target.x + target.w / 2, y: target.y + target.h / 2 });
+    }
+    return;
+  }
   if (target.kind === 'unit') {
     removeUnit(st, target);
     if (target.owner === 'player') {
@@ -417,7 +422,7 @@ function moveUnit(st, u, dt, def) {
 export function updateTowers(st, dt) {
   for (const b of st.buildings) {
     const tw = BUILDINGS[b.type].tower;
-    if (!tw || b.dead || b.built < 1 || b.owner !== 'player') continue;
+    if (!tw || b.dead || b.built < 1 || b.wrecked || b.owner !== 'player') continue;
     b.cd -= dt;
     if (b.cd > 0) continue;
     const cx = b.x + b.w / 2;
@@ -444,6 +449,7 @@ export function updateTowers(st, dt) {
 export function canTrain(st, b, type) {
   const def = UNITS[type];
   if (!BUILDINGS[b.type].trains?.includes(type)) return { ok: false, reason: 'Not trained here.' };
+  if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
   if ((def.era || 0) > st.era) return { ok: false, reason: `Needs the ${ERAS[def.era].name} age.` };
   if (def.requires && !st.buildings.some((x) => x.type === def.requires && x.built >= 1 && !x.dead)) {
     return { ok: false, reason: `Needs a ${BUILDINGS[def.requires].name}.` };
