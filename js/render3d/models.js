@@ -267,9 +267,9 @@ function flag(group, x, z, color, h = 1.4) {
 
 // A tent of patched hides on a frame of poles: a ridge running along x, the
 // door flap at the front.
-function hideTent(group, cx, cz, w, d, h, turn) {
+function hideTent(group, cx, cz, w, d, h, turn, colors = ['#6d5a43', '#7e6a4e', '#5e4c38']) {
   const t = new THREE.Group();
-  const hides = [toon('#6d5a43'), toon('#7e6a4e'), toon('#5e4c38')];
+  const hides = colors.map((c) => toon(c));
   const roof = mesh(prism(w, d, h), hides[0], 0, 0, 0);
   t.add(roof);
   // Patches of different hides on the slopes.
@@ -712,6 +712,25 @@ const BUILD = {
     const sack = mesh(ball(0.08, 1), toon('#8c7a55'), 0.86, 0.07, 0.86);
     sack.scale.set(1, 0.8, 1);
     g.add(sack);
+  },
+
+  // The Oba's host: war tents of red and white cloth.
+  edotent(g) {
+    hideTent(g, 0.5, 0.5, 0.86, 0.8, 0.66, 0.35, ['#b3241f', '#efe6d2', '#8e1a17']);
+    const shield = mesh(ball(0.12, 1), toon('#7a3a1a'), 0.86, 0.13, 0.84);
+    shield.scale.set(0.35, 1.3, 1);
+    g.add(shield);
+  },
+
+  edochief(g) {
+    hideTent(g, 1, 0.95, 1.55, 1.4, 1.0, 0.0, ['#efe6d2', '#b3241f', '#c9a227']);
+    // The war drums before it, and the banner of Benin.
+    for (const [x, z, r] of [[1.55, 1.7, 0.13], [1.8, 1.45, 0.1]]) {
+      g.add(mesh(cyl(r, r * 0.8, r * 2.4, 10), toon('#6b3a1e'), x, r * 1.2, z));
+      g.add(mesh(cyl(r * 1.02, r * 1.02, 0.02, 10), toon('#d9c7a2'), x, r * 2.4 + 0.01, z));
+    }
+    flag(g, 0.3, 0.3, '#a3171b', 1.8);
+    flag(g, 1.8, 0.25, '#efe6d2', 1.4);
   },
 
   chieftent(g) {

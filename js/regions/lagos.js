@@ -15,6 +15,27 @@ const unifiedCount = (st) => st.factions.filter((f) => f.major && ['allied', 'va
 const majorCount = (st) => st.factions.filter((f) => f.major).length;
 const many = (type, n) => Array.from({ length: n }, () => type);
 
+// The host the Oba sends against a town that defies him (or only buys time
+// with gifts): fifty warriors who gather at the far end of the land, and
+// march when they are ready. Beating them wins Lagos and opens the road to
+// Ogun State.
+const BENIN_HOST = {
+  id: 'benin_host', name: 'The Oba’s host', people: 'Edo', origin: 'Edo', strength: 5, temperament: 'bandit', major: false,
+  leader: 'Ìyásẹ̀ Ẹ̀dọ́rẹ̀, war chief of the Oba of Benin', color: '#a3171b', garrison: { benin: 42, bowman: 8 }, huts: 8,
+  loot: { cowries: 400, weapons: 30, iron: 30 }, joiners: 0, raids: false, radius: 9,
+  desc: 'Fifty warriors of Benin in war dress, with leather shields, drums and the red cloth of the Oba, camped round their war chief’s tent.',
+};
+// Days from the host gathering to its march: gifts buy more time.
+const MARCH_DAYS = { refused: 16, gifts: 26 };
+
+function hostComing(st, api, gifts) {
+  if (st.factionMap.benin_host || st.flags.hostPlanned) return;
+  st.flags.hostPlanned = true;
+  st.flags.hostGifts = !!gifts;
+  // A few days of small raids first (or of quiet, after gifts); then the host.
+  api.schedule('benin_host', gifts ? 3 : 4);
+}
+
 // --- The opening: a household of two becomes a community -----------------------
 // A guided story, one step at a time (see sim/story.js): the couple settle in
 // an abandoned house; the founder fells the first tree; strangers come and a
@@ -339,13 +360,13 @@ export const LAGOS = {
         },
         {
           label: 'Send rich gifts, but bow to no one (🐚 60)',
-          hint: 'Keeps the peace for now. They will ask again.',
+          hint: 'Buys time, not peace.',
           can: (st) => st.res.cowries >= 60,
           apply: (st, api) => {
             st.res.cowries -= 60;
             st.factionMap.edo.relation += 18;
-            api.schedule('benin_again', 30);
             api.notify('🎁 The envoy accepts your gifts and paddles away.', 'info');
+            hostComing(st, api, true);
           },
         },
         {
@@ -354,6 +375,7 @@ export const LAGOS = {
           apply: (st, api) => {
             api.war('edo');
             api.mood('Defiance', 4, 4);
+            hostComing(st, api, false);
           },
         },
       ],
@@ -382,9 +404,72 @@ export const LAGOS = {
             st.res.cowries -= 100;
             st.factionMap.edo.relation += 20;
             api.notify('🎁 The Oba accepts your gifts. For now.', 'info');
+            hostComing(st, api, true);
           },
         },
-        { label: 'Refuse', hint: 'War with the Edo War Camp.', apply: (st, api) => api.war('edo') },
+        {
+          label: 'Refuse',
+          hint: 'War with the Edo War Camp.',
+          apply: (st, api) => {
+            api.war('edo');
+            hostComing(st, api, false);
+          },
+        },
+      ],
+    },
+    {
+      id: 'benin_host',
+      silent: true,
+      apply: (st, api) => {
+        if (st.factionMap.benin_host) return;
+        const f = api.host(BENIN_HOST);
+        if (!f) return;
+        f.onBeaten = 'benin_beaten';
+        // The march: a timer nobody sees.
+        api.schedule('benin_march', st.flags.hostGifts ? MARCH_DAYS.gifts : MARCH_DAYS.refused);
+        api.queue('benin_host_seen', { at: { x: f.x + 0.5, y: f.y + 4 } });
+      },
+    },
+    {
+      id: 'benin_host_seen',
+      title: 'The host of Benin',
+      art: '🥁',
+      text: (st) =>
+        `From the tallest palm, your lookout sees it at the far end of the land: the Oba's host. Fifty warriors in war dress, with leather shields and the red cloth of Benin, drawn up in ranks before their war chief's tent.\n\n${st.flags.hostGifts ? 'Your gifts bought time, but not peace: they are gathering all the same.' : `They have come to punish ${st.name} for its defiance.`} They will march when they are ready.\n\nBuild houses, grow, train soldiers: then carry the war to their camp, or wait for them behind your walls.`,
+      choices: [{ label: 'We will be ready', hint: '⌂ beside the map brings you back to the village.' }],
+    },
+    {
+      id: 'benin_march',
+      silent: true,
+      apply: (st, api) => {
+        const f = st.factionMap.benin_host;
+        if (!f || f.beaten) return;
+        const n = api.march('benin_host');
+        if (!n) return;
+        const u = st.units.find((x) => x.owner === 'benin_host' && !x.dead);
+        api.vista(u.x, u.y, 8, 40);
+        api.queue('benin_march_seen', { at: { x: u.x, y: u.y } });
+      },
+    },
+    {
+      id: 'benin_march_seen',
+      title: 'The drums have stopped',
+      art: '⚔️',
+      text: (st) => {
+        const n = st.units.filter((u) => u.owner === 'benin_host' && !u.dead).length;
+        return `The war drums of Benin have fallen silent. The host is on the march: ${n} warriors, coming for ${st.name}.\n\nMan the fence, gather your soldiers, and hold.`;
+      },
+      choices: [{ label: 'To arms!' }],
+    },
+    {
+      id: 'benin_beaten',
+      title: 'The host of Benin is broken',
+      art: '🏆',
+      text: (st) =>
+        `The last warriors of the Oba's host lie in the dust, and the drums of Benin are silent on this lagoon. Word runs up every path: ${st.name} stood against Benin, and won.\n\n🏆 This stage is won: Lagos is yours.\n\n🔓 Ogun State is now open for you to explore: the Ẹ̀gbá under Olúmọ Rock, the Ọ̀wu, the Ìjẹ̀bú of Ìjẹ̀bú-Òde and the Rẹ́mọ.`,
+      choices: [
+        { label: 'Set out for Ogun State', hint: 'A new land to explore. Your Lagos game is kept in its own save.', apply: (st) => { st.flags.beninBeaten = true; st.flags.ogunOpen = true; st.flags.goOgun = true; } },
+        { label: 'Stay and keep building Lagos', hint: 'Ogun State waits for you on the map of Nigeria.', apply: (st) => { st.flags.beninBeaten = true; st.flags.ogunOpen = true; } },
       ],
     },
     {

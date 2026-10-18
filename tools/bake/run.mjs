@@ -10,7 +10,8 @@ import { join } from 'node:path';
 const { chromium } = await import('playwright').catch(() => import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs'));
 
 const ROOT = new URL('../../', import.meta.url).pathname;
-const OUT = join(ROOT, 'art/iso');
+// BAKE_OUT writes somewhere else (to look at a test bake without touching the game's art).
+const OUT = process.env.BAKE_OUT || join(ROOT, 'art/iso');
 const PORT = 8771;
 const parts = process.argv.slice(2);
 

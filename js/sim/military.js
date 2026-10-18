@@ -191,6 +191,11 @@ function plunder(st, u) {
 // finished: whoever is left of the bandits runs off into the bush.
 function campLost(st, f, tent) {
   const left = st.buildings.filter((b) => b.owner === f.id && !b.dead && BUILDINGS[b.type].camp).length;
+  // A host fights on without its tents: only its warriors count.
+  if (f.host) {
+    notifyOnce(st, `tent-${f.id}`, 6, `🔥 A war tent of ${f.name} burns.${left ? '' : ' Their camp is gone, but the warriors fight on.'}`, 'good', { x: tent.x + tent.w / 2, y: tent.y + tent.h / 2 });
+    return;
+  }
   if (left > 0) {
     notifyOnce(st, `tent-${f.id}`, 6, `🔥 A tent of the ${f.name} goes up in flames. ${left} left.`, 'good', { x: tent.x + tent.w / 2, y: tent.y + tent.h / 2 });
     return;
@@ -262,8 +267,8 @@ export function updateUnit(st, u, dt) {
     u.path = null;
     if (ord.t === 'attack') u.order = { t: 'guard', x: u.x, y: u.y };
   }
-  // Raiders who have grabbed their plunder head home.
-  if (ord.t === 'raid' && u.plunder >= 2) {
+  // Raiders who have grabbed their plunder head home (a host does not).
+  if (ord.t === 'raid' && u.plunder >= 2 && !u.host) {
     u.order = { t: 'retreat' };
     u.path = null;
     return;
@@ -497,7 +502,10 @@ export function updateTraining(st, dt) {
     b.trainStatus = '';
     const name = recruit.name;
     removeCitizen(st, recruit);
-    const rally = b.rally || { x: b.x + b.w / 2 + st.rng.range(-1.5, 1.5), y: b.y + b.h + 1 + st.rng.range(0, 1.5) };
+    // New soldiers walk to the army's gathering point, if one is set.
+    const rally = st.rally
+      ? { x: st.rally.x + st.rng.range(-1.8, 1.8), y: st.rally.y + st.rng.range(-1.8, 1.8) }
+      : { x: b.x + b.w / 2 + st.rng.range(-1.5, 1.5), y: b.y + b.h + 1 + st.rng.range(0, 1.5) };
     const u = createUnit(st, type, Math.floor(b.x + b.w / 2), Math.floor(b.y + b.h), 'player', { name, order: { t: 'move', x: rally.x, y: rally.y } });
     st.stats.trained++;
     notifyOnce(st, `trained-${type}`, 4, `🛡️ ${name} has become a ${def.name.toLowerCase()}.`, 'good', u);

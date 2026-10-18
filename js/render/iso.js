@@ -29,7 +29,7 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin' };
 
 // Eight screen directions (0 = right, going clockwise) to a baked direction
 // and whether it is mirrored. Baked: 0 down, 1 down-right, 2 right, 3 up-right, 4 up.
@@ -480,7 +480,7 @@ export class IsoRenderer {
       const moving = !!u.path && (Math.abs(u.x - u.px) + Math.abs(u.y - u.py) > 1e-4);
       const target = u.order?.target ? st.byId.get(u.order.target) : null;
       const striking = u.swingT && st.time.t - u.swingT < 0.45;
-      const lookName = UNIT_LOOK[u.type] || 'spearman';
+      const lookName = this.atlas.meta.looks[UNIT_LOOK[u.type]] ? UNIT_LOOK[u.type] : 'spearman';
       const anims = this.atlas.meta.looks[lookName].anims;
       const anim = striking ? (anims.includes('bow') ? 'bow' : 'slash') : moving ? (anims.includes('spearwalk') ? 'spearwalk' : 'walk') : 'idle';
       const tx = target ? (target.kind === 'building' ? target.x + target.w / 2 : target.x) : null;
@@ -528,6 +528,7 @@ export class IsoRenderer {
       ctx.fillRect(0, 0, this.w, this.h);
     }
     if (view.gaps?.length) this.drawGaps(ctx, view.gaps, t);
+    if (st.rally) this.drawRally(ctx, st.rally, t);
     if (view.point) this.drawPointer(ctx, view.point, t);
     if (view.box) {
       const { x0, y0, x1, y1 } = view.box;
@@ -624,6 +625,7 @@ export class IsoRenderer {
       out.push({ x: t.x + view.ghost.w / 2, y: t.y + view.ghost.h / 2, r: Math.max(view.ghost.w, view.ghost.h) / 2 });
     }
     for (const g of view.gaps || []) out.push({ x: g.x + 0.5, y: g.y + 0.5, r: 0.5 });
+    if (st.rally) out.push({ x: st.rally.x, y: st.rally.y, r: 0.6 });
     if (view.point) out.push({ x: view.point.x, y: view.point.y, r: 0.5 });
     return out.map((f) => ({ ...this.toView(f.x, f.y), r: f.r }));
   }
@@ -1108,6 +1110,50 @@ export class IsoRenderer {
       ctx.lineTo(a.x, a.y);
       ctx.stroke();
     }
+  }
+
+  // The army's gathering point: a war flag on a pole, over the trees.
+  drawRally(ctx, at, t) {
+    const z = Math.max(0.7, this.cam.zoom);
+    const a = this.tileToScreen(at.x, at.y);
+    this.ellipse(ctx, at.x, at.y, 0.55, 'rgba(255,224,102,0.75)');
+    const top = { x: a.x, y: a.y - 40 * z };
+    ctx.strokeStyle = '#3b2412';
+    ctx.lineWidth = 2.5 * z;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(top.x, top.y);
+    ctx.stroke();
+    // The cloth waves: green, white, green.
+    const w = 22 * z;
+    const h = 14 * z;
+    const wave = (k) => Math.sin(t * 5 + k * 3) * 2.5 * z * k;
+    const bands = ['#1f7a3a', '#f4efe2', '#1f7a3a'];
+    for (let k = 0; k < 3; k++) {
+      const x0 = top.x + (w / 3) * k;
+      const x1 = top.x + (w / 3) * (k + 1);
+      ctx.fillStyle = bands[k];
+      ctx.beginPath();
+      ctx.moveTo(x0, top.y + wave(k / 3));
+      ctx.lineTo(x1, top.y + wave((k + 1) / 3));
+      ctx.lineTo(x1, top.y + h + wave((k + 1) / 3));
+      ctx.lineTo(x0, top.y + h + wave(k / 3));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(top.x + w, top.y + wave(1));
+    ctx.lineTo(top.x + w, top.y + h + wave(1));
+    ctx.lineTo(top.x, top.y + h);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe066';
+    ctx.beginPath();
+    ctx.arc(top.x, top.y, 2.5 * z, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // The guide's arrow over what it is talking about; at the screen's edge if

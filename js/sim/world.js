@@ -144,11 +144,23 @@ export function computeVisibility(st) {
   for (const c of st.citizens) if (!c.stranger) see(c.x, c.y, 3);
   for (const u of st.units) if (u.owner === 'player') see(u.x, u.y, u.vision);
   for (const f of st.factions) if (f.status === 'conquered' || f.status === 'vassal' || f.status === 'allied') see(f.x + 0.5, f.y + 0.5, 5);
+  // Places the story lets you watch for a while (a lookout's view).
+  if (st.vistas?.length) {
+    st.vistas = st.vistas.filter((v) => st.time.t < v.until);
+    for (const v of st.vistas) see(v.x, v.y, v.r);
+  }
   if (fresh) {
     st.stats.explored += fresh;
     st.fogVersion++;
   }
   st.visVersion++;
+}
+
+// Let the player watch a place for a while (a lookout's view), from now:
+// the game stands still while a story message is open.
+export function addVista(st, x, y, r, seconds) {
+  st.vistas = [...(st.vistas || []), { x, y, r, until: st.time.t + seconds }];
+  computeVisibility(st);
 }
 
 export function revealAround(st, cx, cy, r) {

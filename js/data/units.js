@@ -44,6 +44,8 @@ export const UNITS = {
   french: { name: 'French Soldier', hp: 105, atk: 21, range: 6, cd: 2.3, speed: 1.9, vision: 6, ranged: true },
   marine: { name: 'Royal Marine', hp: 115, atk: 23, range: 6, cd: 2.3, speed: 1.9, vision: 6, ranged: true },
   slaver: { name: 'Slaver', hp: 60, atk: 8, range: 1.2, cd: 1, speed: 2.1, vision: 6 },
+  // The Oba's host: spearmen in war dress with leather shields.
+  benin: { name: 'Benin Warrior', hp: 78, atk: 8.5, range: 1.2, cd: 1, speed: 2.1, vision: 6 },
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];

@@ -490,6 +490,8 @@ export const LOOKS = {
   labourer: { model: 'labourer', anims: ['idle', 'walk', 'pull', 'swing', 'carry'] },
   builder: { model: 'labourer', prop: 'hammer', anims: ['idle', 'walk', 'swing'] },
   spearman: { model: 'spearman', anims: ['idle', 'spearwalk', 'slash'] },
+  // A warrior of Benin: the spearman with a war shield in the other hand.
+  benin: { model: 'spearman', extra: { prop: 'shield', hand: 'Left' }, dye: { from: [55, 185], to: 357 }, anims: ['idle', 'spearwalk', 'slash'] },
   bandit: { model: 'bandit', anims: ['idle', 'walk', 'slash'] },
 };
 const FRAMES = { idle: 4 };
@@ -529,6 +531,28 @@ async function bakePeople() {
         }
       }
     }
+    // Cloth dyed another colour: every pixel of the texture whose hue falls
+    // in `from` takes the hue `to` (skin and leather keep theirs).
+    if (def.dye) {
+      inst.body.traverse((o) => {
+        if (!o.isMesh || !o.material?.map) return;
+        o.material = o.material.clone();
+        o.material.map = dyed(o.material.map, def.dye);
+      });
+    }
+    // A second thing in the other hand, kept with the first.
+    if (def.extra) {
+      const grip = gripFor(m.template, def.extra.hand);
+      const prop = makeProp(def.extra.prop);
+      let hand = null;
+      inst.body.traverse((o) => o.name === grip.bone && (hand = o));
+      if (hand && prop) {
+        prop.position.copy(grip.position);
+        prop.quaternion.copy(grip.quaternion);
+        prop.scale.setScalar(grip.scale);
+        hand.add(prop);
+      }
+    }
     // Where the top of the head is, for loads.
     meta[look] = { height: (CHARACTERS[def.model]?.height || 1) * 0.82 };
     for (const anim of def.anims) {
@@ -551,6 +575,57 @@ async function bakePeople() {
     }
   }
   return meta;
+}
+
+const dyedCache = new Map();
+function dyed(map, { from, to }) {
+  const key = `${map.uuid}:${from}:${to}`;
+  if (dyedCache.has(key)) return dyedCache.get(key);
+  const img = map.image;
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const data = g.getImageData(0, 0, c.width, c.height);
+  const d = data.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i] / 255;
+    const gg = d[i + 1] / 255;
+    const b = d[i + 2] / 255;
+    const max = Math.max(r, gg, b);
+    const min = Math.min(r, gg, b);
+    const l = (max + min) / 2;
+    const s = max === min ? 0 : l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min);
+    if (s < 0.12) continue;
+    let h = 0;
+    if (max === r) h = ((gg - b) / (max - min)) % 6;
+    else if (max === gg) h = (b - r) / (max - min) + 2;
+    else h = (r - gg) / (max - min) + 4;
+    h = (h * 60 + 360) % 360;
+    if (h < from[0] || h > from[1]) continue;
+    // The new hue, a little brighter and richer (dyed cloth is bright).
+    const [nr, ng, nb] = hsl(to, Math.min(1, s * 1.35), Math.min(0.62, l * 1.4 + 0.05));
+    d[i] = nr;
+    d[i + 1] = ng;
+    d[i + 2] = nb;
+  }
+  g.putImageData(data, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.flipY = map.flipY;
+  tex.colorSpace = map.colorSpace;
+  tex.wrapS = map.wrapS;
+  tex.wrapT = map.wrapT;
+  tex.channel = map.channel;
+  dyedCache.set(key, tex);
+  return tex;
+}
+
+function hsl(h, s, l) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
 }
 
 // Where a tool sits in a hand (as js/render3d/characters.js works it out).

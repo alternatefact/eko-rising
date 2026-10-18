@@ -249,6 +249,17 @@ export const BUILDINGS = {
     cost: {}, hp: 170, buildable: false, camp: true,
     desc: 'The biggest tent, where the bandit chief keeps what they have stolen. Burn every tent and the camp is gone for good.',
   },
+  // The Oba's host camps in war tents of red and white cloth.
+  edotent: {
+    name: 'Benin War Tent', cat: 'military', era: 0, w: 1, h: 1,
+    cost: {}, hp: 120, buildable: false, camp: true,
+    desc: 'A war tent of the Oba’s host, red and white cloth over poles. Warriors of Benin sleep here before the march.',
+  },
+  edochief: {
+    name: 'War Chief’s Tent', cat: 'military', era: 0, w: 2, h: 2,
+    cost: {}, hp: 240, buildable: false, camp: true,
+    desc: 'The tent of the war chief who leads the Oba’s host, with the war drums and the banner of Benin before it.',
+  },
   bank: {
     name: 'Bank', yo: 'Ilé Ìfowópamọ́', cat: 'town', era: 4, w: 2, h: 2,
     cost: { stone: 50, iron: 10, cowries: 400 }, hp: 300, place: 'land', unique: true,

@@ -9,13 +9,13 @@ import {
   canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season, fireCap,
   happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand,
 } from '../sim/economy.js';
-import { citizenStatus, jobless, siteStage, freeBuilders } from '../sim/citizens.js';
+import { citizenStatus, jobless, siteStage, freeBuilders, storageHeldUp } from '../sim/citizens.js';
 import { canTrain, armyPower } from '../sim/military.js';
 import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdued } from '../sim/factions.js';
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
 import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace } from '../sim/index.js';
-import { STATES, NEXT_UP } from '../regions/index.js';
+import { STATES, NEXT_UP, LOCKED } from '../regions/index.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -135,6 +135,7 @@ export class Hud {
     this.renderFeed();
     this.renderBuild();
     this.renderModal();
+    this.renderAlert();
     if (this.panel) this.renderPanel();
     $('#speed-btn').innerHTML = this.game.paused ? '▶<span>Paused</span>' : `⏩<span>${this.game.speed}×</span>`;
     $('#speed-btn').classList.toggle('on', this.game.paused);
@@ -287,6 +288,50 @@ export class Hud {
     $('#date').innerHTML = `${s.name}<br><b>${st.time.year}</b> · day ${st.time.day + 1}`;
   }
 
+  // A clear warning when the stores are full and workers are held up, with a
+  // button to build more room.
+  renderAlert() {
+    const st = this.st;
+    const g = this.game;
+    const el = $('#alert');
+    const held = storageHeldUp(st);
+    const busy = g.mode.build || g.mode.demolish || g.mode.move || g.mode.rally;
+    const show = !!held && !busy && !(this.alertHiddenUntil > st.time.t) && !st.eventQueue.length;
+    document.getElementById('app').classList.toggle('alerting', show);
+    if (!show) {
+      el.hidden = true;
+      this.lastAlert = '';
+      return;
+    }
+    const names = [...(held.food ? ['food'] : []), ...held.goods.map((r) => (r === 'wood' ? 'planks' : RESOURCES[r].name.toLowerCase()))];
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names[0] || 'more';
+    const type = this.storeFor(held);
+    const floor = type === 'stockpile';
+    const market = held.goods.length && st.buildings.some((b) => b.type === 'market' && b.owner === 'player' && !b.dead && b.built >= 1);
+    const html = `<span class="alert-text"><b>📦 ${floor ? 'The storage floor is full' : 'Your stores are full'}</b>: no room for ${esc(list)}. ${held.n > 1 ? `${held.n} workers are` : 'One worker is'} waiting at work with ${held.n > 1 ? 'their loads' : 'a load'}.${market ? ' Or sell some at the market.' : ''}</span>
+      <button class="btn primary" data-a="build" data-t="${type}">🔨 Build ${floor ? 'another' : 'a'} ${esc(BUILDINGS[type].name)}</button>
+      <button class="btn" data-a="hide" aria-label="Hide this for now" title="Hide this for now">✕</button>`;
+    if (html !== this.lastAlert) {
+      el.innerHTML = html;
+      this.lastAlert = html;
+      el.onclick = (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.a === 'build') g.startBuild(b.dataset.t);
+        else this.alertHiddenUntil = this.st.time.t + 90;
+        this.renderAlert();
+      };
+    }
+    el.hidden = false;
+  }
+
+  // The building that makes the most room for what is held up.
+  storeFor(held) {
+    const st = this.st;
+    const want = held.food && !held.goods.length ? 'granary' : !held.food && held.goods.length ? 'storehouse' : null;
+    return want && !buildLocked(st, want) ? want : 'stockpile';
+  }
+
   renderGoals(force) {
     const st = this.st;
     if (storyRunning(st)) {
@@ -400,6 +445,7 @@ export class Hud {
       if (this.modalKey === key) return;
       this.modalKey = key;
       modal.hidden = false;
+      modal.classList.remove('over-map');
       modal.innerHTML = st.gameOver.victory ? this.victoryHtml() : this.defeatHtml();
       return;
     }
@@ -425,6 +471,9 @@ export class Hud {
     const portrait = entry.id === 'meet' ? leaderArt(st.factionMap[entry.fid]) : null;
     const img = portrait || (entry.id === 'age' ? ageArt(entry.era) : storyArt(entry.id));
     modal.hidden = false;
+    // Something to see on the map (the host of Benin): the words sit low,
+    // over a clear view of it.
+    modal.classList.toggle('over-map', !!entry.at);
     modal.innerHTML = `<div class="event" role="dialog" aria-modal="true">
       ${this.artHtml(img, art, ev.color, !!portrait)}
       <div class="body">
@@ -461,9 +510,11 @@ export class Hud {
 
   victoryHtml() {
     const st = this.st;
+    const chapter = st.region.id === 'ogun' ? 'Chapter two — Ogun —' : `Chapter one — ${esc(st.region.name)} —`;
+    const next = st.region.id === 'ogun' ? 'The road on to Oyo and Edo opens in a future update.' : st.flags.ogunOpen ? 'The road north is open: Ogun State waits for you on the map of Nigeria.' : 'Break the host of Benin to open Ogun State, the next land to explore.';
     return `<div class="event end">${this.artHtml(sceneArt('end_victory'), '🇳🇬')}
       <div class="body"><h2>The New Nigeria</h2>
-      <div class="text">In the year ${st.time.year}, in the House of Assembly at ${esc(st.name)}, every people of the land speaks with one voice. What began as ${esc(st.founder)} and ${esc(st.spouse)}'s yam farm by the lagoon is now the heart of a new nation.\n\nChapter one — Lagos — is complete. ${unified(st).length} peoples united, ${population(st)} people in your city, ${st.stats.conquered} villages conquered, ${st.stats.trained} soldiers trained.\n\nThe road north to Ogun, Oyo and beyond opens in a future update.</div>
+      <div class="text">In the year ${st.time.year}, in the House of Assembly at ${esc(st.name)}, every people of the land speaks with one voice. What began as ${esc(st.founder)} and ${esc(st.spouse)}'s ${st.region.id === 'ogun' ? 'camp on the road north' : 'yam farm by the lagoon'} is now the heart of a new nation.\n\n${chapter} is complete. ${unified(st).length} peoples united, ${population(st)} people in your city, ${st.stats.conquered} villages conquered, ${st.stats.trained} soldiers trained.\n\n${next}</div>
       <div class="choices"><button class="choice" data-end="continue"><b>Keep building</b><span>Your city is yours to grow.</span></button>
       <button class="choice" data-end="title"><b>Back to the map of Nigeria</b></button></div>
       <p class="owner">Eko Rising — an original game by alternatefact Studios.</p></div></div>`;
@@ -473,7 +524,9 @@ export class Hud {
     const st = this.st;
     return `<div class="event end">${this.artHtml(sceneArt('end_defeat'), '🕯️')}<div class="body"><h2>The fire goes out</h2>
       <div class="text">${esc(st.gameOver.reason)}\n\nYou lasted until ${st.time.year}. Every great city has fallen and risen again.</div>
-      <div class="choices"><button class="choice" data-end="restart"><b>Try again on a new map</b></button>
+      <div class="choices"><button class="choice" data-end="restart"><b>Try again on a new map</b><span>With the guide, step by step.</span></button>
+      <button class="choice" data-end="restart-free"><b>Start again without the guide</b><span>A new map; build whatever you think matters first.</span></button>
+      <button class="choice" data-end="load"><b>Load a saved game</b></button>
       <button class="choice" data-end="title"><b>Back to the title</b></button></div></div></div>`;
   }
 
@@ -629,6 +682,7 @@ export class Hud {
         h += `<p>In training: ${b.queue.map((q) => UNIT_ICON[q]).join(' ')} <span class="muted">${b.trainStatus ? esc(b.trainStatus) : `${Math.min(100, Math.round((b.trainT / u.train) * 100))}%`}</span></p>`;
       }
       h += '<p class="muted">Each recruit is a person: a stranger from the fire, or an idle resident.</p>';
+      h += this.rallyHtml(true);
     }
     if (def.hires && b.built >= 1) h += this.hireHtml();
     if (b.type === 'market' && b.built >= 1) h += this.marketHtml();
@@ -794,9 +848,22 @@ export class Hud {
     h += `</div><h4>When enemies come near</h4><div class="seg"><button class="btn ${hold ? 'on' : ''}" data-act="stance" data-v="hold">✋ Stand your ground</button><button class="btn ${engage ? 'on' : ''}" data-act="stance" data-v="engage">⚔️ Fight any close by</button></div>`;
     h += `<p class="muted wide-only">${hold ? 'They stay where you put them and fight only what comes within reach of their spears.' : engage ? 'They go for any enemy within a few steps, and set fire to enemy tents they pass.' : 'Some stand their ground, some fight any close by.'}</p>`;
     h += `<div class="row"><button class="btn" data-act="halt">⏹ Stop here</button><button class="btn" data-act="home">🏠 Return home</button><button class="btn" data-act="deselect">Deselect</button></div>`;
+    h += this.rallyHtml();
     h += `<p class="muted wide-only">Army strength: ${armyPower(st)}. On a phone, press ⬚ Select at the top and drag a box round the soldiers you want.</p>`;
     h += '<p class="muted narrow-only">Tap the ground to march, or a bandit, tent or village to attack.</p>';
     return h;
+  }
+
+  // The army's gathering point: where new soldiers walk to, and where the
+  // whole army can be called.
+  rallyHtml(camp) {
+    const st = this.st;
+    let h = '<h4>🚩 Gathering point</h4>';
+    h += `<p class="muted">${st.rally ? `New soldiers walk to the flag${camp ? '' : ', and you can call the army there'}.` : 'Choose a place on the map where your army gathers. New soldiers will walk there.'}</p>`;
+    h += `<div class="row"><button class="btn" data-act="rally">🚩 ${st.rally ? 'Move the flag' : 'Set the gathering point'}</button>`;
+    if (st.rally && !camp) h += '<button class="btn primary" data-act="gather">Go to the flag</button>';
+    if (st.rally) h += `<button class="btn" data-act="goto" data-x="${st.rally.x}" data-y="${st.rally.y}">📍 Show</button><button class="btn" data-act="rallyclear" title="Take the flag down" aria-label="Take the flag down">✕</button>`;
+    return `${h}</div>`;
   }
 
   factionHtml(f) {
@@ -820,6 +887,10 @@ export class Hud {
       <span>Your army</span><b>${armyPower(st)}</b>
       ${f.temperament !== 'bandit' ? `<span>Trade</span><b class="${canBarter(f) ? 'pos' : ''}">${f.status === 'conquered' ? 'Tribute' : canBarter(f) ? 'Open' : 'None'}</b>` : ''}</div>`;
     if (f.status === 'conquered') return `${h}<p class="muted">Conquered: their stores were yours to take, and they pay a little tribute every day. An agreement would have earned more over time.</p>`;
+    if (f.host) {
+      const left = st.units.filter((u) => u.owner === f.id && !u.dead).length;
+      return `${h}<p>${f.beaten ? 'Broken: not one of them is left to fight.' : `${left} warriors of Benin. ${f.marching ? 'They are marching on you!' : 'They wait in their camp, and will march on you when they are ready.'} Defeat every one of them to break the host.`}</p>`;
+    }
     if (f.temperament === 'bandit') return `${h}<p class="muted">There is no talking to them. Destroy their warriors and stand in their camp to take it.</p>`;
     const gift = giftCost(st, f);
     const hasMarket = hasBuilding(st, 'market');
@@ -1151,6 +1222,15 @@ export class Hud {
       case 'home':
         g.sendSelectedHome();
         break;
+      case 'rally':
+        g.startRally();
+        return;
+      case 'gather':
+        g.gatherSelected();
+        break;
+      case 'rallyclear':
+        g.cmd('setRally', null);
+        break;
       case 'deselect':
         g.clearSelection();
         this.closePanel();
@@ -1206,29 +1286,31 @@ export class Hud {
 
 // --- Title screen map ---------------------------------------------------------------
 
-export function renderNigeria(el, onPick) {
+export function renderNigeria(el, onPick, opened = new Set()) {
   const S = 46;
   const G = 4;
   let svg = `<svg viewBox="0 0 ${8 * (S + G)} ${7 * (S + G)}" role="img" aria-label="Map of Nigeria's states">`;
   for (const [name, col, row, id] of STATES) {
     const x = col * (S + G);
     const y = row * (S + G);
-    const open = !!id;
-    const soon = NEXT_UP.includes(name);
+    // A state with a chapter is open, unless it has to be won first.
+    const locked = !!id && !!LOCKED[id] && !opened.has(id);
+    const open = !!id && !locked;
+    const soon = NEXT_UP.includes(name) || locked;
     const fill = open ? '#f2b84b' : soon ? 'rgba(242,184,75,0.22)' : 'rgba(255,255,255,0.07)';
     svg += `<g class="st ${open ? 'open' : ''}" data-id="${id || ''}" data-name="${name}">
-      <title>${name}${open ? ' — play now' : soon ? ' — coming next' : ' — coming in a future update'}</title>
+      <title>${name}${open ? ' — play now' : locked ? ` — ${LOCKED[id]}` : soon ? ' — coming next' : ' — coming in a future update'}</title>
       <rect x="${x}" y="${y}" width="${S}" height="${S}" rx="8" fill="${fill}" stroke="${open ? '#fff3c4' : 'rgba(255,255,255,0.15)'}" />
       <text x="${x + S / 2}" y="${y + S / 2 + 1}" text-anchor="middle" dominant-baseline="middle" font-size="${name.length > 8 ? 7.5 : 9}" font-weight="700" fill="${open ? '#2a1a05' : 'rgba(255,255,255,0.6)'}">${name}</text>
-      ${open ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="7" font-weight="800" fill="#2a1a05">PLAY</text>` : soon ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="6.5" fill="rgba(255,236,190,0.8)">NEXT</text>` : ''}
+      ${open ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="7" font-weight="800" fill="#2a1a05">PLAY</text>` : locked ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="7" fill="rgba(255,236,190,0.85)">🔒</text>` : soon ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="6.5" fill="rgba(255,236,190,0.8)">NEXT</text>` : ''}
     </g>`;
   }
   svg += '</svg>';
   el.innerHTML = svg;
-  el.addEventListener('click', (e) => {
+  el.onclick = (e) => {
     const g = e.target.closest('.st');
     if (g && g.dataset.id) onPick(g.dataset.id);
-  });
+  };
 }
 
 // Is this element on screen (not hidden, not collapsed away)?

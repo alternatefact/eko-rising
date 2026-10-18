@@ -14,7 +14,23 @@ const MAX_STEPS = 12;
 // minute, and three slots the player saves into. A game can also be saved to
 // a file and opened again from one, on this device or another.
 const OLD_SAVE = 'eko-rising:save:v2';
-export const SLOTS = ['auto', '1', '2', '3'];
+export const SLOTS = ['auto', '1', '2', '3', 'lagos'];
+const UNLOCKED = 'eko-rising:unlocked';
+
+// States opened by winning another (kept across games).
+export function unlocked() {
+  try {
+    return new Set(JSON.parse(storage.get(UNLOCKED) || '[]'));
+  } catch (err) {
+    return new Set();
+  }
+}
+
+function unlock(id) {
+  const s = unlocked();
+  s.add(id);
+  storage.set(UNLOCKED, JSON.stringify([...s]));
+}
 const slotKey = (slot) => `eko-rising:slot:${slot}`;
 
 const storage = {
@@ -122,7 +138,9 @@ class Game {
   }
 
   newGame(opts) {
-    this.start(sim.newGame({ region: 'lagos', ...opts }));
+    const o = { region: 'lagos', ...opts };
+    if (!o.name) delete o.name;
+    this.start(sim.newGame(o));
     this.save('auto');
   }
 
@@ -258,6 +276,8 @@ class Game {
       this.updateGaps(dt);
       this.view.point = this.pointFrom(this.view.pointTarget);
       this.followStory();
+      this.followEvent();
+      this.checkChapter();
       this.hud.placeArrow();
       this.renderer.timeScale = this.paused || this.st.eventQueue.length ? 0 : this.speed * sim.PACE;
       this.renderer.draw(this.paused ? 1 : Math.min(1, this.acc / sim.STEP), this.view);
@@ -290,6 +310,47 @@ class Game {
       pt = null;
     }
     if (pt) this.centerOn(pt.x, pt.y);
+  }
+
+  // A story event that happens somewhere (the host of Benin gathering, its
+  // march): the camera goes to look before the words come up.
+  followEvent() {
+    const entry = this.st.eventQueue[0];
+    if (!entry?.at || this.eventFocus === entry) return;
+    this.eventFocus = entry;
+    this.renderer.cam.zoom = Math.min(this.renderer.cam.zoom, window.innerWidth < 760 ? 0.8 : 0.95);
+    this.centerOn(entry.at.x, entry.at.y);
+    // The words come up at the bottom, so the sight sits in the upper part of the screen.
+    const r = this.renderer;
+    const below = r.screenToTile(r.w / 2, r.h / 2 + r.h * 0.17);
+    this.centerOn(below.x, below.y);
+  }
+
+  // Beating the host of Benin opens Ogun State, and may take you there.
+  checkChapter() {
+    const st = this.st;
+    if (st.flags.ogunOpen && !this.ogunNoted) {
+      this.ogunNoted = true;
+      unlock('ogun');
+      renderNigeria(document.getElementById('nigeria'), (id) => this.pickRegion(id), unlocked());
+    }
+    if (st.flags.goOgun) {
+      st.flags.goOgun = false;
+      // Lagos is kept in a save of its own.
+      storage.set(slotKey('lagos'), JSON.stringify({ meta: saveMeta(st), data: sim.serialize(st) }));
+      this.newGame({ region: 'ogun', founder: st.founder, spouse: st.spouse, guide: false });
+      this.hud.toast('🌄 The road north to Ogun State. Your Lagos game is kept in Saved games.');
+    }
+  }
+
+  // A state on the map of Nigeria was picked on the title screen.
+  pickRegion(id) {
+    if (id !== 'lagos' && !unlocked().has(id)) {
+      this.hud.toast('🔒 Ogun State opens when you defeat the host of Benin in Lagos.');
+      return;
+    }
+    const opts = readNewGameForm();
+    this.newGame({ ...opts, region: id, ...(id !== 'lagos' ? { guide: false, name: undefined } : {}) });
   }
 
   // The guide's "show me": centre on what it is pointing at.
@@ -339,8 +400,17 @@ class Game {
       this.st.gameOver = null;
       this.hud.modalKey = null;
       document.getElementById('modal').hidden = true;
-    } else if (kind === 'restart') {
-      this.newGame({ founder: this.st.founder, spouse: this.st.spouse, name: this.st.region.defaultName });
+    } else if (kind === 'load') {
+      // The game is lost: nothing left to read in it, so no message covers the saves.
+      this.st.gameOver = null;
+      this.st.eventQueue.length = 0;
+      this.hud.modalKey = null;
+      document.getElementById('modal').hidden = true;
+      this.paused = true;
+      this.hud.openPanel('saves', 'load');
+    } else if (kind === 'restart' || kind === 'restart-free') {
+      // Starting over after losing everything: with the guide, or without it.
+      this.newGame({ region: this.st.regionId, founder: this.st.founder, spouse: this.st.spouse, name: this.st.region.defaultName, ...(kind === 'restart-free' ? { guide: false } : {}) });
     } else {
       this.toTitle();
     }
@@ -728,7 +798,7 @@ class Game {
   }
 
   escape() {
-    if (this.mode.build || this.mode.demolish || this.mode.move) this.cancelBuild();
+    if (this.mode.build || this.mode.demolish || this.mode.move || this.mode.rally) this.cancelBuild();
     else if (this.view.selected.size || this.hud.panel) {
       this.clearSelection();
       this.hud.closePanel();
@@ -806,6 +876,11 @@ class Game {
 
   tap(sx, sy, info) {
     if (!this.st || this.st.eventQueue.length) return;
+    if (this.mode.rally) {
+      if (info.button === 2) this.cancelBuild();
+      else this.rallyTap(sx, sy);
+      return;
+    }
     if (this.mode.build || this.mode.demolish || this.mode.move) {
       if (info.button === 2) this.cancelBuild();
       else this.buildTap(sx, sy, info);
@@ -995,6 +1070,42 @@ class Game {
     }
   }
 
+  // Pick the place where the army gathers.
+  startRally() {
+    if (!this.st) return;
+    this.cancelBuild();
+    this.mode = { build: null, rally: true, line: false, wallStart: null, ghostAt: null };
+    this.canvas.classList.add('building');
+    if (window.innerWidth < 760) this.hud.closePanel();
+    this.hud.placeBar(true, '🚩 Tap the place where your army should gather.', false);
+  }
+
+  rallyTap(sx, sy) {
+    const p = this.renderer.screenToTile(sx, sy);
+    const r = sim.setRally(this.st, p.x, p.y);
+    if (!r.ok) {
+      this.hud.toast(r.reason);
+      return;
+    }
+    this.cancelBuild();
+    this.view.order = { x: this.st.rally.x, y: this.st.rally.y, at: performance.now() };
+    this.hud.toast('🚩 Gathering point set. New soldiers walk here from the training ground. Press 🚩 Gather in the army panel to call everyone.');
+    if (this.myUnits().length) this.hud.openPanel('units');
+    this.hud.lastPanelHtml = '';
+  }
+
+  // Send the selected soldiers (or, with none selected, the whole army) to the gathering point.
+  gatherSelected() {
+    const ids = this.myUnits().map((u) => u.id);
+    const r = sim.gatherArmy(this.st, ids.length ? ids : null);
+    if (!r.ok) {
+      this.hud.toast(r.reason);
+      return;
+    }
+    this.view.order = { x: this.st.rally.x, y: this.st.rally.y, at: performance.now() };
+    this.hud.toast(`🚩 ${r.n > 1 ? `${r.n} soldiers are` : 'One soldier is'} marching to the gathering point.`);
+  }
+
   sendSelectedHome() {
     const home = this.st.buildings.find((b) => b.type === 'palace' && !b.dead) || this.st.buildings.find((b) => b.type === 'compound' && !b.dead);
     if (!home) return;
@@ -1005,7 +1116,7 @@ class Game {
 // --- Title screen ---------------------------------------------------------------------
 
 export function slotName(slot) {
-  return slot === 'auto' ? 'the autosave' : `slot ${slot}`;
+  return slot === 'auto' ? 'the autosave' : slot === 'lagos' ? 'your Lagos game' : `slot ${slot}`;
 }
 
 function showTitle(game) {
@@ -1023,7 +1134,8 @@ function readNewGameForm() {
   const val = (id) => document.getElementById(id).value.trim();
   const seedRaw = val('ng-seed');
   const seed = seedRaw ? Math.abs(parseInt(seedRaw.replace(/\D/g, ''), 10) || hashString(seedRaw)) : undefined;
-  return { founder: val('ng-founder') || 'Àdìó', spouse: val('ng-spouse') || 'Àdùkẹ́', name: val('ng-name') || 'Èkó', seed };
+  const guide = document.getElementById('ng-guide')?.checked !== false;
+  return { founder: val('ng-founder') || 'Àdìó', spouse: val('ng-spouse') || 'Àdùkẹ́', name: val('ng-name') || 'Èkó', seed, ...(guide ? {} : { guide: false }) };
 }
 
 function hashString(s) {
@@ -1081,7 +1193,7 @@ async function boot() {
     e.target.value = '';
     ready.then(() => game.importSave(file));
   });
-  renderNigeria(document.getElementById('nigeria'), () => ready.then(() => game.newGame(readNewGameForm())));
+  renderNigeria(document.getElementById('nigeria'), (id) => ready.then(() => game.pickRegion(id)), unlocked());
   showTitle(game);
   requestAnimationFrame((t) => game.loop(t));
   await ready;

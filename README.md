@@ -14,6 +14,10 @@ Play it at **https://alternatefactstudios.com/games/eko-rising/**.
 The game opens with a guided story that goes at the player's pace: a guide at
 the top left says who is speaking, what they say, and the one thing to do
 next, points at it on the map or in the build bar, and waits until it is done.
+Untick *Guided start* on the title screen (or choose *Start again without the
+guide* after losing everything) to skip it: the founders arrive with a few
+settlers and some food and planks, and you build whatever you think matters
+first.
 
 Àdìó and Àdùkẹ́ walk up a forest path to an abandoned house in a clearing:
 “Let's settle in this abandoned house. Let's build a community here.” The
@@ -72,7 +76,30 @@ Soldiers either stand their ground (fighting only what comes within reach) or
 fight any close by: then they go for any enemy within a few steps and set
 fire to enemy tents and huts they pass. A bandit camp is gone when its last
 tent burns. On a phone, ⬚ Select at the top turns a drag into a selection box,
-and taps add or remove soldiers.
+and taps add or remove soldiers. 🚩 *Set the gathering point* (in the army
+panel or a Guard House) plants a flag on the map: newly trained soldiers walk
+to it, and *Go to the flag* calls the army there.
+
+When the stores are full, a warning stays at the top of the screen (above the
+build bar on a phone) naming what has no room, how many workers are held up,
+and a button to build another Storage Floor, granary or storehouse. Workers
+who reach a full store do not hang about it: they go back to their workplace
+with their loads and take them over as soon as there is room.
+
+The Oba of Benin sends an envoy once the town is a compound. Swear allegiance
+and pay tribute, send gifts to buy time, or refuse: after a first test from
+small war bands, the view goes to the far end of the land, where the Oba's
+host of fifty warriors in war dress is gathering round its war chief's tent.
+They march when they are ready, on a day nobody is told (later if you sent
+gifts), so there is time to build, grow and train an army, then carry the
+war to their camp or wait for them behind the fence. Breaking the host wins
+the Lagos stage and opens **Ogun State** on the map of Nigeria.
+
+Ogun is the second land: inland forest and savanna along the Ogun and Yewa
+rivers, the Ẹ̀gbá towns under Olúmọ Rock, the Ọ̀wu, the Ìjẹ̀bú of Ìjẹ̀bú-Òde,
+the Rẹ́mọ and the Yewa, and two robber camps. There is no guide there: the
+founders come north with settlers, spearmen, a Guard House and two houses.
+Setting out keeps the Lagos game in its own save.
 
 The view is a fixed isometric picture that can be turned in quarter turns
 (⟲ ⟳ beside the minimap, or Q and E), so the far side of a wood, a fence or a
@@ -86,7 +113,8 @@ at buttons such as Army or Train.
 
 Games save themselves every minute (the autosave); 💾 at the top saves into
 one of three slots, loads any of them, and saves a game to a file or opens
-one, to keep it safe or carry on elsewhere.
+one, to keep it safe or carry on elsewhere. The ☰ menu has *Save game* and
+*Load game*, and ⌂ beside the map brings the view back to the village.
 
 The founder does not take a job. He walks the town like a supervisor, from one
 workplace to the next, and anyone working within four tiles of him works 15%
@@ -139,7 +167,7 @@ js/sim/       the simulation, with no DOM: economy, citizens, military, factions
               events, story.js (the guided opening, step by step)
 js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
-js/regions/   one file per state; lagos.js is chapter one
+js/regions/   one file per state; lagos.js is chapter one, ogun.js chapter two
 js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sheets,
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
@@ -159,9 +187,11 @@ The art in `art/` was made with Higgsfield and is listed in `js/data/art.js`;
 anything missing from that list falls back to emoji art or textures drawn in
 code.
 
-To open another state, copy `js/regions/lagos.js` (terrain template, peoples,
-places to explore, events, goals), register it in `js/regions/index.js`, and
-give its entry in `STATES` a region id.
+To open another state, copy `js/regions/ogun.js` (terrain template, the kit the
+founders bring, peoples, places to explore, events, goals), register it in
+`js/regions/index.js`, and give its entry in `STATES` a region id. A state
+listed in `LOCKED` stays shut until a flag in another chapter opens it (Ogun
+opens when the host of Benin is broken).
 
 ## Tests
 

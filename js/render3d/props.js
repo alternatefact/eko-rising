@@ -90,6 +90,26 @@ const BUILD = {
     g.add(new THREE.Mesh(blade, mat(BLADE)));
     return g;
   },
+  // A tall leather war shield, held by its grip: red with a pale rim and a
+  // dark boss, the way the Oba's warriors carried them.
+  shield() {
+    const g = new THREE.Group();
+    // Upright beside the arm: tall along the fingers (z), wide along the
+    // forearm (y), its face turned out to the side (x).
+    const face = new THREE.SphereGeometry(0.2, 12, 8);
+    face.scale(0.18, 1, 1.55);
+    face.translate(0.05, 0, 0.04);
+    g.add(new THREE.Mesh(face, mat('#9e2a1c')));
+    const rim = new THREE.TorusGeometry(0.2, 0.012, 4, 16);
+    rim.rotateY(Math.PI / 2);
+    rim.scale(1, 1, 1.55);
+    rim.translate(0.06, 0, 0.04);
+    g.add(new THREE.Mesh(rim, mat('#e9dcc0')));
+    const boss = new THREE.SphereGeometry(0.035, 8, 6);
+    boss.translate(0.095, 0, 0.04);
+    g.add(new THREE.Mesh(boss, mat('#3a2414')));
+    return g;
+  },
   // A canoe paddle with a leaf-shaped blade.
   paddle() {
     const g = new THREE.Group();

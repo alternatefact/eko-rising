@@ -11,7 +11,7 @@ import { ERAS } from '../data/eras.js';
 import { UNITS } from '../data/units.js';
 import { ORIGINS } from '../data/names.js';
 import { FOOD, GOODS } from '../data/resources.js';
-import { createBuilding, createCitizen, removeBuilding, cleanup, notify } from './entities.js';
+import { createBuilding, createCitizen, createUnit, removeBuilding, cleanup, notify } from './entities.js';
 import { goTo } from './move.js';
 import { computeTerritory, computeVisibility, revealAround, adjacentToWater, fenceGaps } from './world.js';
 import {
@@ -157,6 +157,9 @@ export function newGame(opts = {}) {
   });
 
   spawnAnimals(st, st.animalTarget, 13);
+  // No guide: a player who knows the game (or a land with no guided start)
+  // builds whatever they think matters first.
+  if (opts.guide === false || !region.story?.length) freeStart(st, region, compound);
   st.cap = capacity(st);
   computeTerritory(st);
   st.dirty.territory = false;
@@ -165,8 +168,48 @@ export function newGame(opts = {}) {
   computeVisibility(st);
   st.mods.push({ label: 'A fresh start on new land', v: 8, until: 30 });
   updateStory(st);
+  if (st.flags.freeStart && region.events.some((e) => e.id === `${region.id}_intro`)) st.eventQueue.splice(0, st.eventQueue.length, { id: `${region.id}_intro` });
   st.objCurrent = objectives(st).map((o) => o.id);
   return st;
+}
+
+// A start without the guide: some planks and food to begin with, two
+// newcomers walking in to the fire, and whatever else the land's start kit
+// brings (settlers, soldiers, houses already standing).
+function freeStart(st, region, home) {
+  st.tut.done = true;
+  st.flags.openingDone = true;
+  st.flags.freeStart = true;
+  st.migrateT = 30;
+  const kit = region.startKit || { res: { wood: 30, yam: 16 }, settlers: 2 };
+  for (const [k, v] of Object.entries(kit.res || {})) st.res[k] = (st.res[k] || 0) + v;
+  if (kit.era) st.era = kit.era;
+  const sx = st.start.x;
+  const sy = st.start.y;
+  for (const type of kit.buildings || []) {
+    const spot = type === 'stockpile'
+      ? findSpot(st, type, sx, sy + 3, 1, 4)
+      : findSpot(st, type, sx, sy, 4, 9);
+    if (spot) {
+      const b = createBuilding(st, type, spot.x, spot.y, { instant: true });
+      if (st.flags.mud && BUILDINGS[type].mudBricks) b.mud = true;
+    }
+  }
+  const way = st.arrival?.length ? st.arrival[Math.min(st.arrival.length - 1, 6)] : sy * st.W + sx;
+  for (let k = 0; k < (kit.settlers || 0); k++) {
+    const c = createCitizen(st, way % st.W, Math.floor(way / st.W), { stranger: false, state: 'arrive', female: k % 3 === 1 });
+    c.x += st.rng.range(-1, 1);
+    c.y += st.rng.range(-1, 1);
+  }
+  for (const [type, n] of Object.entries(kit.soldiers || {})) {
+    for (let k = 0; k < n; k++) {
+      const x = sx - 2 + (k % 4);
+      const y = sy + 5 + Math.floor(k / 4);
+      createUnit(st, type, x, y, 'player', { order: { t: 'guard', x: x + 0.5, y: y + 0.5 } });
+    }
+  }
+  st.dirty.jobs = true;
+  st.dirty.build = true;
 }
 
 // Things that happen when a building is finished.
@@ -729,6 +772,33 @@ export function orderMove(st, ids, tx, ty, fight = true) {
     u.path = null;
   });
   return units.length;
+}
+
+// Where the army gathers: new soldiers walk there from the training ground,
+// and the whole army can be called to it. Pass null to clear it.
+export function setRally(st, x, y) {
+  if (x === null || x === undefined) {
+    st.rally = null;
+    return { ok: true };
+  }
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  if (tx < 1 || ty < 1 || tx >= st.W - 1 || ty >= st.H - 1) return { ok: false, reason: 'Pick a place on the map.' };
+  const i = ty * st.W + tx;
+  if (!st.explored[i]) return { ok: false, reason: 'Nobody has seen that place yet. Pick somewhere you have explored.' };
+  if (!WALK[st.terrain[i]] || !st.reach[i]) return { ok: false, reason: 'Your soldiers cannot stand there. Pick open ground.' };
+  const b = st.byId.get(st.occ[i]);
+  if (b && !b.dead && !b.gate) return { ok: false, reason: 'Pick open ground, not a building.' };
+  st.rally = { x: tx + 0.5, y: ty + 0.5 };
+  return { ok: true };
+}
+
+// Call soldiers to the gathering point (all of them when no ids are given).
+export function gatherArmy(st, ids) {
+  if (!st.rally) return { ok: false, reason: 'Set a gathering point first.' };
+  const list = ids || st.units.filter((u) => u.owner === 'player' && !u.dead).map((u) => u.id);
+  const n = orderMove(st, list, st.rally.x, st.rally.y, false);
+  return n ? { ok: true, n } : { ok: false, reason: 'You have no soldiers yet.' };
 }
 
 export function orderAttack(st, ids, targetId) {

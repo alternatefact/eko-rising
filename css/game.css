@@ -705,6 +705,53 @@ input {
   max-width: 340px;
 }
 
+/* Full stores: a warning that stays until there is room. */
+#alert {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 72px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  background: var(--panel-solid);
+  border: 2px solid #f2b84b;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  z-index: 8;
+  font-size: 13px;
+  width: max-content;
+  max-width: min(640px, calc(100% - 20px));
+  animation: alert-in 0.35s ease-out;
+}
+
+#alert .alert-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+#alert .alert-text b {
+  color: #ffd27a;
+}
+
+#alert .btn {
+  flex: none;
+}
+
+/* Messages pass below the warning, not over it. */
+#app.alerting #toast {
+  top: 140px;
+}
+
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
 #minimap {
   position: absolute;
   right: 10px;
@@ -1190,6 +1237,30 @@ input {
     bottom: calc(196px + var(--safe-b));
   }
 
+  #alert {
+    top: auto;
+    bottom: calc(196px + var(--safe-b));
+    flex-wrap: wrap;
+    width: calc(100% - 16px);
+    font-size: 12px;
+  }
+
+  #app.build-collapsed #alert {
+    bottom: calc(56px + var(--safe-b));
+  }
+
+  #app.alerting #feed {
+    bottom: calc(290px + var(--safe-b));
+  }
+
+  #app.alerting.build-collapsed #feed {
+    bottom: calc(150px + var(--safe-b));
+  }
+
+  #app.alerting #toast {
+    top: 80px;
+  }
+
   #app.build-collapsed #placebar {
     bottom: calc(56px + var(--safe-b));
   }
@@ -1462,5 +1533,66 @@ input {
   background: rgba(32, 22, 14, 0.92);
   border: 1px solid rgba(242, 184, 75, 0.35);
   text-align: left;
+}
+
+/* The guided-start choice on the title screen. */
+label.check,
+.card label.check {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+label.check input {
+  width: auto;
+  margin-top: 3px;
+}
+
+label.check small {
+  display: block;
+  opacity: 0.7;
+}
+
+/* A story event with something to see: the card sits low over the map. */
+#modal.over-map {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background: linear-gradient(180deg, transparent 45%, rgba(8, 6, 4, 0.55));
+  backdrop-filter: none;
+  padding-bottom: calc(16px + var(--safe-b));
+}
+
+/* The words scroll; the buttons always show. */
+#modal.over-map .event {
+  max-height: 48%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#modal.over-map .event .body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px 18px 16px;
+}
+
+#modal.over-map .event .text {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 14px;
+}
+
+#modal.over-map .event .choices {
+  flex: none;
+}
+
+#modal.over-map .event .art {
+  display: none;
 }
 

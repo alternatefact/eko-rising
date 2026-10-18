@@ -51,6 +51,7 @@
 
       <section id="panel" hidden></section>
 
+      <div id="alert" role="status" hidden></div>
       <div id="placebar" hidden>
         <span id="place-msg"></span>
         <button id="place-ok" class="btn primary">✓ Place</button>
@@ -89,6 +90,7 @@
               <label>Wife <input id="ng-spouse" maxlength="20" value="Àdùkẹ́" /></label>
               <label>Settlement <input id="ng-name" maxlength="24" value="Èkó" /></label>
               <label>Map seed <input id="ng-seed" inputmode="numeric" placeholder="random" /></label>
+              <label class="check"><input type="checkbox" id="ng-guide" checked /> <span>Guided start, step by step <small>(untick to build freely from the first day)</small></span></label>
               <div class="row">
                 <button id="ng-start" class="btn primary big">Begin in Lagos</button>
                 <button id="ng-continue" class="btn big" hidden>Continue</button>
@@ -98,23 +100,25 @@
             </div>
             <div class="card">
               <h2>The map of Nigeria</h2>
-              <p class="muted">Chapter one is Lagos. New states open in future updates.</p>
+              <p class="muted">Chapter one is Lagos. Break the host of Benin there to open Ogun State; more states open in future updates.</p>
               <div id="nigeria"></div>
             </div>
           </div>
           <details class="howto">
             <summary>How to play</summary>
             <ul>
-              <li><b>The guide</b> at the top left walks you through the first days, one step at a time. Nothing moves on until you have done what it asks.</li>
+              <li><b>The guide</b> at the top left walks you through the first days, one step at a time. Nothing moves on until you have done what it asks. Untick <i>Guided start</i> to build freely from the first day.</li>
               <li><b>Wood first:</b> tap the founder, then a tree, and he fells it and carries the planks home. Wood sheds, hunters and farms each take their own hands. Trees are walls: clear them to open ground and paths.</li>
               <li><b>Newcomers</b> come when your people are fed and happy and there are beds. They sit at the campfire until there is work. Each new house brings two.</li>
               <li><b>Building:</b> nothing builds itself. Whoever sits by the fire (and the founder, when he is free) carries the materials over and puts each building up, stage by stage. Tap a worker, then a building site, to send them to help.</li>
               <li><b>Moving people:</b> tap a worker, then the workplace you want them at. They change into work clothes, then walk there. Tap a woodcutter, then a tree, to choose where he cuts.</li>
               <li><b>Explore</b> with scouts. Other peoples may be friendly — or strong enough to wipe out your soldiers. Befriend them, make them pay tribute, or conquer them and take their wealth.</li>
-              <li><b>History</b> arrives when you are ready for it: Benin, the Portuguese, the French, the British. You decide what happens.</li>
+              <li><b>History</b> arrives when you are ready for it: Benin, the Portuguese, the French, the British. You decide what happens. Defy Benin, or buy time with gifts, and the Oba's host of fifty gathers at the far end of the land: break it to win Lagos and open Ogun State.</li>
+              <li><b>Gathering point:</b> 🚩 in the army panel or a Guard House plants a flag where your army gathers. New soldiers walk to it, and <i>Go to the flag</i> calls everyone there.</li>
+              <li><b>Full stores:</b> a warning at the top tells you when there is no room left. Workers wait at their workplaces with their loads until you build another Storage Floor, granary or storehouse.</li>
               <li><b>Soldiers:</b> choose <i>Stand your ground</i> or <i>Fight any close by</i>. Fighting soldiers go for enemies, tents and huts that come near. On a phone, press ⬚ Select and drag a box round the soldiers you want, or tap them one by one.</li>
               <li><b>Seeing behind things:</b> ⟲ ⟳ beside the map turn the view a quarter turn (Q and E on a keyboard), 🌳 makes the trees see-through (T), and ⌂ brings you back to the village (H). Trees in front of whatever you have selected fade by themselves. While you build a fence, every gap still open is marked in red, even behind the trees.</li>
-              <li><b>Saving:</b> 💾 at the top saves in one of three slots; the game also saves itself every minute. Save to a file to keep a game safe or carry on on another device.</li>
+              <li><b>Saving:</b> 💾 at the top saves in one of three slots; the game also saves itself every minute. The ☰ menu has Save game and Load game. Save to a file to keep a game safe or carry on on another device.</li>
               <li><b>Controls:</b> drag to move the map, pinch or scroll to zoom. Tap to select. With soldiers selected, tap the ground to move or an enemy to attack. On a computer: right-click to command, Shift-drag to box-select, WASD to scroll. The game runs at a walking pace; press the speed button for 2× or 3×.</li>
             </ul>
           </details>

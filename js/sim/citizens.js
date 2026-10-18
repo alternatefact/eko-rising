@@ -542,7 +542,7 @@ function deliver(st, c) {
     c.timer = 3;
     const kind = RESOURCES[c.carry.r].kind;
     const what = RESOURCES[c.carry.r].name.toLowerCase();
-    if (st.era < 1) notifyOnce(st, `full-${kind}`, 150, `📦 No room left for ${what} on your storage floor. Build another Storage Floor beside it.`, 'bad');
+    if (st.era < 1) notifyOnce(st, `full-${kind}`, 150, `📦 Your storage floor is full: no room for more ${what}. Workers will wait at their workplaces with their loads. Build another Storage Floor.`, 'bad');
     else notifyOnce(st, `full-${kind}`, 150, `📦 Your ${kind === 'food' ? 'granaries are' : 'storehouses are'} full. Build another ${kind === 'food' ? 'granary' : 'storehouse'} or storage floor${kind === 'food' ? '' : ', or sell at the market'}.`, 'bad');
     return false;
   }
@@ -550,6 +550,27 @@ function deliver(st, c) {
   c.carry.n -= n;
   if (c.carry.n <= 0.01) c.carry = null;
   return !c.carry;
+}
+
+// Who is held up because the stores are full, and with what, for the
+// warning on screen.
+export function storageHeldUp(st) {
+  let n = 0;
+  let food = false;
+  const goods = new Set();
+  for (const c of st.citizens) {
+    if (c.dead || c.stranger) continue;
+    const held = (c.state === 'holdload' || c.state === 'storewait') && c.carry && roomFor(st, c.carry.r) < 1;
+    const job = c.job ? st.byId.get(c.job) : null;
+    const crafting = c.state === 'craft' && c.status === 'Storehouse full';
+    if (!held && !crafting) continue;
+    n++;
+    const r = held ? c.carry.r : BUILDINGS[job?.type]?.job?.product;
+    if (!r) continue;
+    if (RESOURCES[r].kind === 'food') food = true;
+    else goods.add(r);
+  }
+  return n ? { n, food, goods: [...goods] } : null;
 }
 
 // --- Resource sources ----------------------------------------------------------
@@ -1054,6 +1075,14 @@ export function updateCitizen(st, c, dt) {
           afterDelivery(st, c, job, def);
           return;
         }
+        // The stores are full: rather than hang about the storage floor, go
+        // back to work and wait there with the load until there is room.
+        if (roomFor(st, c.carry.r) < 1 && findStore(st, c.carry.r, c.x, c.y)) {
+          c.state = 'holdload';
+          c.timer = 4;
+          if (job) walkTo(st, c, at(job).x, at(job).y);
+          return;
+        }
         const store = st.byId.get(c.storeId);
         if (store && !store.dead && Math.hypot(c.x - at(store).x, c.y - at(store).y) < 2.5) {
           if (deliver(st, c)) afterDelivery(st, c, job, def);
@@ -1061,6 +1090,18 @@ export function updateCitizen(st, c, dt) {
           headToStore(st, c);
         }
       }
+      return;
+    }
+    case 'holdload': {
+      if (c.path) {
+        stepMove(st, c, dt, CARRY_SPEED);
+        return;
+      }
+      c.timer -= dt;
+      if (c.timer > 0) return;
+      c.timer = 4;
+      if (!c.carry) afterDelivery(st, c, job, def);
+      else if (roomFor(st, c.carry.r) >= 1) headToStore(st, c);
       return;
     }
 
@@ -1412,6 +1453,7 @@ export function citizenStatus(st, c) {
     process: job?.type === 'brickyard' ? 'Moulding mud bricks' : 'Preparing goods',
     tostore: `Carrying ${c.carry ? `${Math.round(c.carry.n)} ${c.carry.r === 'wood' ? 'planks' : RESOURCES[c.carry.r].name.toLowerCase()}` : 'it'} to the ${st.byId.get(c.storeId)?.type === 'stockpile' ? 'storage floor' : 'store'}`,
     storewait: 'Waiting for storage space',
+    holdload: `Storage is full: waiting at ${job ? 'work' : 'a distance'} with ${c.carry ? `${Math.round(c.carry.n)} ${c.carry.r === 'wood' ? 'planks' : RESOURCES[c.carry.r].name.toLowerCase()}` : 'the load'}`,
     farm: 'Tending the yam mounds',
     harvest: 'Harvesting',
     hunt: 'Searching for game',

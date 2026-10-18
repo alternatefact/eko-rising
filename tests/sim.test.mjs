@@ -766,3 +766,144 @@ import * as citizensMod from '../js/sim/citizens.js';
 function awaitCitizens() {
   return citizensMod;
 }
+
+// --- The host of Benin, the gathering point, full stores, Ogun ------------------------
+
+test('defying Benin gathers a host of fifty at the far end of the land; it marches later, and breaking it opens Ogun', () => {
+  const st = fresh(5);
+  st.era = 1;
+  st.res.cowries = 200;
+  const home = st.buildings.find((b) => b.type === 'compound');
+  st.eventQueue.push({ id: 'benin' });
+  sim.chooseEvent(st, 2); // Èkó bows to no one
+  assert.ok(st.flags.hostPlanned);
+  advance(st, 24 * 5);
+  const f = st.factionMap.benin_host;
+  assert.ok(f, 'the host has gathered');
+  const host = () => st.units.filter((u) => u.owner === f.id && !u.dead);
+  assert.ok(host().length >= 50, `${host().length} warriors`);
+  assert.ok(Math.hypot(f.x - home.x, f.y - home.y) > 40, 'far from home');
+  assert.ok(st.buildings.some((b) => b.owner === f.id && b.type === 'edochief'), 'the war chief’s tent');
+  assert.ok(st.explored[f.y * st.W + f.x], 'the player is shown the host');
+  assert.equal(f.marching, undefined, 'not marching yet');
+  const march = st.scheduled.find((s) => s.id === 'benin_march');
+  assert.ok(march && march.day - st.time.day >= 10, 'time to prepare before the march');
+  // Until then they wait in their camp.
+  advance(st, 24 * 4);
+  assert.ok(host().every((u) => Math.hypot(u.x - f.x, u.y - f.y) < 16), 'still at their camp');
+  // The day comes: they march.
+  while (st.time.day < march.day) advance(st, 24);
+  assert.ok(f.marching, 'the host marches');
+  assert.ok(host().every((u) => u.order?.t === 'raid'));
+  // Every warrior falls: Lagos is won and Ogun opens.
+  const { damage } = awaitImport();
+  assert.equal(st.eventQueue[0]?.id, 'benin_march_seen', 'the player is shown the march');
+  sim.chooseEvent(st, 0);
+  for (const u of host()) damage(st, null, u, 1e6);
+  for (let k = 0; k < 40 && !f.beaten; k++) sim.tick(st);
+  assert.ok(f.beaten);
+  assert.equal(st.eventQueue[0]?.id, 'benin_beaten');
+  sim.chooseEvent(st, 0);
+  assert.ok(st.flags.beninBeaten && st.flags.ogunOpen && st.flags.goOgun);
+});
+
+test('sending gifts buys more time before the host marches', () => {
+  const a = fresh(6);
+  const b = fresh(6);
+  for (const [st, choice] of [[a, 1], [b, 2]]) {
+    st.era = 1;
+    st.res.cowries = 200;
+    st.eventQueue.push({ id: 'benin' });
+    sim.chooseEvent(st, choice);
+    advance(st, 24 * 5);
+  }
+  const days = (st) => st.scheduled.find((s) => s.id === 'benin_march').day;
+  assert.ok(days(a) > days(b), 'gifts: a later march');
+});
+
+test('a gathering point: new soldiers walk to it, and the army can be called there', () => {
+  const st = fresh(30);
+  st.migrateT = 1e9;
+  const home = st.buildings.find((b) => b.type === 'compound');
+  // Not somewhere nobody has seen.
+  const dark = st.explored.findIndex((v, i) => !v && WALK[st.terrain[i]]);
+  assert.equal(sim.setRally(st, dark % st.W, Math.floor(dark / st.W)).ok, false);
+  let spot = null;
+  for (let r = 4; r < 10 && !spot; r++) {
+    for (let dx = -r; dx <= r && !spot; dx++) {
+      const x = home.x + dx;
+      const y = home.y + r;
+      if (sim.setRally(st, x, y).ok) spot = st.rally;
+    }
+  }
+  assert.ok(spot, 'a gathering point on open ground');
+  st.res.wood = 200;
+  assert.ok(place(st, 'warcamp'));
+  finish(st);
+  const camp = st.buildings.find((b) => b.type === 'warcamp');
+  assert.ok(sim.train(st, camp.id, 'spearman').ok);
+  advance(st, 60);
+  const u = st.units.find((x) => x.owner === 'player' && x.type === 'spearman');
+  assert.ok(u, 'trained');
+  assert.ok(Math.hypot(u.x - spot.x, u.y - spot.y) < 3, 'the recruit walked to the flag');
+  u.x = home.x;
+  u.y = home.y + 2;
+  u.order = { t: 'guard', x: u.x, y: u.y };
+  assert.ok(sim.gatherArmy(st).ok);
+  advance(st, 20);
+  assert.ok(Math.hypot(u.x - spot.x, u.y - spot.y) < 2, 'called back to the flag');
+  sim.setRally(st, null);
+  assert.equal(st.rally, null);
+});
+
+test('when the stores are full, workers wait at their workplace with their loads instead of at the store', () => {
+  const st = fresh(12);
+  st.migrateT = 1e9;
+  const { spawnStranger } = awaitEconomy();
+  const { storageHeldUp } = awaitCitizens();
+  const a = spawnStranger(st, null, undefined, undefined, { near: true, quiet: true });
+  advance(st, 40);
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  finish(st);
+  advance(st, 20);
+  const shed = st.buildings.find((b) => b.type === 'woodcutter');
+  assert.equal(a.job, shed.id);
+  st.res.wood = st.cap.goods;
+  // Their planks reach the full store.
+  a.carry = { r: 'wood', n: 4 };
+  a.state = 'storewait';
+  a.timer = 0;
+  a.path = null;
+  advance(st, 1);
+  assert.equal(a.state, 'holdload');
+  assert.deepEqual(storageHeldUp(st), { n: 1, food: false, goods: ['wood'] });
+  advance(st, 40);
+  const c = { x: shed.x + shed.w / 2, y: shed.y + shed.h / 2 };
+  assert.ok(Math.hypot(a.x - c.x, a.y - c.y) < 3, 'waiting at the wood shed');
+  assert.equal(a.state, 'holdload');
+  // Room again: off to the store with the load.
+  st.res.wood = 0;
+  advance(st, 60);
+  assert.notEqual(a.state, 'holdload');
+  assert.ok(st.res.wood >= 4, 'the planks were stored');
+  assert.equal(storageHeldUp(st), null);
+});
+
+test('without the guide you start free, and Ogun starts with settlers, soldiers and no guide', () => {
+  const st = sim.newGame({ seed: 9, guide: false });
+  assert.ok(st.tut.done && st.flags.openingDone && st.flags.freeStart);
+  assert.equal(sim.storyRunning(st), false, 'no guided steps');
+  assert.ok(sim.newGame({ seed: 9 }).tut.done !== true, 'the guided start still has its guide');
+  const og = sim.newGame({ region: 'ogun', seed: 9, guide: false });
+  assert.equal(og.regionId, 'ogun');
+  assert.equal(og.era, 1);
+  assert.ok(og.tut.done);
+  assert.equal(og.units.filter((u) => u.owner === 'player' && u.type === 'spearman').length, 6);
+  assert.ok(og.buildings.some((b) => b.type === 'warcamp' && b.owner === 'player' && b.built >= 1));
+  assert.deepEqual(og.eventQueue.map((e) => e.id), ['ogun_intro']);
+  for (const f of og.factions) {
+    let ok = false;
+    for (let dy = -3; dy <= 3 && !ok; dy++) for (let dx = -3; dx <= 3 && !ok; dx++) ok = !!og.reach[(f.y + dy) * og.W + f.x + dx];
+    assert.ok(ok, `${f.id} can be reached`);
+  }
+});

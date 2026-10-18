@@ -5,12 +5,12 @@ import { ERAS } from '../data/eras.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { notify } from './entities.js';
 import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStranger } from './economy.js';
-import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction } from './factions.js';
+import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction, gatherHost, marchHost } from './factions.js';
 import { sendShip, launchWarBand, armyPower, declareWar } from './military.js';
 import { findLanding } from './world.js';
 import { spawnPack, herdNear } from './animals.js';
 import { takeIn, assignTo } from './citizens.js';
-import { revealAround } from './world.js';
+import { revealAround, addVista } from './world.js';
 import { DAY } from './economy.js';
 
 // Helpers handed to region event code, so regions never reach into internals.
@@ -21,6 +21,8 @@ export function makeApi(st) {
     mood: (label, v, days) => addMood(st, label, v, days),
     schedule: (id, days) => st.scheduled.push({ id, day: st.time.day + days }),
     queue: (id, data = {}) => st.eventQueue.push({ id, ...data }),
+    // Show the player a place for a while, as if from a lookout.
+    vista: (x, y, r, seconds) => addVista(st, x, y, r, seconds),
     ship: (power, purpose, payload) => sendShip(st, power, purpose, payload),
     landing: (power, troops, opts = {}) => {
       const home = st.buildings.find((b) => b.type === 'palace' || b.type === 'compound');
@@ -61,6 +63,9 @@ export function makeApi(st) {
       return f;
     },
     war: (fid) => st.factionMap[fid] && declareWar(st, st.factionMap[fid], false),
+    // A great host gathering at the far end of the land, and its march.
+    host: (def) => gatherHost(st, def),
+    march: (fid) => marchHost(st, st.factionMap[fid]),
     power: () => armyPower(st),
     unifiedCount: () => unified(st).length,
     majorsCount: () => majors(st).length,
