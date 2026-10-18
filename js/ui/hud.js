@@ -519,7 +519,7 @@ export class Hud {
       <div class="choices"><button class="choice" data-end="continue"><b>Keep building</b><span>Your city is yours to grow.</span></button>
       <button class="choice" data-end="feedback"><b>💬 Tell us what you thought</b><span>A few words help us make the next chapter better.</span></button>
       <button class="choice" data-end="title"><b>Back to the map of Nigeria</b></button></div>
-      <p class="owner">Eko Rising — an original game by alternatefact Studios.</p></div></div>`;
+      <p class="owner">Naija Rising — an original game by alternatefact Studios.</p></div></div>`;
   }
 
   defeatHtml() {
@@ -1074,7 +1074,7 @@ export class Hud {
         <button class="btn" data-act="title">🏠 Title screen</button>
       </div>
       <p class="muted">The game also saves itself every minute. Keys: WASD/arrows scroll, +/− zoom, Space pause, 1–3 speed, G select army, Esc cancel, H go home. Tap one of your people, then a tree or a workplace, to give orders.</p>
-      <p class="owner">Eko Rising is an original game by <a href="https://alternatefactstudios.com/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
+      <p class="owner">Naija Rising is an original game by <a href="https://alternatefactstudios.com/">alternatefact Studios</a>. © 2026 alternatefact Studios. All rights reserved.</p>
       ${this.panel?.data === 'log' ? `<h4>History</h4><div class="list">${this.st.log.slice().reverse().map((m) => `<div class="item"><span>${esc(m.text)}</span><span class="muted">d${m.day + 1}</span></div>`).join('')}</div>` : ''}`;
   }
 

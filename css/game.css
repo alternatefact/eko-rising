@@ -1008,6 +1008,17 @@ input {
   color: var(--gold);
 }
 
+#title .subtitle {
+  margin: 0 0 14px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: clamp(17px, 3.4vw, 26px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd9a0;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
 .tagline {
   max-width: 560px;
   font-size: 17px;

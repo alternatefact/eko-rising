@@ -9,7 +9,7 @@
 
 import { ERAS, population, currentStep } from '../sim/index.js';
 
-export const GAME_VERSION = '2026.10.18';
+export const GAME_VERSION = '2026.10.18.2';
 const KEY = 'eko-rising:feedback';
 const STUDIO_EMAIL = 'Alternatefact2@gmail.com';
 const ASK_AFTER_MINUTES = 25;
@@ -123,7 +123,7 @@ export class Feedback {
     const stars = STARS.map((label, k) => `<button type="button" class="fb-star" data-star="${k + 1}" aria-label="${k + 1} of 5: ${esc(label)}" aria-pressed="false">★</button>`).join('');
     this.el.innerHTML = `<div class="fb-card" role="dialog" aria-modal="true" aria-labelledby="fb-title">
       <div class="panel-head"><h2 id="fb-title">💬 Tell us what you think</h2><button type="button" class="close" data-fb="close" aria-label="Close">✕</button></div>
-      <p class="muted">Your message goes ${endpoint() ? 'straight' : 'by email'} to the alternatefact Studios team. A few words help us make Eko Rising better.</p>
+      <p class="muted">Your message goes ${endpoint() ? 'straight' : 'by email'} to the alternatefact Studios team. A few words help us make Naija Rising better.</p>
       <form novalidate>
         <div class="fb-rate"><span class="fb-q">How are you enjoying it?</span><div class="fb-stars" role="group" aria-label="Rating">${stars}</div><span class="fb-star-label muted"></span></div>
         <label class="fb-field"><span class="fb-q">What did you enjoy?</span><textarea name="liked" rows="2" maxlength="2000"></textarea></label>
@@ -243,7 +243,7 @@ export class Feedback {
   // Also where a set server could not be reached.
   emailView(data, failed) {
     const stars = data.rating ? `${'★'.repeat(data.rating)}${'☆'.repeat(5 - data.rating)}` : '';
-    const subject = `Eko Rising feedback${stars ? `: ${stars}` : ''}`;
+    const subject = `Naija Rising feedback${stars ? `: ${stars}` : ''}`;
     const answers = [
       data.liked && `Enjoyed: ${data.liked}`,
       data.problems && `Confusing, too hard or broken: ${data.problems}`,
@@ -312,7 +312,7 @@ export class Feedback {
     const text = {
       opening: 'You have made it through the opening. How was it? A few words help us a lot.',
       chapter: 'A chapter won! Tell us what you thought of it.',
-      time: 'Enjoying Eko Rising? Tell us what you think: two minutes helps us a lot.',
+      time: 'Enjoying Naija Rising? Tell us what you think: two minutes helps us a lot.',
     }[why];
     this.askEl.innerHTML = `<span>🙏 ${esc(text)}</span><button type="button" class="btn primary" data-fb="open">💬 Give feedback</button><button type="button" class="btn" data-fb="later" aria-label="Not now">Not now</button>`;
     this.askEl.hidden = false;

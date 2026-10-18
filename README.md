@@ -1,6 +1,6 @@
-# Eko Rising
+# Naija Rising — Build your Nigeria
 
-Build Lagos from scratch. Start as a farmer and his wife by the lagoon, grow a
+Build your Nigeria, one home state at a time. Chapter one is Èkó: build Lagos from scratch. Start as a farmer and his wife by the lagoon, grow a
 yam farm into a compound, a town, a port city and a modern metropolis, and decide
 how the history of Nigeria goes: trade with the Portuguese or send them away,
 stand up to Benin and the British, and unite the peoples of the land into
@@ -8,6 +8,12 @@ stand up to Benin and the British, and unite the peoples of the land into
 
 An original game by alternatefact Studios. For now the game is its own
 project, kept apart from the studio website.
+
+The game was called Eko Rising until October 2026. The plan for growing it
+into Naija Rising, and the order to build it in, is in [DESIGN.md](DESIGN.md):
+read it before starting any work. Inside the code the game keeps its old id,
+`eko-rising` (save slots, settings, feedback history and save files all use
+it), so nothing a player has saved is lost.
 
 ## How it plays
 
@@ -190,10 +196,13 @@ model in `js/render3d/` or the list of looks in `tools/bake/bake.js`.
 index.html    the page; css/game.css styles it
 js/main.js    boots the game, the loop, saving, orders from taps and clicks
 js/sim/       the simulation, with no DOM: economy, citizens, military, factions, trade,
-              events, story.js (the guided opening, step by step)
+              events, story.js (the guided opening, step by step), migrate.js (save
+              versions, and the steps that bring an older save up to date)
 js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
-js/regions/   one file per state; lagos.js is chapter one, ogun.js chapter two
+js/regions/   one file per state; lagos.js is chapter one, put together from the files
+              in lagos/ (terrain, factions, events, story, objectives, and common.js
+              for what they share); ogun.js is chapter two
 js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sheets,
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
@@ -207,7 +216,8 @@ art/          story art, portraits, age pictures; art/iso the baked sprite sheet
               the rest by the baker); art/people the 3D characters and their shared
               animations (*.glb), used by the baker
 brand/        studio logo and favicon
-tests/        headless simulation tests and a scripted player
+tests/        headless simulation tests, a scripted player, the 200-day run of every
+              start (long.test.mjs) and old saves that must keep loading (fixtures/)
 ```
 
 The art in `art/` was made with Higgsfield and is listed in `js/data/art.js`;
@@ -224,13 +234,21 @@ opens when the host of Benin is broken).
 
 The tests run the simulation headless, including the whole guided opening
 played step by step (`tests/story.mjs`) and a scripted player that plays
-through the ages (`tests/bot.mjs`). They need Node 20 or newer and nothing else:
+through the ages (`tests/bot.mjs`). `tests/long.test.mjs` plays every start
+for 200 game days on a fixed seed and fails on any error or broken state, and
+`tests/save.test.mjs` opens a real save from an older version of the game. They
+need Node 20 or newer and nothing else:
 
 ```bash
 npm test
 ```
 
 They also run on every push.
+
+Every save carries a version number (`SAVE_VERSION` in `js/sim/migrate.js`).
+When the shape of the game state changes, raise it, add the step that upgrades
+a save from the version before, and keep an old save in `tests/fixtures/` to
+prove it still loads.
 
 ## Publishing
 
@@ -246,8 +264,8 @@ and is no longer updated from here.
 
 ## Ownership
 
-© 2026 alternatefact Studios. All rights reserved. Eko Rising, its story, art
-and code are the property of alternatefact Studios.
+© 2026 alternatefact Studios. All rights reserved. Naija Rising (formerly Eko
+Rising), its story, art and code are the property of alternatefact Studios.
 
 three.js (used by the sprite baker) is © its authors and used under the MIT
 License; see `js/vendor/three.LICENSE`.

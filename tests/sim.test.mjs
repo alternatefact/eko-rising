@@ -1,4 +1,4 @@
-// Headless tests for Eko Rising's simulation. Run with:
+// Headless tests for Naija Rising's simulation. Run with:
 //   npm test   (or: node --test tests/*.test.mjs)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

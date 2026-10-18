@@ -198,7 +198,7 @@ class Game {
     const text = JSON.stringify({ game: 'eko-rising', meta: saveMeta(this.st), data: sim.serialize(this.st) });
     // Plain letters in the file name: Èkó becomes eko.
     const town = this.st.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    const filename = `eko-rising-${town || 'town'}-day-${this.st.time.day + 1}.json`;
+    const filename = `naija-rising-${town || 'town'}-day-${this.st.time.day + 1}.json`;
     // Inside claude.ai the page asks the viewer to accept the file.
     const downloads = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
     if (downloads) {
@@ -232,7 +232,7 @@ class Game {
       this.save('auto');
       this.hud.toast(`📂 Opened ${file.name}: ${this.st.name}, day ${this.st.time.day + 1}.`);
     } catch (err) {
-      this.hud.toast(`That file is not an Eko Rising save${err?.message ? ` (${err.message})` : ''}.`);
+      this.hud.toast(`That file is not a Naija Rising save${err?.message ? ` (${err.message})` : ''}.`);
     }
   }
 
