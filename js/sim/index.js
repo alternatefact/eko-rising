@@ -27,6 +27,7 @@ import { updateAnimal, spawnAnimals, replenishAnimals } from './animals.js';
 import { updateUnit, updateTowers, updateTraining, updateShips, updateExpeditions, train as trainUnit, isHostileOwner } from './military.js';
 import { initFaction, updateFactions, dailyFactions, updatePois, diplomacy } from './factions.js';
 import { checkEvents, objectives, chooseEvent as choose, advanceEra as advance, proclaim as proclaimNation } from './events.js';
+import { SAVE_VERSION, migrate } from './migrate.js';
 import { updatePort, dailyTrade, expireAllies, hire as hireFighter, barter as barterWith, sellToShip, buyFromShip } from './trade.js';
 
 export const STEP = 0.05;
@@ -42,7 +43,7 @@ export function newGame(opts = {}) {
   const world = generateWorld(region, seed);
   const n = world.W * world.H;
   const st = {
-    version: 4,
+    version: SAVE_VERSION,
     regionId: region.id,
     region,
     seed,
@@ -968,8 +969,10 @@ const CTOR = { terrain: Uint8Array, trees: Uint8Array, felled: Uint8Array, featu
 
 export function deserialize(json) {
   const data = JSON.parse(json);
+  if (!data || typeof data !== 'object' || !('regionId' in data) || !('version' in data)) throw new Error('There is no saved game in it.');
   const region = REGIONS[data.regionId];
-  if (!region || data.version !== 4) throw new Error('This save is from an older version of the game. Please start a new game.');
+  if (!region) throw new Error('This save is from a land this version of the game does not have.');
+  migrate(data);
   const st = { ...data };
   delete st.arrays;
   delete st.rngState;
@@ -989,16 +992,6 @@ export function deserialize(json) {
   st.factionMap = {};
   for (const f of st.factions) st.factionMap[f.id] = f;
   st.dirty = { territory: false, jobs: false, cleanup: false, reach: false, build: true };
-  // Saves from before builders: anything still going up is finished by them.
-  for (const b of st.buildings) {
-    if (b.rising !== undefined) continue;
-    b.rising = b.built < 1;
-    b.work = buildWork(BUILDINGS[b.type]);
-    b.builders = [];
-    b.haul = {};
-    b.got = 0;
-    b.need = 0;
-  }
   st.territoryVersion = 0;
   st.fogVersion = 0;
   st.visVersion = 0;
@@ -1009,5 +1002,5 @@ export function deserialize(json) {
   return st;
 }
 
-export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK, fenceGaps };
+export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK, fenceGaps, SAVE_VERSION };
 export { currentStep, stepText, storyRunning } from './story.js';
