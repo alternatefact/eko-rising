@@ -178,6 +178,16 @@ export function botTick(bot) {
   for (const b of st.buildings) {
     if (b.owner === 'player' && !b.dead && b.built >= 1 && !b.repairing && (b.wrecked || b.hp < b.maxHp * 0.7)) sim.repair(st, b.id);
   }
+  // Planks keep everything going. Nobody leaves a job by themselves, so when
+  // every wood shed stands empty, planks run short and there is food enough,
+  // someone is moved from the food to the axe, as a player would.
+  const foodNow = st.res.yam + st.res.fish + st.res.meat + st.res.garri;
+  const sheds = st.buildings.filter((b) => b.type === 'woodcutter' && b.owner === 'player' && !b.dead && b.built >= 1 && !b.paused);
+  if (st.res.wood < 15 && foodNow > sim.population(st) * 4 && sheds.length && sheds.every((b) => !b.workers.length)) {
+    const shed = sheds[0];
+    const from = shed && st.citizens.find((c) => !c.dead && !c.special && ['farm', 'hunter', 'fisher'].includes(st.byId.get(c.job)?.type));
+    if (from) sim.assignWorker(st, from.id, shed.id);
+  }
 
   if (bot.step < BUILD_ORDER.length) {
     const [type, pref] = BUILD_ORDER[bot.step];
