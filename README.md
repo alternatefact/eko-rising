@@ -116,9 +116,30 @@ the Lagos stage and opens **Ogun State** on the map of Nigeria.
 
 Ogun is the second land: inland forest and savanna along the Ogun and Yewa
 rivers, the Ẹ̀gbá towns under Olúmọ Rock, the Ọ̀wu, the Ìjẹ̀bú of Ìjẹ̀bú-Òde,
-the Rẹ́mọ and the Yewa, and two robber camps. There is no guide there: the
-founders come north with settlers, spearmen, a Guard House and two houses.
-Setting out keeps the Lagos game in its own save.
+the Rẹ́mọ and the Yewa, and two robber camps. There is no guide there. The
+founders start again from scratch, with four families and four spearmen, in
+the first age, but with what they learned in Lagos: everything Lagos could
+build or train can be built and trained in Ogun from the first day, the tools,
+nets and cassava come along, the calendar runs on, and every age Lagos reached
+needs fewer people and half the cost the second time. The game keeps a record
+of what each Lagos game has learned (it only grows), and an Ogun game started
+from the map of Nigeria uses it. Setting out keeps the Lagos game in its own
+save.
+
+Ogun's history brings its own challenges, one band at a time and each sized
+to the town: kidnappers from the robbers' camp; the Alaafin of Ọ̀yọ́'s ilari
+demanding tribute, whose horsemen ride out of the north if you refuse, and
+Lísàbí, who asks you to rise with the Ẹ̀gbá against them (around 1775); the
+Ìjẹ̀bú closing the roads, and their gunmen if you force them; refugees from
+Ọ̀wu; Abẹ́òkúta founded under the rock; Madam Tinúbú, a trader from Lagos,
+who sends gunmen and supplies when war comes; and last the host of Dahomey,
+gathering in the west with its women soldiers, the Agojie, and marching when
+it is ready. Breaking it wins Ogun. Each story ends with a note on what
+happened in the history you know.
+
+The new fighters (Ọ̀yọ́ horsemen, Ìjẹ̀bú gunmen, Agojie and Dahomey
+musketeers) have no 3D models yet: until theirs are baked they wear the
+nearest existing one, washed in their own colours.
 
 The view is a fixed isometric picture that can be turned in quarter turns
 (⟲ ⟳ beside the minimap, or Q and E), so the far side of a wood, a fence or a
@@ -205,7 +226,7 @@ js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, names, the art catalogue
 js/regions/   one file per state; lagos.js is chapter one, put together from the files
               in lagos/ (terrain, factions, events, story, objectives, and common.js
-              for what they share); ogun.js is chapter two
+              for what they share); ogun.js is chapter two, from ogun/ the same way
 js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sheets,
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
@@ -227,8 +248,9 @@ The art in `art/` was made with Higgsfield and is listed in `js/data/art.js`;
 anything missing from that list falls back to emoji art or textures drawn in
 code.
 
-To open another state, copy `js/regions/ogun.js` (terrain template, the kit the
-founders bring, peoples, places to explore, events, goals), register it in
+To open another state, copy `js/regions/ogun.js` and `js/regions/ogun/`
+(terrain template, the kit the founders bring, what they inherit from the land
+they came from, peoples, places to explore, events, goals), register it in
 `js/regions/index.js`, and give its entry in `STATES` a region id. A state
 listed in `LOCKED` stays shut until a flag in another chapter opens it (Ogun
 opens when the host of Benin is broken).
@@ -239,7 +261,8 @@ The tests run the simulation headless, including the whole guided opening
 played step by step (`tests/story.mjs`) and a scripted player that plays
 through the ages (`tests/bot.mjs`). `tests/long.test.mjs` plays every start
 for 200 game days on a fixed seed and fails on any error or broken state, and
-`tests/save.test.mjs` opens a real save from an older version of the game. They
+`tests/save.test.mjs` opens a real save from an older version of the game,
+and `tests/ogun.test.mjs` plays Ogun's stories and its start from Lagos. They
 need Node 20 or newer and nothing else:
 
 ```bash

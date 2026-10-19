@@ -95,8 +95,21 @@ function pitchTents(st, f) {
 // --- A host gathering for war ------------------------------------------------------
 
 // The far end of the land from home that can be walked to, clear of other
-// peoples and the water: where a great army can gather unseen.
-function farSpot(st) {
+// peoples and the water: where a great army can gather unseen. `side`
+// ('north', 'south', 'east' or 'west') keeps to that third of the land, for
+// an enemy that comes from that way.
+const SIDES = {
+  north: (x, y, W, H) => y < H / 3,
+  south: (x, y, W, H) => y > (H * 2) / 3,
+  west: (x, y, W, H) => x < W / 3,
+  east: (x, y, W, H) => x > (W * 2) / 3,
+};
+
+export function farSpot(st, side) {
+  return farSpotIn(st, SIDES[side]) || farSpotIn(st, null);
+}
+
+function farSpotIn(st, within) {
   const home = st.buildings.find((b) => b.type === 'compound' && b.owner === 'player' && !b.dead);
   const sx = home ? home.x + 1 : st.start.x;
   const sy = home ? home.y + 1 : st.start.y;
@@ -123,6 +136,7 @@ function farSpot(st) {
     const x = i % W;
     const y = (i / W) | 0;
     if (x < 7 || y < 7 || x >= W - 7 || y >= st.H - 7) continue;
+    if (within && !within(x, y, W, st.H)) continue;
     if (st.factions.some((f) => Math.hypot(f.x - x, f.y - y) < 11)) continue;
     let wet = false;
     for (let dy = -4; dy <= 4 && !wet; dy++) for (let dx = -4; dx <= 4 && !wet; dx++) if (isWater(st.terrain[(y + dy) * W + x + dx])) wet = true;
@@ -140,7 +154,7 @@ function farSpot(st) {
 // chief's, and the warriors drawn up in ranks in front of them. They do not
 // raid; they wait until they are sent (marchHost).
 export function gatherHost(st, def) {
-  const spot = farSpot(st);
+  const spot = farSpot(st, def.side);
   if (!spot) return null;
   // Ground cleared for the camp.
   for (let dy = -6; dy <= 8; dy++) {

@@ -3,9 +3,9 @@
 
 import { ERAS } from '../data/eras.js';
 import { BUILDINGS } from '../data/buildings.js';
-import { notify } from './entities.js';
+import { notify, createUnit } from './entities.js';
 import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStranger } from './economy.js';
-import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction, gatherHost, marchHost } from './factions.js';
+import { diplomacy, giftCost, unified, majors, subdued, STRENGTH, initFaction, gatherHost, marchHost, farSpot } from './factions.js';
 import { sendShip, launchWarBand, armyPower, declareWar } from './military.js';
 import { findLanding } from './world.js';
 import { spawnPack, herdNear } from './animals.js';
@@ -54,6 +54,34 @@ export function makeApi(st) {
       const f = st.factionMap[fid];
       if (!f) return [];
       return launchWarBand(st, fid, { x: f.x + 0.5, y: f.y + 0.5 }, types, opts);
+    },
+    // Riders or warriors of a power from beyond this land (the region's
+    // `foreign`), coming in from the far side of the land that way, and
+    // going back the way they came: { side, steal, patience, label, onDefeat }.
+    border: (power, types, opts = {}) => {
+      const spot = farSpot(st, opts.side);
+      if (!spot || !st.foreign[power]) return [];
+      st.foreign[power].hostile = true;
+      const at = { x: spot.x + 0.5, y: spot.y + 0.5 };
+      return launchWarBand(st, power, at, types, opts);
+    },
+    // Fighters sent to stand with you for `days`, then going home: from a
+    // people of the land (`from` is their id), or from a friend by name.
+    lend: (from, types, days, opts = {}) => {
+      const f = st.factionMap[from];
+      const home = st.buildings.find((b) => b.type === 'palace' && b.owner === 'player' && !b.dead) || st.buildings.find((b) => b.type === 'compound' && b.owner === 'player' && !b.dead);
+      const tx = home ? home.x + home.w / 2 : st.start.x;
+      const ty = home ? home.y + home.h + 2 : st.start.y;
+      return types.map((type) => {
+        const u = createUnit(st, type, Math.floor(f ? f.x : tx), Math.floor(f ? f.y : ty + 1), 'player', {
+          name: opts.name || `${f?.people || 'Allied'} warrior`,
+          order: { t: 'amove', x: tx + st.rng.range(-2, 2), y: ty + st.rng.range(-1, 2) },
+          cloth: opts.color || f?.color,
+        });
+        u.ally = from;
+        u.expires = st.time.t + DAY * days;
+        return u;
+      });
     },
     faction: (def, at) => {
       const i = findLanding(st, at[0] * st.W, at[1] * st.H, 0, null);
@@ -189,12 +217,20 @@ function meetEvent(st, f) {
 
 // --- Era advancement ---------------------------------------------------------------------
 
+// An age the founders already reached in the land they came from (see
+// st.legacy) comes quicker: fewer people and half the cost. Its other
+// demands (a palace, kingdoms subdued) are this land's to meet again.
 export function eraRequirements(st) {
   const next = ERAS[st.era + 1];
   if (!next) return null;
   const out = [];
   const req = next.req || {};
-  if (req.pop) out.push({ text: `Population ${req.pop}`, met: population(st) >= req.pop, have: population(st) });
+  const known = st.era + 1 <= (st.legacy?.era || 0);
+  const from = known ? st.legacy.land || 'your old home' : '';
+  const cost = known ? Object.fromEntries(Object.entries(next.cost || {}).map(([k, v]) => [k, Math.ceil(v / 2)])) : next.cost || {};
+  const need = known ? Math.ceil((req.pop || 0) * 0.6) : req.pop;
+  if (known) out.push({ text: `Your people reached this age in ${from} and know the way: fewer people and half the cost`, met: true });
+  if (need) out.push({ text: `Population ${need}`, met: population(st) >= need, have: population(st) });
   if (req.building) out.push({ text: `Build the ${BUILDINGS[req.building].name}`, met: hasBuilding(st, req.building) });
   for (const b of req.buildings || []) out.push({ text: `Build a ${BUILDINGS[b].name}`, met: hasBuilding(st, b) });
   if (req.flag === 'metEuropeans') out.push({ text: 'Make contact with the ships from across the sea', met: !!st.flags.metEuropeans });
@@ -202,14 +238,14 @@ export function eraRequirements(st) {
     const n = subdued(st).length;
     out.push({ text: `Subdue ${req.subdued} kingdom${req.subdued > 1 ? 's' : ''} — conquer them or make them pay tribute`, met: n >= req.subdued, have: n });
   }
-  out.push({ text: 'Pay the cost', met: canAfford(st, next.cost || {}), cost: next.cost });
-  return { next, reqs: out };
+  out.push({ text: 'Pay the cost', met: canAfford(st, cost), cost });
+  return { next, reqs: out, cost };
 }
 
 export function advanceEra(st) {
   const r = eraRequirements(st);
   if (!r || !r.reqs.every((q) => q.met)) return false;
-  spend(st, r.next.cost || {});
+  spend(st, r.cost);
   st.era++;
   st.time.year = Math.max(st.time.year, r.next.year);
   st.flags[`era${st.era}Day`] = st.time.day;

@@ -7,7 +7,7 @@ import { RESOURCES } from '../data/resources.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { UNITS, HIRES } from '../data/units.js';
 import { createUnit, notify, notifyOnce } from './entities.js';
-import { addRes, roomFor, armySize, armyCap, DAY } from './economy.js';
+import { addRes, roomFor, armySize, armyCap, knownEra, DAY } from './economy.js';
 import { sendShip } from './military.js';
 
 // What each foreign power's merchants buy (price paid per unit) and sell
@@ -186,7 +186,7 @@ export function hire(st, buildingId, hireId) {
   const h = HIRES.find((x) => x.id === hireId);
   if (!b || !h || !BUILDINGS[b.type].hires) return { ok: false, reason: 'You cannot hire here.' };
   if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
-  if (h.era > st.era) return { ok: false, reason: 'Not available in this age yet.' };
+  if (h.era > knownEra(st)) return { ok: false, reason: 'Not available in this age yet.' };
   if (armySize(st) >= armyCap(st)) return { ok: false, reason: 'Your army is at its limit. Build a Training Ground.' };
   if (st.res.cowries < h.cost) return { ok: false, reason: 'Not enough money.' };
   st.res.cowries -= h.cost;

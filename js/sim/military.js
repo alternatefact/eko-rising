@@ -8,7 +8,7 @@ import { createUnit, notify, notifyOnce, removeUnit, removeBuilding, removeCitiz
 import { goTo, stepMove } from './move.js';
 import { findPath } from '../world/path.js';
 import { distToRect, findLanding } from './world.js';
-import { spend, canAfford, armySize, armyCap, addMood, spawnStranger, DAY } from './economy.js';
+import { spend, canAfford, armySize, armyCap, addMood, spawnStranger, knownEra, DAY } from './economy.js';
 import { conquer } from './factions.js';
 
 // --- Who fights whom -----------------------------------------------------------
@@ -450,7 +450,7 @@ export function canTrain(st, b, type) {
   const def = UNITS[type];
   if (!BUILDINGS[b.type].trains?.includes(type)) return { ok: false, reason: 'Not trained here.' };
   if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
-  if ((def.era || 0) > st.era) return { ok: false, reason: `Needs the ${ERAS[def.era].name} age.` };
+  if ((def.era || 0) > knownEra(st)) return { ok: false, reason: `Needs the ${ERAS[def.era].name} age.` };
   if (def.requires && !st.buildings.some((x) => x.type === def.requires && x.built >= 1 && !x.dead)) {
     return { ok: false, reason: `Needs a ${BUILDINGS[def.requires].name}.` };
   }

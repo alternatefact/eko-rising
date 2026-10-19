@@ -391,7 +391,7 @@ Nine milestones, each one or a few coding sessions, in this order. Character art
 These need Kay's answer before the milestone that depends on them.
 
 - [ ] **Freed captives' reward** (milestone 5): this brief replaces "they eat a third of the food" with loyalty, combat and settler-cap rewards. Confirm, or bring the food rule back.
-- [ ] **The Ogun chapter** (milestone 7): fold it into the Ogun province, or keep its map as a second city for Lagos players?
+- [x] **The Ogun chapter** (milestone 7): fold it into the Ogun province, or keep its map as a second city for Lagos players? **Decided Oct 19, 2026: keep its map.** Lagos players build Ogun from scratch, carrying what they learned in Lagos (its buildings, crafts and ages, which come quicker the second time), and Ogun has its own story and enemies: Ọ̀yọ́ horsemen, Ìjẹ̀bú gunmen and the host of Dahomey.
 - [ ] **How many states before the British advance** (milestone 7): the brief starts it at the Port City era with era goals of 1, 4 and 10 states. The original idea was 10 to 15 states first.
 - [ ] **Where players play** (milestones 6 and 9): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
 - [ ] **Studio server** (milestone 9): hosting, cost, and who moderates display names.

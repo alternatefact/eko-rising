@@ -962,17 +962,18 @@ test('when the stores are full, workers wait at their workplace with their loads
   assert.equal(storageHeldUp(st), null);
 });
 
-test('without the guide you start free, and Ogun starts with settlers, soldiers and no guide', () => {
+test('without the guide you start free, and Ogun starts from scratch with settlers, soldiers and no guide', () => {
   const st = sim.newGame({ seed: 9, guide: false });
   assert.ok(st.tut.done && st.flags.openingDone && st.flags.freeStart);
   assert.equal(sim.storyRunning(st), false, 'no guided steps');
   assert.ok(sim.newGame({ seed: 9 }).tut.done !== true, 'the guided start still has its guide');
   const og = sim.newGame({ region: 'ogun', seed: 9, guide: false });
   assert.equal(og.regionId, 'ogun');
-  assert.equal(og.era, 1);
+  assert.equal(og.era, 0, 'a new town, in the first age');
+  assert.equal(sim.knownEra(og), 1, 'that knows what Lagos knew');
   assert.ok(og.tut.done);
-  assert.equal(og.units.filter((u) => u.owner === 'player' && u.type === 'spearman').length, 6);
-  assert.ok(og.buildings.some((b) => b.type === 'warcamp' && b.owner === 'player' && b.built >= 1));
+  assert.equal(og.units.filter((u) => u.owner === 'player' && u.type === 'spearman').length, 4);
+  assert.ok(!og.buildings.some((b) => b.type === 'warcamp' || b.type === 'hut'), 'nothing built for them');
   assert.deepEqual(og.eventQueue.map((e) => e.id), ['ogun_intro']);
   for (const f of og.factions) {
     let ok = false;

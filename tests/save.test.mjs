@@ -22,6 +22,7 @@ test('a version 4 save (from Eko Rising) loads, is upgraded, and plays on', () =
   assert.equal(st.time.day, raw.time.day);
   assert.equal(st.buildings.length, raw.buildings.length);
   assert.equal(st.tut.i, raw.tut.i, 'the guide is where it was');
+  assert.equal(st.legacy, null, 'a Lagos game from before carries nothing from another land');
   // Ten more days, the guide played as a player would.
   const bot = makeStoryBot(st);
   const end = st.time.day + 10;
@@ -47,6 +48,13 @@ test('a version 4 save from before builders gets its building-site fields', () =
     assert.ok(b.work > 0 && Array.isArray(b.builders) && b.got === 0 && b.need === 0);
   }
   sim.tick(st);
+});
+
+test('an Ogun game keeps what its founders learned in Lagos through a save', () => {
+  const legacy = { from: 'lagos', land: 'Lagos', town: 'Èkó', era: 2, year: 1475, tech: ['tools'], cassava: true, metEuropeans: false, purse: 60 };
+  const st = sim.deserialize(sim.serialize(sim.newGame({ region: 'ogun', seed: 3, guide: false, legacy })));
+  assert.deepEqual(st.legacy, legacy);
+  assert.equal(sim.knownEra(st), 2);
 });
 
 test('saves the game cannot read are refused with a clear message', () => {

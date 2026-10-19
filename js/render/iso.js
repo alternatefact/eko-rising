@@ -29,7 +29,10 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'woman_axe', dahomey: 'hunter' };
+// Fighters with no model of their own yet wear another's, washed in their
+// colours until theirs is baked.
+const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', agojie: 'rgba(28, 40, 96, 0.4)', dahomey: 'rgba(28, 40, 96, 0.4)' };
 
 // Eight screen directions (0 = right, going clockwise) to a baked direction
 // and whether it is mirrored. Baked: 0 down, 1 down-right, 2 right, 3 up-right, 4 up.
@@ -483,7 +486,9 @@ export class IsoRenderer {
       const striking = u.swingT && st.time.t - u.swingT < 0.45;
       const lookName = this.atlas.meta.looks[UNIT_LOOK[u.type]] ? UNIT_LOOK[u.type] : 'spearman';
       const anims = this.atlas.meta.looks[lookName].anims;
-      const anim = striking ? (anims.includes('bow') ? 'bow' : 'slash') : moving ? (anims.includes('spearwalk') ? 'spearwalk' : 'walk') : 'idle';
+      const anim = striking
+        ? anims.includes('bow') ? 'bow' : anims.includes('slash') ? 'slash' : 'swing'
+        : moving ? anims.includes('spearwalk') ? 'spearwalk' : anims.includes('walk') ? 'walk' : 'womanwalk' : 'idle';
       const tx = target ? (target.kind === 'building' ? target.x + target.w / 2 : target.x) : null;
       const ty = target ? (target.kind === 'building' ? target.y + target.h / 2 : target.y) : null;
       const [dir, mirror] = this.dirFor(u, striking && target ? tx - x : x - u.px, striking && target ? ty - y : y - u.py, striking && !!target);
@@ -494,7 +499,7 @@ export class IsoRenderer {
         if (sel) this.ellipse(ctx, x, y, 0.38, '#ffe066');
         this.teamMark(ctx, p.x, p.y, color);
         if (sel && u.stance === 'hold') this.ellipse(ctx, x, y, 0.5, 'rgba(120,200,255,0.8)');
-        this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
+        this.atlas.draw(ctx, key, p.x, p.y, z, mirror, UNIT_TINT[u.type]);
         if (u.hp < u.maxHp || sel) {
           const top = this.tileToScreen(x, y, 1.0);
           this.hpBar(ctx, top.x, top.y, u.hp / u.maxHp, 24 * z);

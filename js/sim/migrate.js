@@ -5,7 +5,7 @@
 
 import { BUILDINGS, buildWork } from '../data/buildings.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 // The oldest save that can still be upgraded.
 const OLDEST = 4;
@@ -24,6 +24,11 @@ const STEPS = {
       b.got = 0;
       b.need = 0;
     }
+  },
+  // 5 → 6. Games carry what their founders learned in the land they came
+  // from (st.legacy). Games from before had none to carry.
+  5(data) {
+    if (data.legacy === undefined) data.legacy = null;
   },
 };
 

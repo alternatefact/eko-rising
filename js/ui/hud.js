@@ -7,7 +7,7 @@ import { ERAS } from '../data/eras.js';
 import { RESOURCES, FOOD, costText, money } from '../data/resources.js';
 import {
   canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season, fireCap,
-  happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand,
+  happinessFactors, RATIONS, TAXES, priceOf, TRADEABLE, hasBuilding, wagesDue, hireOptions, marketDemand, knownEra,
 } from '../sim/economy.js';
 import { citizenStatus, jobless, siteStage, freeBuilders, storageHeldUp } from '../sim/citizens.js';
 import { canTrain, armyPower } from '../sim/military.js';
@@ -30,7 +30,7 @@ const ICONS = {
   stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
   bank: '🏦', brickyard: '🧱', stockpile: '🧺',
 };
-const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹' };
+const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥' };
 // Goods that only show in the top bar once you have some (or reach the age they matter in).
 const TOP_GOODS = [
   ['wood', 0], ['bricks', 0], ['stone', 1], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
@@ -681,7 +681,7 @@ export class Hud {
       for (const type of def.trains) {
         const u = UNITS[type];
         const can = canTrain(st, b, type);
-        if ((u.era || 0) > st.era + 1) continue;
+        if ((u.era || 0) > knownEra(st) + 1) continue;
         h += `<div class="item"><span>${UNIT_ICON[type]} <b>${esc(u.name)}</b> <span class="muted">${esc(u.yo)}</span><br><span class="muted">${costText(u.cost, st)}</span>${can.ok ? '' : `<br><span class="muted warn">${esc(can.reason)}</span>`}</span>
           <button class="btn ${can.ok ? 'primary' : ''}" data-act="train" data-type="${type}" ${can.ok ? '' : `disabled title="${esc(can.reason)}"`}>Train</button></div>`;
       }
@@ -767,7 +767,7 @@ export class Hud {
     if (up.price) effects.push('better market prices');
     return `<h4>Upgrade</h4><div class="item upgrade"><span><b>${esc(up.name)}</b>${up.yo ? ` <span class="muted">${esc(up.yo)}</span>` : ''}<br>
       <span class="muted">${esc(up.desc || '')}${effects.length ? ` (${effects.join(', ')})` : ''}</span><br>
-      <span class="muted">${costText(up.cost, st)}${up.era > st.era ? ` · 🔒 ${esc(ERAS[up.era].name)} age` : ''}</span></span>
+      <span class="muted">${costText(up.cost, st)}${up.era > knownEra(st) ? ` · 🔒 ${esc(ERAS[up.era].name)} age` : ''}</span></span>
       <button class="btn ${can.ok ? 'primary' : ''}" data-act="upgrade" ${can.ok ? '' : `disabled title="${esc(can.reason || '')}"`}>Upgrade</button></div>`;
   }
 
@@ -777,7 +777,7 @@ export class Hud {
     let h = `<h4>Hire fighters (army ${armySize(st)}/${armyCap(st)})</h4><div class="list">`;
     for (const o of hireOptions(st)) {
       const u = UNITS[o.unit];
-      const locked = o.era > st.era;
+      const locked = o.era > knownEra(st);
       const ok = !locked && st.res.cowries >= o.cost && armySize(st) < armyCap(st);
       h += `<div class="item"><span>${UNIT_ICON[o.unit] || '⚔️'} <b>${esc(o.name)}</b><br><span class="muted">${m.icon} ${o.cost} now, then ${m.icon} ${o.wage} a day · ${u.hp}♥ ${u.atk}⚔</span>${locked ? `<br><span class="muted">🔒 ${esc(ERAS[o.era].name)} age</span>` : ''}</span>
         <button class="btn ${ok ? 'primary' : ''}" data-act="hire" data-id="${o.id}" ${ok ? '' : 'disabled'}>Hire</button></div>`;

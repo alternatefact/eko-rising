@@ -3,6 +3,7 @@
 
 import * as sim from './sim/index.js';
 import { BUILDINGS } from './data/buildings.js';
+import { REGIONS } from './regions/index.js';
 import { IsoRenderer } from './render/iso.js';
 import { Minimap } from './render/minimap.js';
 import { Hud, renderNigeria } from './ui/hud.js';
@@ -25,6 +26,29 @@ export function unlocked() {
   } catch (err) {
     return new Set();
   }
+}
+
+// What each land's founders learned there, carried to the next land they
+// settle (sim.legacyOf): { lagos: {...} }. Kept across games, and only grows.
+const LEGACY = 'eko-rising:legacy';
+
+function legacyFor(from) {
+  try {
+    return JSON.parse(storage.get(LEGACY) || '{}')[from] || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function recordLegacy(st) {
+  let all = {};
+  try {
+    all = JSON.parse(storage.get(LEGACY) || '{}');
+  } catch (err) {
+    all = {};
+  }
+  all[st.regionId] = sim.mergeLegacy(all[st.regionId], sim.legacyOf(st));
+  storage.set(LEGACY, JSON.stringify(all));
 }
 
 function unlock(id) {
@@ -142,6 +166,9 @@ class Game {
   newGame(opts) {
     const o = { region: 'lagos', ...opts };
     if (!o.name) delete o.name;
+    // A land settled from another starts with what was learned there.
+    const from = REGIONS[o.region]?.inherits?.from;
+    if (from && !o.legacy) o.legacy = legacyFor(from) || undefined;
     this.start(sim.newGame(o));
     this.save('auto');
   }
@@ -167,6 +194,8 @@ class Game {
   // autosave.
   save(slot = 'auto') {
     if (!this.st) return false;
+    // A land whose next land is open keeps a record of what it has learned.
+    if (this.st.flags.ogunOpen) recordLegacy(this.st);
     const ok = storage.set(slotKey(slot), JSON.stringify({ meta: saveMeta(this.st), data: sim.serialize(this.st) }));
     if (slot !== 'auto') {
       this.hud.toast(ok ? `💾 Saved in ${slotName(slot)}: ${this.st.name}, day ${this.st.time.day + 1}.` : '💾 This browser will not let the game save here. Use “Save to a file” instead.');
@@ -335,13 +364,15 @@ class Game {
     if (st.flags.ogunOpen && !this.ogunNoted) {
       this.ogunNoted = true;
       unlock('ogun');
+      recordLegacy(st);
       renderNigeria(document.getElementById('nigeria'), (id) => this.pickRegion(id), unlocked());
     }
     if (st.flags.goOgun) {
       st.flags.goOgun = false;
       // Lagos is kept in a save of its own.
       storage.set(slotKey('lagos'), JSON.stringify({ meta: saveMeta(st), data: sim.serialize(st) }));
-      this.newGame({ region: 'ogun', founder: st.founder, spouse: st.spouse, guide: false });
+      recordLegacy(st);
+      this.newGame({ region: 'ogun', founder: st.founder, spouse: st.spouse, guide: false, legacy: legacyFor(st.regionId) });
       this.hud.toast('🌄 The road north to Ogun State. Your Lagos game is kept in Saved games.');
     }
   }

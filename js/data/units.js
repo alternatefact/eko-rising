@@ -46,6 +46,15 @@ export const UNITS = {
   slaver: { name: 'Slaver', hp: 60, atk: 8, range: 1.2, cd: 1, speed: 2.1, vision: 6 },
   // The Oba's host: spearmen in war dress with leather shields.
   benin: { name: 'Benin Warrior', hp: 78, atk: 8.5, range: 1.2, cd: 1, speed: 2.1, vision: 6 },
+  // Ogun's enemies. The Alaafin of Ọ̀yọ́'s horsemen ride down out of the
+  // savanna, strike and are gone.
+  oyorider: { name: 'Ọ̀yọ́ Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.5, vision: 7 },
+  // The Ìjẹ̀bú bought guns on the coast early, and fire from cover.
+  ijebugun: { name: 'Ìjẹ̀bú Gunman', hp: 70, atk: 15, range: 5.5, cd: 2.2, speed: 2, vision: 6, ranged: true },
+  // Dahomey's women soldiers, the Agojie: fast, fierce and hard to break.
+  agojie: { name: 'Agojie', hp: 105, atk: 13, range: 1.2, cd: 0.9, speed: 2.6, vision: 6 },
+  // The King of Dahomey's musketeers.
+  dahomey: { name: 'Dahomey Musketeer', hp: 80, atk: 16, range: 5.5, cd: 2.3, speed: 1.9, vision: 6, ranged: true },
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];

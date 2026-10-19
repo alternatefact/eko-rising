@@ -16,7 +16,7 @@ import { goTo } from './move.js';
 import { computeTerritory, computeVisibility, revealAround, adjacentToWater, fenceGaps } from './world.js';
 import {
   DAY, capacity, canAfford, spend, dailyUpkeep, updateHappiness, updateMigration, population,
-  hasBuilding, trade as marketTrade, invite, addMood,
+  hasBuilding, trade as marketTrade, invite, addMood, knownEra,
 } from './economy.js';
 import {
   assignJobs, assignBuilders, houseHomeless, updateCitizen, dailyCitizens, assignTo, assignBuilder as builderOrder,
@@ -90,6 +90,7 @@ export function newGame(opts = {}) {
     objDone: {},
     objCurrent: [],
     flags: {},
+    legacy: null,
     foreign: {},
     mods: [],
     bonusHappy: 0,
@@ -121,6 +122,17 @@ export function newGame(opts = {}) {
     gameOver: null,
   };
   for (const [k, v] of Object.entries(region.foreign)) st.foreign[k] = { name: v.name, color: v.color, hostile: false, trade: false };
+  // A land settled from another (Ogun, from Lagos) starts with what the
+  // founders learned there: see legacyOf and knownEra.
+  if (region.inherits) {
+    const legacy = { ...region.inherits.fallback, ...(opts.legacy || {}) };
+    st.legacy = legacy;
+    for (const k of legacy.tech || []) st.tech[k] = true;
+    if (legacy.cassava) st.flags.cassava = true;
+    if (legacy.metEuropeans) st.flags.metEuropeans = true;
+    st.time.year = Math.max(st.time.year, legacy.year || 0);
+    st.res.cowries += legacy.purse || 0;
+  }
 
   // Home: an abandoned house in a clearing, a swept storage floor in front
   // of it with what the couple carried here, and a fire for those who come
@@ -219,6 +231,40 @@ function freeStart(st, region, home) {
   if (home.wrecked) notify(st, '🏚️ The house is a wreck: nobody can sleep in it. Tap it and press 🔨 Repair: the old roof timbers on the storage floor are enough to mend it.', 'bad', { x: home.x + 1.5, y: home.y + 1.5 });
   st.dirty.jobs = true;
   st.dirty.build = true;
+}
+
+// What a town has learned, for the founders to carry to the next land they
+// settle: the age it reached, the tools and crops it got from the ships,
+// whether it has met the Europeans, the year, and some of its money.
+export function legacyOf(st) {
+  return {
+    from: st.regionId,
+    land: st.region.name,
+    town: st.name,
+    era: st.era,
+    year: st.time.year,
+    tech: Object.keys(st.tech).filter((k) => st.tech[k]).sort(),
+    cassava: !!st.flags.cassava,
+    metEuropeans: !!st.flags.metEuropeans,
+    purse: Math.min(300, Math.floor(st.res.cowries / 4)),
+  };
+}
+
+// Two records of the same land's learning (an older save and a newer one):
+// knowledge only grows.
+export function mergeLegacy(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return {
+    ...a,
+    ...b,
+    era: Math.max(a.era || 0, b.era || 0),
+    year: Math.max(a.year || 0, b.year || 0),
+    tech: [...new Set([...(a.tech || []), ...(b.tech || [])])].sort(),
+    cassava: !!(a.cassava || b.cassava),
+    metEuropeans: !!(a.metEuropeans || b.metEuropeans),
+    purse: Math.max(a.purse || 0, b.purse || 0),
+  };
 }
 
 // Things that happen when a building is finished.
@@ -419,7 +465,7 @@ function footprintOk(st, type, x, y, ignoreTerritory) {
 export function buildLocked(st, type) {
   const def = BUILDINGS[type];
   if (!def || def.buildable === false) return 'Cannot be built.';
-  if ((def.era || 0) > st.era) return `Unlocks in the ${ERAS[def.era].name} era.`;
+  if ((def.era || 0) > knownEra(st)) return `Unlocks in the ${ERAS[def.era].name} era.`;
   if (def.requires === 'europeanTrade' && !st.flags.europeanTrade) return 'Needs trade with the ships from across the sea.';
   if (def.unique && st.buildings.some((b) => b.type === type && b.owner === 'player' && !b.dead)) return 'You can only build one.';
   return null;
@@ -902,7 +948,7 @@ export function canUpgrade(st, id) {
   const up = nextUpgrade(b);
   if (!up) return { ok: false, reason: 'Fully upgraded.' };
   if (b.built < 1) return { ok: false, reason: 'Still being built.' };
-  if (up.era > st.era) return { ok: false, reason: `Needs the ${ERAS[up.era].name} age.`, up };
+  if (up.era > knownEra(st)) return { ok: false, reason: `Needs the ${ERAS[up.era].name} age.`, up };
   if (up.flag && !st.flags[up.flag]) return { ok: false, reason: 'Needs the kingdom upgrade to mud first.', up };
   if (!canAfford(st, up.cost)) return { ok: false, reason: 'Not enough resources.', up };
   return { ok: true, up };
@@ -1002,5 +1048,5 @@ export function deserialize(json) {
   return st;
 }
 
-export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK, fenceGaps, SAVE_VERSION };
+export { BUILDINGS, UNITS, ERAS, population, hasBuilding, WALK, fenceGaps, SAVE_VERSION, knownEra };
 export { currentStep, stepText, storyRunning } from './story.js';

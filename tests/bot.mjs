@@ -7,7 +7,7 @@
 import * as sim from '../js/sim/index.js';
 import { F, isWater } from '../js/world/terrain.js';
 import { factionPower } from '../js/sim/factions.js';
-import { armyPower } from '../js/sim/military.js';
+import { armyPower, isHostileOwner } from '../js/sim/military.js';
 import { stat } from '../js/data/buildings.js';
 
 const BUILD_ORDER = [
@@ -156,6 +156,22 @@ function subdue(bot) {
   }
 }
 
+// Enemies close to home are met by the army standing guard, as a player
+// would send them: a raider shooting at a shed from the edge of the town
+// is not left there.
+function defend(bot) {
+  const st = bot.st;
+  const home = seat(st);
+  const hx = home.x + 1;
+  const hy = home.y + 1;
+  const foe = st.units
+    .filter((u) => !u.dead && u.owner !== 'player' && isHostileOwner(st, 'player', u.owner) && Math.hypot(u.x - hx, u.y - hy) < 24)
+    .sort((a, b) => Math.hypot(a.x - hx, a.y - hy) - Math.hypot(b.x - hx, b.y - hy))[0];
+  if (!foe) return;
+  const idle = army(st).filter((u) => u.order.t === 'guard');
+  if (idle.length) sim.orderAttack(st, idle.map((u) => u.id), foe.id);
+}
+
 function trade(bot) {
   const st = bot.st;
   if (st.harbour.ship) {
@@ -240,6 +256,7 @@ export function botTick(bot) {
     sim.train(st, wc.id, want);
     if (st.res.cowries > 60) sim.train(st, wc.id, st.era >= 1 ? 'archer' : 'spearman');
   }
+  defend(bot);
   subdue(bot);
   if (st.era >= 2) {
     for (const [type, pref] of [['canoeyard', 'water'], ['ironmine', 'home'], ['blacksmith', 'home'], ['port', 'water']]) {

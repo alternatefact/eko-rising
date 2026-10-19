@@ -62,17 +62,24 @@ export class Atlas {
   }
 
   // Draw sprite `key` with its anchor at (x, y) on screen, at game zoom
-  // `zoom` (sprites are stored at zoom 2), optionally mirrored left to right.
-  // Returns the screen box it covers.
-  draw(ctx, key, x, y, zoom, mirror = false) {
+  // `zoom` (sprites are stored at zoom 2), optionally mirrored left to right
+  // and washed with a `tint` colour (a stand-in look for people who have no
+  // model of their own yet). Returns the screen box it covers.
+  draw(ctx, key, x, y, zoom, mirror = false, tint = null) {
     const s = this.sprites[key];
     if (!s) return null;
-    const [sheet, sx, sy, w, h, ax, ay] = s;
+    let [sheet, sx, sy, w, h, ax, ay] = s;
     if (!this.full[sheet]) return null;
     const k = zoom / 2;
     const half = zoom <= 1;
-    const img = half ? this.half[sheet] : this.full[sheet];
-    const f = half ? 0.5 : 1;
+    let img = half ? this.half[sheet] : this.full[sheet];
+    let f = half ? 0.5 : 1;
+    if (tint) {
+      img = this.tinted(key, half, tint);
+      sx = 0;
+      sy = 0;
+      f = half ? 0.5 : 1;
+    }
     const dw = w * k;
     const dh = h * k;
     const top = y - ay * k;
@@ -86,6 +93,27 @@ export class Atlas {
     }
     ctx.drawImage(img, sx * f, sy * f, w * f, h * f, x - ax * k, top, dw, dh);
     return { left: x - ax * k, top, w: dw, h: dh };
+  }
+
+  // A sprite washed with a colour, cut out of its sheet once and kept.
+  tinted(key, half, tint) {
+    this.tints = this.tints || new Map();
+    const id = `${key}|${half ? 'h' : 'f'}|${tint}`;
+    let c = this.tints.get(id);
+    if (c) return c;
+    const [sheet, sx, sy, w, h] = this.sprites[key];
+    const f = half ? 0.5 : 1;
+    const img = half ? this.half[sheet] : this.full[sheet];
+    c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w * f));
+    c.height = Math.max(1, Math.ceil(h * f));
+    const g = c.getContext('2d');
+    g.drawImage(img, sx * f, sy * f, w * f, h * f, 0, 0, w * f, h * f);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = tint;
+    g.fillRect(0, 0, c.width, c.height);
+    this.tints.set(id, c);
+    return c;
   }
 
   // The screen box a sprite would cover, without drawing it.

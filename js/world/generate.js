@@ -333,14 +333,16 @@ export function generateWorld(region, seed) {
   wear(arrival);
 
   // The red-mud pit they passed on the way in: beside the path, well
-  // outside the clearing, where nobody will see it until they go back.
+  // outside the clearing, where nobody will see it until they go back
+  // (`mudPitAt` [nearest, farthest, otherwise] sets how far, in tiles).
+  const [pitNear, pitFar, pitElse] = tp.mudPitAt || [20, 28, 21];
   let mudPit = null;
   for (let k = 0; k < arrival.length && !mudPit; k++) {
     const i = arrival[k];
     const px = i % W;
     const py = (i / W) | 0;
     const d = Math.hypot(px - start.x, py - start.y);
-    if (d < 20 || d > 28) continue;
+    if (d < pitNear || d > pitFar) continue;
     for (const [ox, oy] of [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 2], [-3, -2]]) {
       const cx = px + ox;
       const cy = py + oy;
@@ -371,8 +373,8 @@ export function generateWorld(region, seed) {
     // No path long enough: any open ground at that distance will do.
     for (let k = 0; k < 200 && !mudPit; k++) {
       const a = rng.range(0, Math.PI * 2);
-      const cx = Math.round(start.x + Math.cos(a) * 21);
-      const cy = Math.round(start.y + Math.sin(a) * 21);
+      const cx = Math.round(start.x + Math.cos(a) * pitElse);
+      const cy = Math.round(start.y + Math.sin(a) * pitElse);
       if (cx < 4 || cy < 4 || cx >= W - 4 || cy >= H - 4 || isWater(terrain[idx(cx, cy)]) || from.cost[idx(cx, cy)] === Infinity) continue;
       clayPit(cx, cy, 2);
       wear(trail(cx, cy));

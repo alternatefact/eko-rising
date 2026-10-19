@@ -367,7 +367,13 @@ function payWages(st) {
 }
 
 export function hireOptions(st) {
-  return HIRES.filter((h) => h.era <= st.era + 1);
+  return HIRES.filter((h) => h.era <= knownEra(st) + 1);
+}
+
+// The age whose buildings, soldiers and crafts a town knows: its own, or the
+// one its founders reached in the land they came from (st.legacy).
+export function knownEra(st) {
+  return Math.max(st.era, st.legacy?.era || 0);
 }
 
 // --- Market ----------------------------------------------------------------------
