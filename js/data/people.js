@@ -16,6 +16,8 @@ export const CHARACTERS = {
   labourer: { name: 'Labourer', height: 1, prop: 'hammer' },
   spearman: { name: 'Spearman', height: 1.02, prop: 'spear' },
   bandit: { name: 'Bandit', height: 1.02, prop: 'machete' },
+  // A woman soldier of Dahomey: striped tunic, white cap, a blade.
+  agojie: { name: 'Agojie', height: 0.98, prop: 'machete' },
 };
 
 // Animation clips in art/people/clips, by the name the game uses. `from` and

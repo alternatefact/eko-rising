@@ -22,9 +22,34 @@ const STORY = {
   independence_won: 'independence_won',
   eyo: 'eyo',
   caravan: 'caravan',
+  // Ogun.
+  ogun_intro: 'ogun_intro',
+  kidnappers: 'kidnappers',
+  kidnappers_gone: 'kidnappers',
+  oyo_ilari: 'oyo_ilari',
+  oyo_tribute: 'oyo_ilari',
+  oyo_raid_seen: 'oyo_riders',
+  oyo_raid_over: 'oyo_riders',
+  oyo_punish_seen: 'oyo_riders',
+  lisabi: 'lisabi',
+  oyo_free: 'oyo_free',
+  ijebu_road: 'ijebu_road',
+  ijebu_raid_seen: 'ijebu_guns',
+  ijebu_raid_over: 'ijebu_road',
+  owu_refugees: 'owu_refugees',
+  abeokuta: 'abeokuta',
+  tinubu: 'tinubu',
+  dahomey_word: 'dahomey_word',
+  dahomey_host_seen: 'dahomey_camp',
+  dahomey_march_seen: 'dahomey_march',
+  dahomey_beaten: 'dahomey_beaten',
+  olumo: 'olumo',
+  ogun_united: 'oyo_free',
 };
 
-const LEADERS = new Set(['awori', 'egun', 'egba', 'ijebu', 'edo', 'ilaje']);
+const LEADERS = new Set(['awori', 'egun', 'egba', 'ijebu', 'edo', 'ilaje', 'owu', 'remo', 'yewa', 'dahomey']);
+// Peoples who share a portrait with another, or whose id is not their picture's name.
+const LEADER_AS = { ijebuode: 'ijebu', dahomey_host: 'dahomey' };
 const SCENES = new Set(['title', 'harbour', 'end_victory', 'end_defeat']);
 const TEXTURES = new Set(['thatch', 'mud', 'zinc', 'plaster', 'planks', 'soil', 'cloth', 'stone']);
 // Life-like versions for the realistic look.
@@ -41,7 +66,8 @@ export function storyArt(id) {
 export function leaderArt(f) {
   if (!f) return null;
   if (f.temperament === 'bandit' && f.people === 'Bandits') return 'art/leader_bandits.webp';
-  return LEADERS.has(f.id) ? `art/leader_${f.id}.webp` : null;
+  const id = LEADER_AS[f.id] || f.id;
+  return LEADERS.has(id) ? `art/leader_${id}.webp` : null;
 }
 
 export function ageArt(era) {

@@ -51,10 +51,10 @@ export const UNITS = {
   oyorider: { name: 'Ọ̀yọ́ Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.5, vision: 7 },
   // The Ìjẹ̀bú bought guns on the coast early, and fire from cover.
   ijebugun: { name: 'Ìjẹ̀bú Gunman', hp: 70, atk: 15, range: 5.5, cd: 2.2, speed: 2, vision: 6, ranged: true },
-  // Dahomey's women soldiers, the Agojie: fast, fierce and hard to break.
+  // Dahomey's army is its women soldiers, the Agojie: swordswomen, fast,
+  // fierce and hard to break, and musketeers.
   agojie: { name: 'Agojie', hp: 105, atk: 13, range: 1.2, cd: 0.9, speed: 2.6, vision: 6 },
-  // The King of Dahomey's musketeers.
-  dahomey: { name: 'Dahomey Musketeer', hp: 80, atk: 16, range: 5.5, cd: 2.3, speed: 1.9, vision: 6, ranged: true },
+  dahomey: { name: 'Agojie Musketeer', hp: 80, atk: 16, range: 5.5, cd: 2.3, speed: 2, vision: 6, ranged: true },
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];

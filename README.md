@@ -134,12 +134,15 @@ Lísàbí, who asks you to rise with the Ẹ̀gbá against them (around 1775); t
 Ọ̀wu; Abẹ́òkúta founded under the rock; Madam Tinúbú, a trader from Lagos,
 who sends gunmen and supplies when war comes; and last the host of Dahomey,
 gathering in the west with its women soldiers, the Agojie, and marching when
-it is ready. Breaking it wins Ogun. Each story ends with a note on what
-happened in the history you know.
+it is ready. Its army is all women: Agojie swordswomen in blue-and-white
+striped tunics and white caps, and Agojie musketeers, the same uniform dyed
+red, with long trade muskets. Breaking it wins Ogun. Each story ends with a
+note on what happened in the history you know, and has its own picture.
 
-The new fighters (Ọ̀yọ́ horsemen, Ìjẹ̀bú gunmen, Agojie and Dahomey
-musketeers) have no 3D models yet: until theirs are baked they wear the
-nearest existing one, washed in their own colours.
+The Agojie have their own 3D model (made with Higgsfield from a character
+picture in the style of the others). The Ọ̀yọ́ horsemen and Ìjẹ̀bú gunmen have
+none yet: until theirs are baked they wear the nearest existing one, washed
+in their own colours.
 
 The view is a fixed isometric picture that can be turned in quarter turns
 (⟲ ⟳ beside the minimap, or Q and E), so the far side of a wood, a fence or a

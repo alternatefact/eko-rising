@@ -180,7 +180,8 @@ test('the host of Dahomey gathers in the west and marches; friends come to help,
   const host = () => band(st, f.id);
   assert.ok(f.x < st.W / 3, 'in the west');
   assert.ok(host().length >= 18, `${host().length} warriors`);
-  assert.ok(host().some((u) => u.type === 'agojie') && host().some((u) => u.type === 'dahomey'), 'Agojie and musketeers');
+  assert.ok(host().some((u) => u.type === 'agojie') && host().some((u) => u.type === 'dahomey'), 'Agojie swordswomen and musketeers');
+  assert.ok(host().every((u) => ['agojie', 'dahomey'].includes(u.type)), 'every one of them a woman of the Agojie');
   assert.ok(st.buildings.some((b) => b.owner === f.id && !b.dead), 'their camp');
   sim.chooseEvent(st, 0);
   const march = st.scheduled.find((s) => s.id === 'dahomey_march');

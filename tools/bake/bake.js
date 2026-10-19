@@ -498,6 +498,11 @@ export const LOOKS = {
   // A warrior of Benin: the spearman with a war shield in the other hand.
   benin: { model: 'spearman', extra: { prop: 'shield', hand: 'Left' }, dye: { from: [55, 185], to: 357 }, anims: ['idle', 'spearwalk', 'slash'] },
   bandit: { model: 'bandit', anims: ['idle', 'walk', 'slash'] },
+  // Dahomey's women soldiers. The swordswoman in her own blue-and-white
+  // striped tunic; the musketeer the same woman with her stripes dyed red
+  // and a musket, aiming as a hunter draws a bow.
+  agojie: { model: 'agojie', prop: 'machete', anims: ['idle', 'walk', 'slash'] },
+  agojie_gun: { model: 'agojie', prop: 'musket', hand: 'Left', dye: { from: [190, 250], to: 2 }, anims: ['idle', 'walk', 'bow'] },
 };
 const FRAMES = { idle: 4 };
 

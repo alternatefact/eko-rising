@@ -29,10 +29,10 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'woman_axe', dahomey: 'hunter' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun' };
 // Fighters with no model of their own yet wear another's, washed in their
 // colours until theirs is baked.
-const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', agojie: 'rgba(28, 40, 96, 0.4)', dahomey: 'rgba(28, 40, 96, 0.4)' };
+const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)' };
 
 // Eight screen directions (0 = right, going clockwise) to a baked direction
 // and whether it is mirrored. Baked: 0 down, 1 down-right, 2 right, 3 up-right, 4 up.

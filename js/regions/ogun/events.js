@@ -9,13 +9,14 @@
 import { has, pop, unifiedCount, majorCount, many, claimed, atPeace, friends, warmer } from './common.js';
 
 // The army the King of Dahomey sends east: his women soldiers, the Agojie,
-// with musketeers and bowmen. It gathers in the west and marches when it is
-// ready; breaking it wins Ogun. Its size answers the town it has heard of.
+// every one of them a woman: swordswomen in blue-and-white striped tunics
+// and white caps, and musketeers. It gathers in the west and marches when it
+// is ready; breaking it wins Ogun. Its size answers the town it has heard of.
 const DAHOMEY_HOST = {
   id: 'dahomey_host', name: 'The host of Dahomey', people: 'Dahomey', origin: 'Egun', strength: 5, temperament: 'bandit', major: false,
-  leader: 'A war chief of the King of Dahomey', color: '#1c2860', huts: 8, side: 'west',
+  leader: 'An Agojie captain of the King of Dahomey', color: '#1c2860', huts: 8, side: 'west',
   loot: { cowries: 400, weapons: 30, muskets: 10 }, joiners: 0, raids: false, radius: 9,
-  desc: 'The King of Dahomey’s army, camped in the west: the Agojie, his women soldiers, in blue and white, with musketeers and bowmen round their war chief’s tent.',
+  desc: 'The King of Dahomey’s army, camped in the west round their captain’s tent: the Agojie, his women soldiers, swordswomen in blue-and-white striped tunics and musketeers in red.',
 };
 
 // Days from the host gathering to its march: gifts to the west buy more time.
@@ -26,10 +27,9 @@ const TRIBUTE = 40;
 
 function dahomeyGarrison(st, api) {
   // About as strong as your own army and towers, never fewer than 18.
-  const n = Math.max(18, Math.min(40, Math.round((api.power() * 1.1) / 90)));
-  const agojie = Math.round(n * 0.45);
-  const bowmen = Math.round(n * 0.15);
-  return { agojie, dahomey: n - agojie - bowmen, bowman: bowmen };
+  const n = Math.max(18, Math.min(40, Math.round((api.power() * 1.1) / 95)));
+  const agojie = Math.round(n * 0.5);
+  return { agojie, dahomey: n - agojie };
 }
 
 // Ọ̀yọ́ sends horsemen to match the town it means to punish: between `min`
@@ -425,7 +425,7 @@ export const EVENTS = [
     title: 'Word from the west',
     art: '🥁',
     text: () =>
-      'Yewa fishermen come up the river with news. The King of Dahomey is gathering his army to march east, for captives and for glory. At its heart are the Agojie, his women soldiers, who fear nothing.\n\nThey are coming this way.',
+      'Yewa fishermen come up the river with news. The King of Dahomey is gathering his army to march east, for captives and for glory: the Agojie, his regiments of women soldiers, who fear nothing.\n\nThey are coming this way.',
     choices: [
       {
         label: 'Strengthen the walls and train soldiers',
@@ -472,7 +472,7 @@ export const EVENTS = [
     text: (st) => {
       const n = st.units.filter((u) => u.owner === 'dahomey_host' && !u.dead).length;
       const agojie = st.units.filter((u) => u.owner === 'dahomey_host' && u.type === 'agojie' && !u.dead).length;
-      return `Your lookouts see their fires in the west: the King of Dahomey’s army, ${n} strong, camped round their war chief’s tent. ${agojie} of them are Agojie, women soldiers in blue and white, with blades and muskets.\n\nThey will march when they are ready. Build walls and towers, train soldiers, and call your friends: or carry the war to their camp.`;
+      return `Your lookouts see their fires in the west: the King of Dahomey’s army, ${n} strong, camped round their captain’s tent. Every one of them is a woman: the Agojie, ${agojie} swordswomen in blue-and-white striped tunics and ${n - agojie} musketeers in red.\n\nThey will march when they are ready. Build walls and towers, train soldiers, and call your friends: or carry the war to their camp.`;
     },
     choices: [{ label: 'We will be ready', hint: '⌂ beside the map brings you back to the town.' }],
   },
@@ -501,7 +501,7 @@ export const EVENTS = [
     text: (st) => {
       const n = st.units.filter((u) => u.owner === 'dahomey_host' && !u.dead).length;
       const help = [st.flags.egbaAid && atPeace(st, 'egba') ? 'Ẹ̀gbá warriors have come to stand with you' : '', st.flags.tinubu ? 'Madam Tinúbú’s porters bring food, blades and three gunmen' : ''].filter(Boolean);
-      return `The war drums of Dahomey have stopped. ${n} warriors are on the march for ${st.name}, the Agojie at their head.${help.length ? `\n\n${help.join('. ')}.` : ''}\n\nMan the walls, and hold.`;
+      return `The war drums of Dahomey have stopped. ${n} Agojie are on the march for ${st.name}, the swordswomen at their head and the musketeers behind.${help.length ? `\n\n${help.join('. ')}.` : ''}\n\nMan the walls, and hold.`;
     },
     choices: [{ label: 'To arms!' }],
   },

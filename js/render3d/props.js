@@ -1,5 +1,5 @@
-// Tools the 3D characters hold: hoes, axes, bows, spears, machetes, a chief's
-// fly-whisk. Thin things like these do not survive turning a picture into a
+// Tools the 3D characters hold: hoes, axes, bows, spears, machetes, muskets,
+// a chief's fly-whisk. Thin things like these do not survive turning a picture into a
 // 3D model, so they are built here and put in the character's hand.
 // Sizes are in metres (the characters are modelled about 1.75 m tall); the
 // grip is at the origin and the handle runs along +Y.
@@ -7,7 +7,7 @@
 // In the hand the handle points forward when the arm hangs; TILT turns each
 // tool from there towards the fingers (down) or away from them (up), the way
 // it is carried: blades hang forward and down, spears and paddles stand up.
-const TILT = { whisk: 1.25, hoe: 0.85, axe: 0.85, hammer: 0.85, machete: 0.95, spear: -1.15, paddle: -1.2 };
+const TILT = { whisk: 1.25, hoe: 0.85, axe: 0.85, hammer: 0.85, machete: 0.95, spear: -1.15, paddle: -1.2, musket: 1.25 };
 
 import * as THREE from '../vendor/three.module.js';
 import { withFog } from './materials.js';
@@ -108,6 +108,19 @@ const BUILD = {
     const boss = new THREE.SphereGeometry(0.035, 8, 6);
     boss.translate(0.095, 0, 0.04);
     g.add(new THREE.Mesh(boss, mat('#3a2414')));
+    return g;
+  },
+  // A long flintlock trade musket (a "Dane gun"), held by the forestock: the
+  // iron barrel runs on past the fingers, the wooden stock back to the
+  // shoulder.
+  musket() {
+    const g = new THREE.Group();
+    g.add(rod(1.15, 0.013, '#3b3d40', -0.3));
+    g.add(rod(0.85, 0.022, WOOD, -0.45));
+    const butt = new THREE.BoxGeometry(0.035, 0.24, 0.1);
+    butt.translate(0, -0.5, -0.03);
+    g.add(new THREE.Mesh(butt, mat(DARK_WOOD)));
+    g.add(box(0.03, 0.05, 0.03, IRON, 0, -0.18, 0.03));
     return g;
   },
   // A canoe paddle with a leaf-shaped blade.
