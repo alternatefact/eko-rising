@@ -689,7 +689,11 @@ class Game {
       this.hud.toast(r.reason);
       return false;
     }
-    if (BUILDINGS[type].unique) this.cancelBuild();
+    // In the guided opening each pick from the build bar places one, so a
+    // new player does not dot the clearing with copies by clicking on.
+    const guided = sim.storyRunning(this.st);
+    if (BUILDINGS[type].unique || guided) this.cancelBuild();
+    if (guided) this.hud.toast(`🔨 ${BUILDINGS[type].name} marked out. Your people will carry the materials over and build it.`);
     this.hud.lastBuild = null;
     return true;
   }

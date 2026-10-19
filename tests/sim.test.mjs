@@ -10,7 +10,8 @@ import { findPath } from '../js/world/path.js';
 import { eventDef } from '../js/sim/events.js';
 import { supervised } from '../js/sim/citizens.js';
 import { makeBot, run, place } from './bot.mjs';
-import { playStory } from './story.mjs';
+import { playStory, makeStoryBot, storyAct } from './story.mjs';
+import { LAGOS } from '../js/regions/lagos.js';
 import { TREE, treeBlocks } from '../js/world/terrain.js';
 
 // A game past the guided opening, with newcomers free to come as they would
@@ -235,6 +236,47 @@ test('the opening is played step by step: nothing moves on until the player acts
   advance(st, 60);
   assert.equal(sim.currentStep(st).id, 'chop', 'waits for a tree to be picked');
   assert.equal(st.units.length, st.units.filter((u) => u.owner !== 'player' && u.home).length, 'no raiders while the guide runs');
+});
+
+test('once a building the guide asked for is marked out, the guide points at it and waits instead of asking for another', () => {
+  const st = sim.newGame({ seed: 4242 });
+  const bot = makeStoryBot(st);
+  for (let i = 0; sim.currentStep(st)?.id !== 'woodshed'; i++) {
+    assert.ok(i < 400000, 'the guide reaches the wood shed');
+    if (i % 10 === 0) storyAct(bot);
+    sim.tick(st);
+  }
+  const step = sim.currentStep(st);
+  const sheds = () => st.buildings.filter((b) => b.type === 'woodcutter' && !b.dead);
+  assert.deepEqual(step.point(st), { build: 'woodcutter' }, 'first it points at the Wood Shed in the build bar');
+  assert.equal(sim.stepText(st, step, 'task'), 'Build a Wood Shed by the forest');
+  assert.ok(place(st, 'woodcutter', 'trees'));
+  const shed = sheds()[0];
+  sim.tick(st);
+  assert.equal(sim.currentStep(st).id, 'woodshed', 'still the same step while it goes up');
+  assert.deepEqual(step.point(st), { id: shed.id }, 'now it points at the site');
+  assert.equal(sim.stepText(st, step, 'task'), 'Wait while the Wood Shed goes up');
+  assert.match(sim.stepText(st, step, 'hint'), /One is all you need/);
+  advance(st, 24 * 4);
+  assert.ok(shed.built >= 1, 'the shed went up');
+  assert.notEqual(sim.currentStep(st)?.id, 'woodshed', 'and the guide moved on');
+  assert.equal(sheds().length, 1, 'with one shed, as asked');
+});
+
+test('every step that asks for a building follows its site once it is marked out', () => {
+  const asks = { woodshed: 'woodcutter', antelope: 'hunter', fire: 'hut', farm: 'farm', guardhouse: 'warcamp', brickshed: 'brickyard' };
+  for (const [id, type] of Object.entries(asks)) {
+    const step = LAGOS.story.find((s) => s.id === id);
+    const name = sim.BUILDINGS[type].name;
+    const site = { id: 99, type, owner: 'player', built: 0.4, got: 6, need: 6, builders: [1, 2] };
+    const st = { buildings: [site], flags: {}, byId: new Map() };
+    assert.deepEqual(step.point(st), { id: 99 }, id);
+    assert.equal(sim.stepText(st, step, 'task'), `Wait while the ${name} goes up`, id);
+    assert.equal(sim.stepText(st, step, 'hint'), '40% built. 2 people are building it. One is all you need. To send more hands, tap a worker, then the site.', id);
+    assert.ok(!step.done(st), `${id}: not done while it goes up`);
+    site.built = 1;
+    assert.ok(step.done(st), `${id}: done once it stands`);
+  }
 });
 
 test('a new plank house brings two newcomers, who sit by the fire until there is work', () => {

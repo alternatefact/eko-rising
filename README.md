@@ -20,6 +20,9 @@ it), so nothing a player has saved is lost.
 The game opens with a guided story that goes at the player's pace: a guide at
 the top left says who is speaking, what they say, and the one thing to do
 next, points at it on the map or in the build bar, and waits until it is done.
+When it asks for a building, each pick from the build bar places one; the
+arrow then moves to the building site and the guide waits while it goes up,
+so nobody builds five sheds thinking the first did not take.
 Untick *Guided start* on the title screen (or choose *Start again without the
 guide* after losing everything) to skip it: the founders arrive with a few
 settlers and some food and planks, and you build whatever you think matters

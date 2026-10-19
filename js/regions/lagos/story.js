@@ -2,6 +2,7 @@
 // questions it asks about the clearing and its fence.
 
 import { totalFood } from '../../sim/economy.js';
+import { BUILDINGS } from '../../data/buildings.js';
 import { has, pop, many, founderOf, guests, his, building, home, workersOf, names, mudCost, near } from './common.js';
 
 const homeAt = (st) => {
@@ -77,6 +78,37 @@ export function fenceState(st) {
 export function fenced(st) {
   const f = fenceState(st);
   return f.closed && f.gate && f.area >= 40 && f.floorIn;
+}
+
+// A building of this type marked out and still going up.
+const site = (st, type) => st.buildings.find((b) => b.type === type && b.owner === 'player' && !b.dead && b.built < 1);
+
+const text = (st, v) => (typeof v === 'function' ? v(st) : v);
+
+// A step that asks for one building. As soon as its site is marked out the
+// guide stops asking: it points at the site and says how it is getting on
+// until it stands, so nobody places a second one thinking the first did not
+// take.
+function buildStep(type, step) {
+  const ask = { task: step.task, hint: step.hint, point: step.point || (() => ({ build: type })) };
+  const name = BUILDINGS[type].name;
+  return {
+    ...step,
+    task: (st) => (site(st, type) ? `Wait while the ${name} goes up` : text(st, ask.task)),
+    hint: (st) => {
+      const b = site(st, type);
+      if (!b) return text(st, ask.hint);
+      const progress = b.got < b.need ? `Carrying the materials over: ${Math.floor(b.got)} of ${b.need}.` : `${Math.floor(b.built * 100)}% built.`;
+      const hands = b.builders?.length || 0;
+      const who = hands ? `${hands === 1 ? 'One person is' : `${hands} people are`} building it.` : 'Whoever sits by the fire comes to build it.';
+      return `${progress} ${who} One is all you need. To send more hands, tap a worker, then the site.`;
+    },
+    point: (st) => {
+      const b = site(st, type);
+      return b ? { id: b.id } : ask.point(st);
+    },
+    done: (st) => st.buildings.some((b) => b.type === type && b.owner === 'player' && !b.dead && b.built >= 1),
+  };
 }
 
 // --- The opening: a household of two becomes a community -----------------------
@@ -196,15 +228,13 @@ export const STORY = [
       return false;
     },
   },
-  {
+  buildStep('woodcutter', {
     id: 'woodshed',
     who: 'founder',
     say: '“The house sleeps five: the two of us and three more. We need no new house yet. What we need is wood.”',
     task: 'Build a Wood Shed by the forest',
     hint: 'Open 🔨 Build → Industry and pick the Wood Shed (6 planks). Place it near the trees. Nothing builds itself: the two from the fire carry the planks over from the storage floor and put it up, post by post. Tap the building site to see how far along it is.',
-    point: () => ({ build: 'woodcutter' }),
-    done: (st) => !!building(st, 'woodcutter') && building(st, 'woodcutter').built >= 1,
-  },
+  }),
   {
     id: 'cutters',
     enter: (st) => (st.tut.wood0 = st.stats.made.wood),
@@ -220,7 +250,7 @@ export const STORY = [
     min: 15,
     done: (st) => st.stats.made.wood - (st.tut.wood0 || 0) >= 8,
   },
-  {
+  buildStep('hunter', {
     id: 'antelope',
     focus: true,
     enter: (st, api) => {
@@ -233,9 +263,8 @@ export const STORY = [
     hint: '🔨 Build → Food → Hunter’s Shed (8 planks). Whoever sits by the fire builds it, then takes it on: watch them change into hunting clothes and take up the bow.',
     point: (st) => {
       const a = (st.flags.herd || []).map((id) => st.byId.get(id)).find((x) => x && !x.dead);
-      return building(st, 'hunter') ? { id: building(st, 'hunter').id } : a ? { id: a.id } : { build: 'hunter' };
+      return a ? { id: a.id } : { build: 'hunter' };
     },
-    done: (st) => !!building(st, 'hunter') && building(st, 'hunter').built >= 1,
     exit: (st, api) => {
       // Nobody free? Then the woodcutter goes: food comes first.
       const shed = building(st, 'hunter');
@@ -244,7 +273,7 @@ export const STORY = [
         if (c) api.notify(`🏹 ${c.name} puts down the axe, changes into hunting clothes and takes up the bow.`, 'good', c);
       }
     },
-  },
+  }),
   {
     id: 'hunt',
     who: 'guide',
@@ -256,7 +285,7 @@ export const STORY = [
     point: (st) => workersOf(st, 'hunter')[0] && { id: workersOf(st, 'hunter')[0].id },
     done: (st) => st.stats.made.meat >= 5,
   },
-  {
+  buildStep('hut', {
     id: 'fire',
     enter: (st, api) => {
       const a = api.wanderer({ near: true, quiet: true });
@@ -268,18 +297,14 @@ export const STORY = [
     say: '“Two more have come. They are sitting by the fire with nothing to do — and the house is full.”',
     task: 'Build a Plank House',
     hint: '🔨 Build → Homes → Plank House (10 planks). It sleeps two. The two at the fire build it. Mud bricks come later: for now we build in wood.',
-    point: () => ({ build: 'hut' }),
-    done: (st) => st.buildings.some((b) => b.type === 'hut' && b.owner === 'player' && !b.dead && b.built >= 1),
-  },
-  {
+  }),
+  buildStep('farm', {
     id: 'farm',
     who: 'founder',
     say: '“Meat alone will not keep us. Let us clear ground and plant yams.”',
     task: 'Plant a Yam Farm',
     hint: '🔨 Build → Food → Yam Farm (5 planks), on open ground. The two by the fire will go and work it. Each workplace takes its own hands: when nobody at the fire is free, tap a worker and then the place you want them.',
-    point: () => ({ build: 'farm' }),
-    done: (st) => !!building(st, 'farm') && building(st, 'farm').built >= 1,
-  },
+  }),
   {
     id: 'farming',
     who: 'guide',
@@ -371,15 +396,13 @@ export const STORY = [
     hint: (st) => `Food ${Math.floor(totalFood(st))} of 30, planks ${Math.floor(st.res.wood)} of 40. A second farm or wood shed helps. If the storage floor is full, build another beside it (Industry).`,
     done: (st) => totalFood(st) >= 30 && st.res.wood >= 40,
   },
-  {
+  buildStep('warcamp', {
     id: 'guardhouse',
     who: 'founder',
     say: '“A guard house, where our own men train and live.”',
     task: 'Build a Guard House',
     hint: '🔨 Build → Defence → Guard House (40 planks). A big building: three can work on it at once. Short of builders? Tap a worker, then the building site, to send them to help.',
-    point: () => ({ build: 'warcamp' }),
-    done: (st) => !!building(st, 'warcamp') && building(st, 'warcamp').built >= 1,
-  },
+  }),
   {
     id: 'soldiers',
     who: 'guide',
@@ -420,16 +443,14 @@ export const STORY = [
       return false;
     },
   },
-  {
+  buildStep('brickyard', {
     id: 'brickshed',
     focus: true,
     who: 'founder',
     say: '“Here it is: red mud, as much as we will ever need.”',
     task: 'Build a Mud Brick Shed beside the red mud',
     hint: '🔨 Build → Industry → Mud Brick Shed (8 planks). The shed itself is wood; its workers dig the mud, press it into moulds and dry the bricks in the sun.',
-    point: (st) => (building(st, 'brickyard') ? { id: building(st, 'brickyard').id } : { build: 'brickyard' }),
-    done: (st) => !!building(st, 'brickyard') && building(st, 'brickyard').built >= 1,
-  },
+  }),
   {
     id: 'bricks',
     who: 'guide',

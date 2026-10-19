@@ -9,7 +9,7 @@
 
 import { ERAS, population, currentStep } from '../sim/index.js';
 
-export const GAME_VERSION = '2026.10.18.2';
+export const GAME_VERSION = '2026.10.19';
 const KEY = 'eko-rising:feedback';
 const STUDIO_EMAIL = 'Alternatefact2@gmail.com';
 const ASK_AFTER_MINUTES = 25;
