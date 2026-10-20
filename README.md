@@ -1,6 +1,6 @@
 # Naija Rising — Build your Nigeria
 
-Build your Nigeria, one home state at a time. Chapter one is Èkó: build Lagos from scratch. Start as a farmer and his wife by the lagoon, grow a
+Build your Nigeria, one home kingdom at a time. Chapter one is Èkó: build Lagos from scratch. Start as a farmer and his wife by the lagoon, grow a
 yam farm into a compound, a town, a port city and a modern metropolis, and decide
 how the history of Nigeria goes: trade with the Portuguese or send them away,
 stand up to Benin and the British, and unite the peoples of the land into

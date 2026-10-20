@@ -10,19 +10,19 @@ Every coding session on Naija Rising starts by reading this brief, then builds e
 2. Build one milestone per session and finish it to its acceptance checks. Say what is left undone at the end.
 3. Keep every existing save loading. When the save shape changes, add a save version number and a migration.
 4. Extend the engine; don't rewrite it. Regions, factions, events, flags and the story runner already do most of the work.
-5. Put new content in data files, not engine code. A new state or culture should be mostly data.
+5. Put new content in data files, not engine code. A new kingdom or culture should be mostly data.
 6. Ask before any architectural change this brief does not cover.
 7. Bump `GAME_VERSION` in `js/ui/feedback.js` with each release.
 
 ## The vision
 
-Eko Rising becomes **Naija Rising — Build your Nigeria**: one long campaign in which you pick your home state, build it up, unite Nigeria, and win it back from colonial rule. Each home state is a chapter: Naija Rising: Èkó (today's Eko Rising), Naija Rising: Kano, and so on.
+Eko Rising becomes **Naija Rising — Build your Nigeria**: one long campaign in which you pick your home kingdom, build it up, unite Nigeria, and win it back from colonial rule. Each home kingdom is a chapter: Naija Rising: Èkó (today's Eko Rising), Naija Rising: Kano, and so on.
 
-- **Choose your state.** Every player starts in a state of their choice: Lagos, Kano, Anambra or Edo in the first release.
+- **Choose your kingdom.** Every player starts in a kingdom of their choice: Èkó, Kano, Nri or Benin in the first release.
 - **Same game, different skin.** Rules, buildings, economy and eras are identical everywhere. What changes is the culture: names, clothing, staple crop labels, an elite unit, festivals and stories from that region's history.
-- **One long campaign.** Players come back for weeks. They city-build their home state and expand across a Nigeria map, state by state.
+- **One long campaign.** Players come back for weeks. They city-build their home kingdom and expand across a map of Nigeria's old kingdoms, province by province.
 - **Choices with consequences.** Big decisions, starting with the slave trade, come back later in ways the player is not warned about.
-- **Something to brag about.** States held, cities built, wealth and era go on a shareable card, and later on leaderboards by home state.
+- **Something to brag about.** Provinces held, cities built, wealth and era go on a shareable card, and later on leaderboards by home kingdom.
 - **A living game.** Weekly updates bring live events, such as a hyena season or a bandit surge, to every player at a given stage.
 - **Later chapters.** Crude oil and corruption arrive in a future update to the campaign story.
 
@@ -55,19 +55,19 @@ One campaign runs from a farmstead to the New Nigeria in seven phases, tied to t
 
 | # | Phase | Era | What happens | Gate to the next phase |
 | --- | --- | --- | --- | --- |
-| 1 | Rise | Farmstead → Compound | Build your home state against local kingdoms, predators, floods and drought. | Compound era reached |
+| 1 | Rise | Farmstead → Compound | Build your home kingdom against neighbours, predators, floods and drought. | Compound era reached |
 | 2 | First contact | Compound → Town | Ships or desert caravans bring trade and guns, and an offer to buy captives. | Palace built, one kingdom subdued: Town era |
-| 3 | Expand | Town | The Nigeria map opens: win neighbouring states by treaty, tribute or war. | 4 states held: Port City era |
+| 3 | Expand | Town | The Nigeria map opens: win nearby provinces by treaty, tribute or war. | 4 provinces held: Port City era |
 | 4 | Abolition era | Port City | Palm oil replaces the slave trade; past sales hand the British their excuse. | The British advance begins |
-| 5 | The Scramble | Port City | The British take independent states one by one, by treaty or by force. | You refuse to hand over your states |
-| 6 | Liberation war | Port City → Metropolis | Refuse to give up your states, then win back every British-held state. | Every state held or allied, Assembly built |
-| 7 | The New Nigeria | Metropolis | Proclaim the New Nigeria. Oil and corruption arrive in later updates. | — |
+| 5 | The Scramble | Port City | The British take independent provinces one by one, by treaty or by force. | You refuse to hand over your provinces |
+| 6 | Liberation war | Port City → Metropolis | Refuse to give up your provinces, then win back every British-held one. | Every province held or allied, Assembly built |
+| 7 | The New Nigeria | Metropolis | Proclaim the New Nigeria and choose its shape: kingdoms, regions or states. | — |
 
 The game's signature runs from phase 2 to phase 4: captives sold at first contact come back in the Abolition era and after, as the British excuse and as their riflemen.
 
 ## Same game, different skin: culture packs
 
-A culture pack is one data file that reskins the game for one people; a home state names its culture, and the rules stay identical.
+A culture pack is one data file that reskins the game for one people; a home kingdom names its culture, and the rules stay identical.
 
 **What a culture pack changes**
 
@@ -107,15 +107,15 @@ export const HAUSA = {
 - Each region file gains `culture: 'hausa'` (Lagos and Ogun become `yoruba`).
 - The `yo` field in `eras.js` moves into each pack's `eraNames`.
 - `people.js` and `names.js` are keyed by culture. Elite units in `units.js` carry a `culture` field.
-- The title screen's Nigeria map becomes the home-state picker. Tap a state, and its region and culture load.
+- The title screen's Nigeria map becomes the home-kingdom picker, drawn as the province map (see The Nigeria map). Tap a kingdom, and its region and culture load.
 
 ## The four starting cultures
 
-The first release offers four home states, one per culture: Lagos (Yoruba, already built), Kano (Hausa), Anambra (Igbo) and Edo (Benin).
+The first release offers four home kingdoms, one per culture: Èkó (Yoruba, already built), Kano (Hausa), Nri (Igbo) and Benin (Edo).
 
 | | Yoruba | Hausa | Igbo | Edo |
 | --- | --- | --- | --- | --- |
-| Home state | Lagos | Kano | Anambra | Edo |
+| Home kingdom (today) | Èkó (Lagos) | Kano | Nri (Anambra) | Benin (Edo) |
 | Founder · spouse | Àdìó · Àdùkẹ́ | Garba · Hauwa | Nwankwo · Adaeze | Osaro · Ivie |
 | Settlement | Èkó | Dala, the hill Kano grew around | Umunwankwo, "children of Nwankwo" | Igodomigodo, the old name of Benin |
 | Ruler's title | Ọba | Sarki | Eze (Obi in some towns) | Oba |
@@ -137,13 +137,13 @@ Each start gets three to six events from its own history, run by the existing ev
 - Founding at Dala Hill under Bagauda, the first king in the Kano Chronicle.
 - Muhammad Rumfa (1463–99) extends the walls and opens the Kurmi market: a building milestone.
 - Queen Amina of Zazzau (16th century), a powerful neighbour to ally with or rival. Her walls inspire a wall upgrade.
-- The long Kano–Katsina rivalry with the next state.
+- The long rivalry with neighbouring Katsina.
 - Kwararafa invasions (17th century): the first great host to break.
 - Desert caravans bring horses, salt and books: Kano's version of the ships, so horses come early.
 - Usman dan Fodio's movement (1804) and the Sokoto Caliphate. Handle with care (see Sensitivity).
 - British conquest of Kano and Sokoto, 1903: the northern front of the colonial arc.
 
-**Igbo (Anambra)**
+**Igbo (Nri)**
 
 - Nri priest-kings, whose authority settled feuds without armies. Unique option: pay Nri priests to end a war.
 - The Igbo-Ukwu bronzes (9th–10th century): a place of interest and a discovery event.
@@ -175,7 +175,7 @@ Have a native speaker check every name, title and greeting, with tone marks, bef
 
 ## Elite units
 
-Each culture trains one elite unit at its Training Ground from the Town era, and each fights differently, so a home state changes how you win battles.
+Each culture trains one elite unit at its Training Ground from the Town era, and each fights differently, so a home kingdom changes how you win battles.
 
 | Unit (id) | Culture | Look | Battlefield role |
 | --- | --- | --- | --- |
@@ -198,16 +198,16 @@ These are first guesses; tune them with the headless test run.
 **Rules**
 
 - Only your own culture's elite can be trained.
-- Allied or conquered states of another culture let you hire their elite for a daily wage. Uniting a Hausa state gives you Lifidi Horsemen, so diverse alliances pay.
+- Allied or conquered provinces of another culture let you hire their elite for a daily wage. Uniting a Hausa kingdom gives you Lifidi Horsemen, so diverse alliances pay.
 - Optional, to test: horses slowly lose health in forest (the tsetse fly). This is why northern cavalry never conquered the forest belt, and it keeps north and south different.
 
 ## Hidden consequences: the slave trade
 
 The slave-trade choice is the game's signature: selling captives pays fast and buys guns early, and later those same people come back as soldiers against you. The player sees only the immediate effect when choosing.
 
-**When it comes:** early, in the Compound or Town era, while guns still matter. It must not wait until the player already holds many states, or saying no costs nothing.
+**When it comes:** early, in the Compound or Town era, while guns still matter. It must not wait until the player already holds many provinces, or saying no costs nothing.
 
-**How it arrives in each culture:** Lagos and Edo through the ships (Edo first, as Benin met the Portuguese earliest); Kano through buyers travelling with the desert caravans; Anambra through the Aro and their oracle. Each version offers the same three options and sets the same flags.
+**How it arrives in each culture:** Èkó and Benin through the ships (Benin first, as it met the Portuguese earliest); Kano through buyers travelling with the desert caravans; Nri through the Aro and their oracle. Each version offers the same three options and sets the same flags.
 
 | Choice | Shown right away | Hidden until it happens |
 | --- | --- | --- |
@@ -234,27 +234,65 @@ The buyers come back every 20 to 30 days while the player keeps selling. Each sa
 
 ## The Nigeria map
 
-Players city-build only their home state; every other state is a province on a Nigeria map, won by alliance, tribute or war. Building 36 full city maps would take years, so this two-layer design keeps scope realistic.
+Players city-build only their home kingdom. The rest of Nigeria is 28 provinces based on the kingdoms and peoples' lands of around 1600, won by alliance, tribute or war. Nigeria's states only date from 1967, so the map follows the powers a player would really have met between 1400 and 1960.
 
-**Data** (`js/campaign/states.js`, new): for each state, its id, name, neighbours, historical holder (for example Kano: the Sarki of Kano; Oyo: the Alaafin of Ọ̀yọ́), culture pack if one exists, strength 1–5, daily yield, and land type (coast, forest, savanna, delta). The tile positions already exist in `STATES` in `js/regions/index.js`.
+| Province | Area | Held by, around 1600 | Roughly today |
+| --- | --- | --- | --- |
+| Kanem-Bornu | North | The Mai, at Ngazargamu | Borno, Yobe |
+| Kano (home start) | North | The Sarki of Kano | Kano, Jigawa |
+| Katsina and Daura | North | The Sarki of Katsina | Katsina |
+| Zazzau | North | The Sarki of Zazzau; Queen Amina in the 16th century | Kaduna, FCT |
+| Gobir and Zamfara | North | The Sarkin Gobir and the Sarkin Zamfara | Sokoto, Zamfara |
+| Kebbi | North | The Kanta of Kebbi | Kebbi |
+| Bauchi and Gombe lands | North | Many peoples, no single ruler (council) | Bauchi, Gombe |
+| Upper Benue lands | North | Many peoples, no single ruler (council) | Adamawa |
+| Nupe | Middle Belt | The Etsu Nupe | Niger |
+| Borgu | Middle Belt | The king of Bussa | West Niger, north Kwara |
+| Kwararafa | Middle Belt | The Aku Uka of the Jukun, at Wukari | Taraba, Nasarawa |
+| Tiv lands | Middle Belt | Elders' councils (council) | Benue |
+| Plateau lands | Middle Belt | Berom, Ngas and other peoples (council) | Plateau |
+| Igala | Middle Belt | The Ata of Igala, at Idah | Kogi |
+| Ọ̀yọ́ | West | The Alaafin, at Ọ̀yọ́-Ilé | Oyo, south Kwara |
+| Ifẹ̀ and Ìjẹ̀ṣà | West | The Ooni of Ifẹ̀; the Owa Obokun at Ilesa | Osun |
+| Ekiti kingdoms | West | The Ekiti kings | Ekiti |
+| Ondo and Owo | West | The Olowo of Owo; the Osemawe of Ondo | Ondo |
+| Ìjẹ̀bú | West | The Awùjalẹ̀, at Ìjẹ̀bú-Òde | East Ogun |
+| Ẹ̀gbá and Awori towns | West | Forest towns under Ọ̀yọ́'s sway | West Ogun |
+| Èkó (home start) | West | The Ọba of Èkó, paying tribute to Benin | Lagos |
+| Benin (home start) | South | The Oba of Benin | Edo |
+| Warri, Urhobo and Isoko | South | The Olu of Warri; Urhobo and Isoko clans | Delta |
+| Delta city-states | South | The trading houses of Bonny, Kalabari, Nembe and Okrika | Rivers, Bayelsa |
+| Old Calabar and Ibibio lands | South | Efik trading houses; Ibibio and Annang councils | Cross River, Akwa Ibom |
+| Nri and Onitsha (home start) | South | The Eze Nri, a priest-king; the Obi of Onitsha | Anambra |
+| Aro lands | South | The Aro, through their oracle at Arochukwu | Abia, Imo |
+| Northern Igbo lands | South | Village councils (council) | Enugu, Ebonyi |
 
-**Province status:** independent, allied, paying tribute, conquered, or British.
+The borders and tribute links are a design snapshot, not a single historical year. Have a historian check them before milestone 7.
+
+**Data** (`js/campaign/provinces.js`, new): for each province, its id, name, area, neighbours, holder and title, overlord if it pays tribute, culture pack if one exists, `council: true` for lands without kings, strength 1–5, daily yield, land type (coast, forest, savanna, delta), and the modern states it covers, shown in the picker. A simple province map replaces the state cartogram (`STATES` in `js/regions/index.js`).
+
+**Province status:** independent, allied, paying tribute, conquered, or British. Some provinces start out paying tribute to another: Èkó to Benin, the Ẹ̀gbá towns to Ọ̀yọ́. Freeing a tributary wins a quick friend and angers its overlord.
+
+**Lands without kings** (marked "council" in the table): Igbo village groups, the Tiv, the Plateau and Upper Benue peoples and the Ibibio were governed by councils of elders, not thrones. There is no capital to capture. The player wins them council by council, through gifts, trade, settling disputes and defending them from raiders. Force works, but each council resists separately and unrest stays high.
 
 **Rules**
 
-1. The map opens in the Town era. Before that, the game is the home state alone, as today.
-2. You can only act on a state next to one you hold or are allied with.
+1. The map opens in the Town era. Before that, the game is the home kingdom alone, as today.
+2. You can only act on a province next to one you hold or are allied with.
 3. Diplomacy reuses today's options: gifts, trade agreement, greet as kin, demand submission.
-4. War: send an army from home. It takes a few days per state crossed. The first version settles battles automatically from `armyPower`, with some chance, and applies the losses. A later version can offer "fight it yourself" on a battle map generated from that state's terrain.
+4. War: send an army from home. It takes a few days per province crossed. The first version settles battles automatically from `armyPower`, with some chance, and applies the losses. A later version can offer "fight it yourself" on a battle map generated from that province's terrain.
 5. Provinces pay a daily yield, send recruits, and let you hire their culture's elite unit.
 6. A conquered province needs a garrison, or unrest grows until it rebels.
-7. Era requirements count states instead of kingdoms. Starting values to tune: Town 1, Port City 4, Metropolis 10.
+7. Era requirements count provinces instead of kingdoms. Starting values to tune: Town 1, Port City 4, Metropolis 10, out of 28.
+8. History moves on through events, not new borders. The Sokoto Caliphate (1804) can unite Hausa provinces the player does not hold, Ọ̀yọ́ can collapse in the 1830s unless the player has allied with or taken it, and the Ẹ̀gbá can found Abẹ́òkúta.
 
-**The British advance:** from the Port City era, every few days the British take one independent state on the coast, a river or next to their holdings. Weak states sign treaties, as the Royal Niger Company did; strong ones are conquered. Your allies resist and can call on you. Your own states are never taken without a battle.
+**The British advance:** from the Port City era, every few days the British take one independent province on the coast, a river or next to their holdings. Weak ones sign treaties, as the Royal Niger Company did; strong ones are conquered. Your allies resist and can call on you. Your own provinces are never taken without a battle.
 
-**Winning:** hold or ally every state, reach the Metropolis era, and build the House of Assembly. Then proclaim the New Nigeria, using the existing `proclaim` logic extended to the whole map.
+**The colonial map:** British-held provinces are drawn as the colonial territories of their time: the Lagos Colony (1861), the Oil Rivers Protectorate (1884), the Royal Niger Company's lands (1886) and Northern Nigeria (1900). The Northern, Western and Eastern Regions appear only in this colonial layer, never as the starting map.
 
-**Save shape:** a new `st.campaign` object holding each state's owner, status, loyalty and garrison, plus armies on the move. Old saves load with a campaign built from their current kingdoms.
+**Winning:** hold or ally every province, reach the Metropolis era, and build the House of Assembly. Then proclaim the New Nigeria, using the existing `proclaim` logic extended to the whole map, and choose its shape: a union of the old kingdoms, a few large regions, or many smaller states. The choice appears on the empire card and in the chronicle.
+
+**Save shape:** a new `st.campaign` object holding each province's owner, status, overlord, loyalty and garrison, plus armies on the move. Old saves load with a campaign built from their current kingdoms.
 
 ## Live events
 
@@ -301,7 +339,7 @@ Bragging ships in three steps: a shareable empire card first, which needs no ser
 **1. The empire card (no server)**
 
 - One tap from the Era panel, and at every chapter milestone, draws an image of your empire.
-- It shows home state and culture, a small Nigeria map coloured by who holds what, cities, population, wealth, era, in-game year, days played, badges, and the slave-trade path taken ("Freed 34 captives").
+- It shows home kingdom and culture, a small Nigeria map coloured by who holds what, cities, population, wealth, era, in-game year, days played, badges, and the slave-trade path taken ("Freed 34 captives").
 - Landscape 16:9 by default, plus a 9:16 version for TikTok and WhatsApp Status.
 - Shared through the phone's share sheet (WhatsApp, X, TikTok, Instagram), with a download fallback.
 - Studio mark and game link on every card, so each share advertises the game.
@@ -314,10 +352,10 @@ Bragging ships in three steps: a shareable empire card first, which needs no ser
 
 **3. Leaderboards**
 
-- Boards by home state ("Top Kano empires"), overall, and a weekly fixed-seed challenge.
-- Measures: states held, population, wealth, era reached, and fewest days to unite Nigeria.
+- Boards by home kingdom ("Top Kano empires"), overall, and a weekly fixed-seed challenge.
+- Measures: provinces held, population, wealth, era reached, and fewest days to unite Nigeria.
 - Players pick a display name, filtered for slurs, including ethnic slurs, with a report button.
-- Rivalry is between states, never peoples: "Kano vs Lagos", not one ethnic group against another.
+- Rivalry is between places, never peoples: "Kano vs Lagos", not one ethnic group against another.
 
 **The honest limit on cheating:** the game runs on the player's device, so any leaderboard can be faked. Lagos Life's economy had to be reset after hacked balances. The server should reject numbers that are impossible for the days played and flag sudden jumps. Never attach money or prizes to a leaderboard. Only running the simulation on the server would fully stop cheating, and that is out of scope.
 
@@ -353,8 +391,8 @@ The elite units' looks are in the Elite units table. Two horses are new: an armo
 
 The game asks Nigerians "what if?" about their own history, so it must never set one people against another or treat a faith as an enemy.
 
-- **Many peoples, not four.** Nigeria has over 250 ethnic groups. The home-state picker says more peoples are coming. States without a pack keep their own historical rulers on the map (Nupe, Jukun, Tiv, Ijaw, Kanuri, Efik, Igala, Urhobo and others), never relabelled as another culture.
-- **Enemies are historical kingdoms and foreign powers,** never today's ethnic groups. There is always a way to unite through alliance or trade.
+- **Many peoples, not four.** Nigeria has over 250 ethnic groups. The home-kingdom picker says more peoples are coming. Provinces without a pack keep their own peoples and rulers on the map (Nupe, Jukun, Tiv, Ijaw, Kanuri, Efik, Igala, Urhobo and others), never relabelled as another culture.
+- **Enemies are historical kingdoms and foreign powers,** never today's ethnic groups. There is always a way to unite through alliance or trade. The Northern, Western and Eastern Regions were colonial creations, so they appear only as British rule, never as the starting map.
 - **Faith is never a faction.** Islam, Christianity and traditional religions are never defeated, rewarded or punished. Usman dan Fodio's movement appears as a historical political force the player can ally with, resist or negotiate with.
 - **The slave trade carries weight.** Captives are people, named in event text. A sale gets no cheerful sound, celebration or reward animation.
 - **No civil war.** Leave 1967–70 out of the game.
@@ -369,19 +407,19 @@ Nine milestones, each one or a few coding sessions, in this order. Character art
 
 1. **Foundations.** Add this brief to the project as `DESIGN.md`. Split `lagos.js` into terrain, factions, events, story and objectives files. Add a save version and migration. Rename the game to **Naija Rising — Build your Nigeria** on the title screen, page title and share tags, but keep the internal `eko-rising` ids and storage keys so saves and feedback history carry over. If the web address changes, keep the old one redirecting. Add a headless test that plays 200 game days on a fixed seed for each start and fails on any error.
    - Done when: the game plays exactly as before, old saves load, and the test passes.
-2. **Culture packs and the Kano start.** Create `js/cultures/` with a Yoruba pack (moved from today's data) and a Hausa pack. Move the guided opening into a shared file that takes its words from the pack. Add `kano.js` with savanna terrain, the Katsina and Zazzau kingdoms, the Kwararafa host, hyena packs and the Durbar. Make Lagos and Kano tappable on the title screen's map.
+2. **Culture packs and the Kano start.** Create `js/cultures/` with a Yoruba pack (moved from today's data) and a Hausa pack. Move the guided opening into a shared file that takes its words from the pack. Add `kano.js` with savanna terrain, the Katsina and Zazzau kingdoms, the Kwararafa host, hyena packs and the Durbar. Replace the title screen's state cartogram with the province map, and make Èkó and Kano tappable.
    - Done when: a Kano game runs the guided opening with Hausa names and words, and the Kwararafa host can be beaten.
-3. **Elite units.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied states.
+3. **Elite units.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied provinces.
    - Done when: each start trains its elite in the Town era, and the test shows no unit winning every fight.
-4. **Anambra and Edo starts.** Add Igbo and Edo packs, their region files, story beats and festivals.
-   - Done when: all four home states are playable from the title screen.
+4. **Nri and Benin starts.** Add Igbo and Edo packs, their region files, story beats and festivals.
+   - Done when: all four home kingdoms are playable from the title screen.
 5. **The slave-trade branch.** Add the sell option and its hidden consequences in all four cultural versions.
    - Done when: in a test run, selling produces sold-captive riflemen in a later landing with the reveal card, and freeing produces settlers over the cap.
 6. **Live events and the empire card.** Add `live.js` with the hyena season as the first event, the title-screen banner, badges, and the shareable card in both sizes.
    - Done when: setting the device date into an event week triggers it, and the card shares on a phone.
-7. **The Nigeria map.** Add state data, province status, diplomacy, automatic battles, yields, garrisons and era requirements counted in states. Fold the Ogun chapter into the Ogun province.
-   - Done when: a player can win a neighbouring state by treaty and another by war, and both pay yields.
-8. **The British advance and the liberation war.** Add British expansion across independent states, the fight to take them back, and winning across the whole map.
+7. **The Nigeria map.** Add the 28 provinces, tribute links, elders' councils for lands without kings, diplomacy, automatic battles, yields, garrisons and era requirements counted in provinces. Split the Ogun chapter into the Ìjẹ̀bú and Ẹ̀gbá provinces.
+   - Done when: a player can win a neighbouring province by treaty and another by war, and both pay yields.
+8. **The British advance and the liberation war.** Add British expansion across independent provinces, the colonial map, the fight to take them back, winning across the whole map, and the player's choice of the New Nigeria's shape.
    - Done when: a full test campaign can end in the New Nigeria.
 9. **Accounts, cloud saves and leaderboards** on the studio server, with the privacy work from the Bragging section.
    - Done when: a save made on one device continues on another, and impossible scores are rejected.
@@ -391,8 +429,8 @@ Nine milestones, each one or a few coding sessions, in this order. Character art
 These need Kay's answer before the milestone that depends on them.
 
 - [ ] **Freed captives' reward** (milestone 5): this brief replaces "they eat a third of the food" with loyalty, combat and settler-cap rewards. Confirm, or bring the food rule back.
-- [x] **The Ogun chapter** (milestone 7): fold it into the Ogun province, or keep its map as a second city for Lagos players? **Decided Oct 19, 2026: keep its map.** Lagos players build Ogun from scratch, carrying what they learned in Lagos (its buildings, crafts and ages, which come quicker the second time), and Ogun has its own story and enemies: Ọ̀yọ́ horsemen, Ìjẹ̀bú gunmen and the host of Dahomey.
-- [ ] **How many states before the British advance** (milestone 7): the brief starts it at the Port City era with era goals of 1, 4 and 10 states. The original idea was 10 to 15 states first.
+- [ ] **The province map** (milestone 7): check the 28 provinces, their borders and tribute links with a historian. The Ogun chapter is settled: it becomes the Ìjẹ̀bú and Ẹ̀gbá provinces.
+- [ ] **How many provinces before the British advance** (milestone 7): the brief starts it at the Port City era with era goals of 1, 4 and 10 provinces out of 28. The original idea was 10 to 15 states first, which is a third to half of the map.
 - [ ] **Where players play** (milestones 6 and 9): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
 - [ ] **Studio server** (milestone 9): hosting, cost, and who moderates display names.
 - [ ] **Reviewers:** who checks the Hausa, Igbo and Edo names, clothing and stories.
@@ -437,5 +475,3 @@ For a horse, change the first line to a side view of the horse standing square, 
 | Leopard Guard | a Benin palace guard, leopard-skin tunic over a wrapper, high coral collar, small bronze bells at the waist, iron sword, round decorated hide shield |
 | Ẹ̀ṣọ́ Rider | a Yoruba cavalryman of Ọ̀yọ́, quilted cotton vest, indigo and red aso-oke sash, close cap, spear and short bow |
 | Ẹ̀ṣọ́ horse | a lighter chestnut horse with a simple leather bridle and a woven saddle cloth |
-| Agojie swordswoman (done) | a woman soldier of the Agojie, the all-female regiment of the Kingdom of Dahomey, late twenties, athletic, close-fitting white cotton cap with a small dark-blue appliqué, sleeveless knee-length tunic of bold vertical indigo and white stripes, broad brown leather belt with a short scabbard, knee-length dark indigo culottes, white cowrie bands on the upper arms, flat leather sandals, empty hands |
-| Agojie musketeer (picture made, model to do) | a woman musketeer of the Agojie, early thirties, red cloth cap tied at the back, sleeveless knee-length tunic of deep indigo with red trim, two crossed leather bandoliers hung with small carved wooden powder cases, narrow red sash, knee-length white culottes, iron wrist bracelets, flat leather sandals, empty hands |
