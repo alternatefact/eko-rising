@@ -1,6 +1,6 @@
 // Questions the Ogun events and goals ask about the town and the land.
 
-export { has, pop, unifiedCount, majorCount, many, building } from '../lagos/common.js';
+export { has, pop, unifiedCount, majorCount, many, building } from '../common.js';
 
 export const claimed = (st, kind) => st.pois.some((p) => p.kind === kind && p.claimed);
 

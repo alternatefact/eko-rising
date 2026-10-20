@@ -16,6 +16,7 @@ const STARTS = [
   { name: 'Lagos, with the guide', opts: { seed: 101 } },
   { name: 'Lagos, without the guide', opts: { seed: 102, guide: false } },
   { name: 'Ogun', opts: { region: 'ogun', seed: 103, guide: false } },
+  { name: 'Kano, with the guide', opts: { region: 'kano', seed: 104 } },
 ];
 
 function check(st, when) {

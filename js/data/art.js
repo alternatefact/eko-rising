@@ -59,8 +59,29 @@ const REAL_TEXTURES = {
 };
 const AGES = 5;
 
-export function storyArt(id) {
-  return STORY[id] ? `art/${STORY[id]}.webp` : null;
+// Pictures a land has for its own events, or none (null) where the shared
+// picture of that event id belongs to another land.
+const REGION_STORY = {
+  kano: {
+    intro: 'kano_intro',
+    wolves_slain: 'kano_hyenas',
+    chapter_one: 'kano_town',
+    sarki: 'kano_town',
+    dala: 'dala',
+    amina: 'amina',
+    durbar: 'durbar',
+    kwararafa: 'kwararafa',
+    kwararafa_host_seen: 'kwararafa_camp',
+    kwararafa_march_seen: 'kwararafa_camp',
+    kwararafa_beaten: 'kwararafa_beaten',
+    kano_united: 'kwararafa_beaten',
+  },
+};
+
+export function storyArt(id, region) {
+  const own = REGION_STORY[region];
+  const name = own && id in own ? own[id] : STORY[id];
+  return name ? `art/${name}.webp` : null;
 }
 
 export function leaderArt(f) {

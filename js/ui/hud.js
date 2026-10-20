@@ -4,6 +4,7 @@
 import { BUILDINGS, CATEGORIES, stat, levelName, nextUpgrade, costOf, buildCrew } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ERAS } from '../data/eras.js';
+import { eraName, eraBlurb, cultureOf } from '../cultures/index.js';
 import { RESOURCES, FOOD, costText, money } from '../data/resources.js';
 import {
   canAfford, totalFood, population, housingCap, armySize, armyCap, strangers, residents, season, fireCap,
@@ -15,7 +16,6 @@ import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdu
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
 import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace, canRepair, repairCost } from '../sim/index.js';
-import { STATES, NEXT_UP, LOCKED } from '../regions/index.js';
 import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -30,7 +30,7 @@ const ICONS = {
   stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
   bank: '🏦', brickyard: '🧱', stockpile: '🧺',
 };
-const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥' };
+const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥', jukun: '🔱', jukunrider: '🐎' };
 // Goods that only show in the top bar once you have some (or reach the age they matter in).
 const TOP_GOODS = [
   ['wood', 0], ['bricks', 0], ['stone', 1], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
@@ -253,7 +253,7 @@ export class Hud {
   renderTop() {
     const st = this.st;
     $('#town-name').textContent = st.name;
-    $('#era-chip').textContent = `${ERAS[st.era].name} · ${ERAS[st.era].yo}`;
+    $('#era-chip').textContent = `${ERAS[st.era].name} · ${eraName(st, st.era)}`;
     const cap = st.cap;
     const food = totalFood(st);
     const chips = [];
@@ -426,7 +426,7 @@ export class Hud {
         const poor = !canAfford(st, cost);
         const cls = ['bcard', locked ? 'locked' : '', poor ? 'poor' : '', this.game.mode.build === type ? 'on' : ''].join(' ');
         const natural = !cost.cowries;
-        const tip = `${d.name} (${d.yo}) — ${d.desc}${natural ? '\n🌿 Built from natural materials — no money needed.' : `\n${money(st).icon} Needs money.`}${locked ? `\n🔒 ${locked}` : ''}`;
+        const tip = `${d.name}${d.yo ? ` (${d.yo})` : ''} — ${d.desc}${natural ? '\n🌿 Built from natural materials — no money needed.' : `\n${money(st).icon} Needs money.`}${locked ? `\n🔒 ${locked}` : ''}`;
         return `<div class="${cls}" data-type="${type}" title="${esc(tip)}" role="button" tabindex="0">
           <img src="${this.thumbs[type]}" alt="" />
           <span class="nm">${locked ? '🔒 ' : ''}${esc(d.name)}</span>
@@ -470,7 +470,7 @@ export class Hud {
     const text = typeof ev.text === 'function' ? ev.text(st) : ev.text;
     const art = ev.art === 'meet' ? '🤝' : ev.art || '📜';
     const portrait = entry.id === 'meet' ? leaderArt(st.factionMap[entry.fid]) : null;
-    const img = portrait || (entry.id === 'age' ? ageArt(entry.era) : storyArt(entry.id));
+    const img = portrait || (entry.id === 'age' ? (cultureOf(st).eraArt === false ? null : ageArt(entry.era)) : storyArt(entry.id, st.regionId));
     modal.hidden = false;
     // Something to see on the map (the host of Benin): the words sit low,
     // over a clear view of it.
@@ -614,7 +614,7 @@ export class Hud {
     const def = BUILDINGS[b.type];
     const lvl = b.level || 1;
     const cur = lvl > 1 ? def.upgrades[lvl - 2] : null;
-    let h = this.head(`${ICONS[b.type] || ''} ${esc(levelName(b))}`, `${esc(cur?.yo || def.yo)}${def.upgrades ? ` · level ${lvl} of ${def.upgrades.length + 1}` : ''}`);
+    let h = this.head(`${ICONS[b.type] || ''} ${esc(levelName(b))}`, [esc(cur?.yo || def.yo || ''), def.upgrades ? `level ${lvl} of ${def.upgrades.length + 1}` : ''].filter(Boolean).join(' · '));
     h += `<p class="muted">${esc(cur?.desc ? `${cur.desc} ${def.desc}` : def.desc)}</p>`;
     if (b.built < 1 && b.owner === 'player') {
       h += this.siteHtml(b);
@@ -986,14 +986,14 @@ export class Hud {
   eraHtml() {
     const st = this.st;
     const era = ERAS[st.era];
-    let h = this.head(`🌅 ${era.name} era`, `${era.yo} · ${st.time.year}`);
-    const now = ageArt(st.era);
+    let h = this.head(`🌅 ${era.name} era`, `${eraName(st, st.era)} · ${st.time.year}`);
+    const now = cultureOf(st).eraArt === false ? null : ageArt(st.era);
     if (now) h += `<img class="scene" src="${now}" alt="" onerror="this.remove()" />`;
-    h += `<p>${esc(era.blurb)}</p>`;
+    h += `<p>${esc(eraBlurb(st, st.era))}</p>`;
     const r = eraRequirements(st);
     if (r) {
-      const next = ageArt(st.era + 1);
-      h += `<h4>Next: ${esc(r.next.name)} (${esc(r.next.yo)})</h4>${next ? `<img class="scene small" src="${next}" alt="" onerror="this.remove()" />` : ''}<p class="muted">${esc(r.next.blurb)}</p>`;
+      const next = cultureOf(st).eraArt === false ? null : ageArt(st.era + 1);
+      h += `<h4>Next: ${esc(r.next.name)} (${esc(eraName(st, st.era + 1))})</h4>${next ? `<img class="scene small" src="${next}" alt="" onerror="this.remove()" />` : ''}<p class="muted">${esc(eraBlurb(st, st.era + 1))}</p>`;
       for (const q of r.reqs) h += `<div class="req ${q.met ? 'met' : ''}"><span>${q.met ? '✅' : '⬜'}</span><span>${esc(q.text)}${q.cost ? ` — ${costText(q.cost, st)}` : ''}${q.have !== undefined ? ` (now ${q.have})` : ''}</span></div>`;
       const ok = r.reqs.every((q) => q.met);
       h += `<h4></h4><button class="btn primary big" data-act="advance" ${ok ? '' : 'disabled'}>Advance to the ${esc(r.next.name)} era</button>`;
@@ -1331,33 +1331,6 @@ export class Hud {
 }
 
 // --- Title screen map ---------------------------------------------------------------
-
-export function renderNigeria(el, onPick, opened = new Set()) {
-  const S = 46;
-  const G = 4;
-  let svg = `<svg viewBox="0 0 ${8 * (S + G)} ${7 * (S + G)}" role="img" aria-label="Map of Nigeria's states">`;
-  for (const [name, col, row, id] of STATES) {
-    const x = col * (S + G);
-    const y = row * (S + G);
-    // A state with a chapter is open, unless it has to be won first.
-    const locked = !!id && !!LOCKED[id] && !opened.has(id);
-    const open = !!id && !locked;
-    const soon = NEXT_UP.includes(name) || locked;
-    const fill = open ? '#f2b84b' : soon ? 'rgba(242,184,75,0.22)' : 'rgba(255,255,255,0.07)';
-    svg += `<g class="st ${open ? 'open' : ''}" data-id="${id || ''}" data-name="${name}">
-      <title>${name}${open ? ' — play now' : locked ? ` — ${LOCKED[id]}` : soon ? ' — coming next' : ' — coming in a future update'}</title>
-      <rect x="${x}" y="${y}" width="${S}" height="${S}" rx="8" fill="${fill}" stroke="${open ? '#fff3c4' : 'rgba(255,255,255,0.15)'}" />
-      <text x="${x + S / 2}" y="${y + S / 2 + 1}" text-anchor="middle" dominant-baseline="middle" font-size="${name.length > 8 ? 7.5 : 9}" font-weight="700" fill="${open ? '#2a1a05' : 'rgba(255,255,255,0.6)'}">${name}</text>
-      ${open ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="7" font-weight="800" fill="#2a1a05">PLAY</text>` : locked ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="7" fill="rgba(255,236,190,0.85)">🔒</text>` : soon ? `<text x="${x + S / 2}" y="${y + S - 7}" text-anchor="middle" font-size="6.5" fill="rgba(255,236,190,0.8)">NEXT</text>` : ''}
-    </g>`;
-  }
-  svg += '</svg>';
-  el.innerHTML = svg;
-  el.onclick = (e) => {
-    const g = e.target.closest('.st');
-    if (g && g.dataset.id) onPick(g.dataset.id);
-  };
-}
 
 // Is this element on screen (not hidden, not collapsed away)?
 function shown(el) {

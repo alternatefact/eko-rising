@@ -18,6 +18,7 @@ import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
 import { isHostileOwner } from '../sim/military.js';
 import { BUILD_STATES, DRESS_TIME, siteStage } from '../sim/citizens.js';
+import { PREDATORS } from '../cultures/index.js';
 
 const HW = 32; // half a tile's width at zoom 1
 const HH = 16; // half its height
@@ -29,10 +30,10 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun', jukun: 'spearman', jukunrider: 'spearman' };
 // Fighters with no model of their own yet wear another's, washed in their
 // colours until theirs is baked.
-const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)' };
+const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', jukun: 'rgba(70, 38, 18, 0.42)', jukunrider: 'rgba(120, 52, 22, 0.4)' };
 
 // Eight screen directions (0 = right, going clockwise) to a baked direction
 // and whether it is mirrored. Baked: 0 down, 1 down-right, 2 right, 3 up-right, 4 up.
@@ -425,13 +426,14 @@ export class IsoRenderer {
       const p = this.tileToScreen(x, y);
       if (!onScreen(p.x, p.y)) continue;
       const [dir, mirror] = this.dirFor(a, x - a.px, y - a.py);
-      let anim = a.carcass ? 'dead' : a.path ? (a.type === 'wolf' ? 'run' : 'walk') : 'idle';
-      if (a.type === 'wolf' && !a.carcass && (a.phase === 'maul' || a.phase === 'fight')) anim = 'bite';
+      const beast = !!PREDATORS[a.type];
+      let anim = a.carcass ? 'dead' : a.path ? (beast ? 'run' : 'walk') : 'idle';
+      if (beast && !a.carcass && (a.phase === 'maul' || a.phase === 'fight')) anim = 'bite';
       const frames = { walk: 6, run: 6, bite: 4 }[anim] || 1;
       const fps = anim === 'run' ? 14 : anim === 'bite' ? 8 : 9;
       const key = `a/${a.type}/${anim}/${dir}/${Math.floor(at * fps + a.id * 0.37) % frames}`;
       add(this.depthAt(x, y), () => {
-        this.shadow(ctx, p.x, p.y, a.type === 'wolf' ? 9 : 8);
+        this.shadow(ctx, p.x, p.y, beast ? 9 : 8);
         this.atlas.draw(ctx, key, p.x, p.y, z, mirror);
         if (a.hitT && st.time.t - a.hitT < 0.25 && !a.carcass) this.flash(ctx, p.x, p.y - 8 * z);
       });
@@ -700,7 +702,7 @@ export class IsoRenderer {
     return { look, anim: moving ? 'walk' : 'idle' };
   }
 
-  // What someone at work turns to face: the tree, the prey, the wolf.
+  // What someone at work turns to face: the tree, the prey, the beast.
   faceOf(c, job) {
     const st = this.st;
     if (c.state === 'build' && c.buildSite) {
@@ -713,7 +715,7 @@ export class IsoRenderer {
       if (a) return a;
     }
     if (c.state === 'fight' || c.state === 'attacked') {
-      const w = st.animals.find((a) => a.type === 'wolf' && !a.dead && !a.carcass && a.target === c.id);
+      const w = st.animals.find((a) => PREDATORS[a.type] && !a.dead && !a.carcass && a.target === c.id);
       if (w) return w;
     }
     return null;

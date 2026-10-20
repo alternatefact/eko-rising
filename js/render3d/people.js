@@ -330,7 +330,7 @@ export class People {
     const p = t * 12 + a.id;
     this.setBase(x, ground, y, h, 1.7);
     if (a.carcass) {
-      this.part('beast', a.type === 'pig' ? '#4b3b33' : a.type === 'wolf' ? '#9a8566' : '#a57b4c', 0, 0.06, 0, Math.PI / 2, 0, Math.PI / 2);
+      this.part('beast', a.type === 'pig' ? '#4b3b33' : a.type === 'wolf' ? '#9a8566' : a.type === 'hyena' ? '#9c8560' : '#a57b4c', 0, 0.06, 0, Math.PI / 2, 0, Math.PI / 2);
       return;
     }
     if (a.type === 'wolf') {
@@ -351,6 +351,31 @@ export class People {
       const run = moving ? 1.7 : 1;
       for (const [lx, lz, ph] of [[-0.03, 0.08, 0], [0.03, 0.08, Math.PI], [-0.03, -0.08, Math.PI], [0.03, -0.08, 0]]) {
         this.part('beastLeg', '#7a6750', lx, 0.18 + bob, lz + lunge * 0.5, moving ? Math.sin(p * run + ph) * 0.8 : 0, 0, 0, 1.05, 1.35, 1.05);
+      }
+      return;
+    }
+    if (a.type === 'hyena') {
+      // The spotted hyena of the savanna: high shoulders and a back that
+      // slopes down to low haunches, a thick dark-maned neck, a heavy head
+      // with a black muzzle, round ears, sandy fur with dark spots and a
+      // short black tail.
+      this.setBase(x, ground, y, h, 1.95);
+      const lunge = a.phase === 'maul' || a.phase === 'fight' ? Math.max(0, Math.sin(t * 9 + a.id)) * 0.05 : 0;
+      const bob = moving ? Math.abs(Math.sin(p * 1.6)) * 0.01 : 0;
+      this.part('beast', '#a48d64', 0, 0.195 + bob, lunge, Math.PI / 2 - 0.34, 0, 0, 0.84, 1.3, 0.88);
+      this.part('beast', '#4a3a28', 0, 0.252 + bob, 0.06 + lunge, Math.PI / 2 - 0.6, 0, 0, 0.32, 0.7, 0.34);
+      for (const [sx, sy, sz] of [[-0.046, 0.205, 0.05], [0.046, 0.205, 0.05], [-0.05, 0.19, -0.01], [0.05, 0.19, -0.01], [-0.046, 0.18, -0.07], [0.046, 0.18, -0.07], [-0.03, 0.225, 0.0], [0.03, 0.215, -0.05]]) {
+        this.part('beastHead', '#3b2e20', sx, sy + bob, sz + lunge, 0, 0, 0, 0.32, 0.32, 0.32);
+      }
+      this.part('beastHead', '#9c8560', 0, 0.255 + bob, 0.2 + lunge, 0, 0, 0, 1.25, 1.08, 1.2);
+      this.part('beastHead', '#2e241a', 0, 0.237 + bob, 0.25 + lunge, 0, 0, 0, 0.62, 0.52, 0.95);
+      this.part('beastHead', '#120e0a', 0, 0.243 + bob, 0.29 + lunge, 0, 0, 0, 0.2, 0.16, 0.15);
+      this.part('beastHead', '#7a6548', -0.036, 0.296 + bob, 0.18 + lunge, 0, 0, 0, 0.44, 0.42, 0.34);
+      this.part('beastHead', '#7a6548', 0.036, 0.296 + bob, 0.18 + lunge, 0, 0, 0, 0.44, 0.42, 0.34);
+      this.part('beastLeg', '#2e241a', 0, 0.17 + bob, -0.135 + lunge, 0.5 + Math.sin(p) * 0.1, 0, 0, 1.9, 0.8, 1.9);
+      const run = moving ? 1.6 : 1;
+      for (const [lx, lz, ph, ly, ls] of [[-0.032, 0.075, 0, 0.205, 1.55], [0.032, 0.075, Math.PI, 0.205, 1.55], [-0.03, -0.075, Math.PI, 0.155, 1.12], [0.03, -0.075, 0, 0.155, 1.12]]) {
+        this.part('beastLeg', '#8a7553', lx, ly + bob, lz + lunge * 0.5, moving ? Math.sin(p * run + ph) * 0.75 : 0, 0, 0, 1.15, ls, 1.15);
       }
       return;
     }

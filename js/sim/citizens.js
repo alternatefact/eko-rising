@@ -14,6 +14,7 @@ import { goTo, stepMove, wander } from './move.js';
 import { notify, notifyOnce, releaseFromJob, removeCitizen, markTile, leaveSite } from './entities.js';
 import { addRes, roomFor, gatheringPoint, season, totalFood, population, sendAway } from './economy.js';
 import { tutSignal } from './story.js';
+import { PREDATORS, predatorOf } from '../cultures/index.js';
 
 const WALK_SPEED = 2.1;
 const CARRY_SPEED = 1.7;
@@ -859,7 +860,7 @@ export function updateCitizen(st, c, dt) {
     case 'hide': {
       c.timer -= dt;
       if (c.timer <= 0) {
-        if (nearThreat(st, c, 8) || (c.hideFor === 'wolves' && st.animals.some((a) => a.type === 'wolf' && !a.dead && !a.carcass))) c.timer = 3;
+        if (nearThreat(st, c, 8) || (c.hideFor === 'wolves' && st.animals.some((a) => PREDATORS[a.type] && !a.dead && !a.carcass))) c.timer = 3;
         else resume(st, c);
       }
       return;
@@ -1177,7 +1178,7 @@ export function updateCitizen(st, c, dt) {
       let best = null;
       let bestD = def.radius;
       for (const a of st.animals) {
-        if (a.dead || a.carcass || a.type === 'wolf' || (a.reserved && a.reserved !== c.id) || st.time.t - (a.unreachT ?? -1e9) < 60) continue;
+        if (a.dead || a.carcass || PREDATORS[a.type] || (a.reserved && a.reserved !== c.id) || st.time.t - (a.unreachT ?? -1e9) < 60) continue;
         const d = Math.hypot(a.x - lodge.x, a.y - lodge.y);
         if (d < bestD) {
           bestD = d;
@@ -1468,8 +1469,8 @@ export function citizenStatus(st, c) {
     wait: c.guest ? 'Waiting to be welcomed' : 'Sitting by the fire: no work',
     movein: 'Moving into a new home',
     idle: c.special === 'spouse' ? 'Keeping the house' : 'Looking for work',
-    attacked: 'Attacked by a wolf!',
-    fight: 'Fighting off a wolf!',
+    attacked: `Attacked by a ${predatorOf(st).name}!`,
+    fight: `Fighting off a ${predatorOf(st).name}!`,
     leave: 'Leaving for good',
     goto: 'Walking',
     towork: `Going to the ${job ? BUILDINGS[job.type].name.toLowerCase() : 'work'}`,

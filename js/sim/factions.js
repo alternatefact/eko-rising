@@ -10,7 +10,8 @@ import { addRes, addMood, spawnStranger } from './economy.js';
 import { revealAround, addVista } from './world.js';
 import { askForWarriors } from './trade.js';
 import { unitPower } from '../data/units.js';
-import { ORIGINS } from '../data/names.js';
+import { ALL_ORIGINS } from '../cultures/index.js';
+import { RESOURCES } from '../data/resources.js';
 
 export const STRENGTH = ['', 'Weak', 'Modest', 'Strong', 'Formidable', 'Mighty'];
 const START_REL = { friendly: 20, proud: 0, warlike: -10, bandit: -100 };
@@ -376,7 +377,7 @@ export function conquer(st, f) {
     if (n > 0) got.push(`${n} ${k}`);
   }
   // Their people come to live with you.
-  const origin = ORIGINS.find((o) => o.people === f.origin) || null;
+  const origin = ALL_ORIGINS.find((o) => o.people === f.origin) || null;
   for (let k = 0; k < f.joiners; k++) spawnStranger(st, origin, f.x + 0.5, f.y + 0.5);
   for (const g of st.factions) {
     if (g === f || !g.major || g.status === 'conquered') continue;
@@ -527,7 +528,8 @@ function claimPoi(st, p) {
   for (const k of ['yam', 'garri', 'fish', 'meat', 'wood', 'bricks', 'stone', 'iron', 'palmoil', 'weapons', 'salt', 'cloth', 'cowries']) {
     if (r[k]) {
       const n = Math.floor(addRes(st, k, r[k]));
-      if (n) got.push(`${n} ${k}`);
+      // The staple by the name the land gives it (millet in Kano).
+      if (n) got.push(`${n} ${k === 'yam' ? RESOURCES.yam.name.toLowerCase() : k}`);
     }
   }
   if (r.happy) {

@@ -55,6 +55,10 @@ export const UNITS = {
   // fierce and hard to break, and musketeers.
   agojie: { name: 'Agojie', hp: 105, atk: 13, range: 1.2, cd: 0.9, speed: 2.6, vision: 6 },
   dahomey: { name: 'Agojie Musketeer', hp: 80, atk: 16, range: 5.5, cd: 2.3, speed: 2, vision: 6, ranged: true },
+  // Kano's enemy: the Jukun of Kwararafa, spearmen with hide shields and
+  // horsemen, come north from the Benue.
+  jukun: { name: 'Kwararafa Warrior', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.2, vision: 6 },
+  jukunrider: { name: 'Kwararafa Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];

@@ -419,7 +419,7 @@ Nine milestones, each one or a few coding sessions, in this order. Character art
    - Done when: setting the device date into an event week triggers it, and the card shares on a phone.
 7. **The Nigeria map.** Add the 28 provinces, tribute links, elders' councils for lands without kings, diplomacy, automatic battles, yields, garrisons and era requirements counted in provinces. Split the Ogun chapter into the Ìjẹ̀bú and Ẹ̀gbá provinces.
    - Done when: a player can win a neighbouring province by treaty and another by war, and both pay yields.
-8. **The British advance and the liberation war.** Add British expansion across independent provinces, the colonial map, the fight to take them back, winning across the whole map, and the player's choice of the New Nigeria's shape.
+8. **The British advance and the liberation war.** Add British expansion across independent provinces, the colonial map, the fight to take them back, winning across the whole map, and the player's choice of the New Nigeria's shape. In the north, the invaders come before the British (decided October 2026): the Moroccan army that crossed the Sahara in 1591, then Rabih az-Zubayr's army in Borno in 1893, then the British in 1903. Name them always as historical armies, never as a people or a faith.
    - Done when: a full test campaign can end in the New Nigeria.
 9. **Accounts, cloud saves and leaderboards** on the studio server, with the privacy work from the Bragging section.
    - Done when: a save made on one device continues on another, and impossible scores are rejected.

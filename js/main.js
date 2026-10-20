@@ -6,7 +6,10 @@ import { BUILDINGS } from './data/buildings.js';
 import { REGIONS } from './regions/index.js';
 import { IsoRenderer } from './render/iso.js';
 import { Minimap } from './render/minimap.js';
-import { Hud, renderNigeria } from './ui/hud.js';
+import { Hud } from './ui/hud.js';
+import { renderKingdoms } from './ui/kingdoms.js';
+import { PROVINCE } from './campaign/provinces.js';
+import { CULTURES } from './cultures/index.js';
 import { bindInput } from './ui/input.js';
 import { Feedback, noteError } from './ui/feedback.js';
 
@@ -365,7 +368,7 @@ class Game {
       this.ogunNoted = true;
       unlock('ogun');
       recordLegacy(st);
-      renderNigeria(document.getElementById('nigeria'), (id) => this.pickRegion(id), unlocked());
+      drawKingdoms(this);
     }
     if (st.flags.goOgun) {
       st.flags.goOgun = false;
@@ -1171,6 +1174,53 @@ export function slotName(slot) {
   return slot === 'auto' ? 'the autosave' : slot === 'lagos' ? 'your Lagos game' : `slot ${slot}`;
 }
 
+// The kingdom chosen on the title screen's map: the one Begin starts in.
+let home = 'eko';
+
+// The people of a home kingdom (its region's culture pack).
+const cultureFor = (id) => CULTURES[REGIONS[PROVINCE[id]?.start]?.culture] || CULTURES.yoruba;
+
+// Choosing a home kingdom: Begin starts there, and the founders' names and
+// the settlement's change to its people's, unless the player typed their own.
+function chooseHome(id) {
+  const from = cultureFor(home).defaults;
+  home = id;
+  const to = cultureFor(id).defaults;
+  for (const [field, k] of [['ng-founder', 'founder'], ['ng-spouse', 'spouse'], ['ng-name', 'settlement']]) {
+    const input = document.getElementById(field);
+    if (!input.value.trim() || input.value.trim() === from[k]) input.value = to[k];
+  }
+  document.getElementById('ng-start').textContent = `Begin in ${PROVINCE[id].short}`;
+  const line = document.getElementById('title-tagline');
+  if (line) line.textContent = TAGLINES[id] || TAGLINES.eko;
+}
+
+const TAGLINES = {
+  eko: 'Start with a hoe, a wife and a patch of land by the lagoon. Build Lagos, and decide how the history of a nation goes.',
+  kano: 'Start with a hoe, a wife and a patch of land under Dala hill. Build Kano, and decide how the history of a nation goes.',
+};
+
+function drawKingdoms(game) {
+  renderKingdoms(document.getElementById('nigeria'), document.getElementById('kingdom-info'), {
+    selected: home,
+    opened: unlocked(),
+    onSelect: (id, status) => {
+      if (status === 'play') chooseHome(id);
+    },
+    onPlay: (p) => {
+      if (p.start) {
+        chooseHome(p.id);
+        game.ready.then(() => game.newGame({ ...readNewGameForm(), region: p.start }));
+      }
+      else if (p.region) {
+        // A chapter of Èkó's story: its people's names.
+        chooseHome('eko');
+        game.ready.then(() => game.pickRegion(p.region));
+      }
+    },
+  });
+}
+
 function showTitle(game) {
   const title = document.getElementById('title');
   title.hidden = false;
@@ -1187,7 +1237,8 @@ function readNewGameForm() {
   const seedRaw = val('ng-seed');
   const seed = seedRaw ? Math.abs(parseInt(seedRaw.replace(/\D/g, ''), 10) || hashString(seedRaw)) : undefined;
   const guide = document.getElementById('ng-guide')?.checked !== false;
-  return { founder: val('ng-founder') || 'Àdìó', spouse: val('ng-spouse') || 'Àdùkẹ́', name: val('ng-name') || 'Èkó', seed, ...(guide ? {} : { guide: false }) };
+  const d = cultureFor(home).defaults;
+  return { founder: val('ng-founder') || d.founder, spouse: val('ng-spouse') || d.spouse, name: val('ng-name') || d.settlement, seed, ...(guide ? {} : { guide: false }) };
 }
 
 function hashString(s) {
@@ -1221,6 +1272,7 @@ async function boot() {
   window.ekoRising = game;
   game.hud.mount();
   const ready = makeRenderer(game);
+  game.ready = ready;
   game.renderer.resize();
   game.keys = bindInput(game, game.canvas, game.minimap);
   window.addEventListener('resize', () => {
@@ -1237,7 +1289,7 @@ async function boot() {
   document.getElementById('trees-btn').addEventListener('click', () => game.toggleTrees());
   document.getElementById('home-btn').addEventListener('click', () => game.goHome());
   document.getElementById('select-btn').addEventListener('click', () => game.toggleSelecting());
-  document.getElementById('ng-start').addEventListener('click', () => game.newGame(readNewGameForm()));
+  document.getElementById('ng-start').addEventListener('click', () => game.newGame({ ...readNewGameForm(), region: PROVINCE[home].start }));
   document.getElementById('ng-continue').addEventListener('click', () => ready.then(() => game.load()));
   document.getElementById('ng-saves').addEventListener('click', () => ready.then(() => game.hud.showSaves()));
   document.getElementById('ng-feedback').addEventListener('click', () => game.feedback.open('title screen'));
@@ -1246,7 +1298,7 @@ async function boot() {
     e.target.value = '';
     ready.then(() => game.importSave(file));
   });
-  renderNigeria(document.getElementById('nigeria'), (id) => ready.then(() => game.pickRegion(id)), unlocked());
+  drawKingdoms(game);
   showTitle(game);
   requestAnimationFrame((t) => game.loop(t));
   await ready;

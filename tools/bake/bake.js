@@ -473,6 +473,10 @@ function bakeAnimals() {
   anim('wolf', 'run', 6, (Math.PI * 2) / (12 * 1.7), true, 'hunt');
   anim('wolf', 'bite', 4, (Math.PI * 2) / 9, false, 'maul');
   anim('wolf', 'dead', 1, 1, false);
+  anim('hyena', 'idle', 1, 1, false, 'hunt');
+  anim('hyena', 'run', 6, (Math.PI * 2) / (12 * 1.6), true, 'hunt');
+  anim('hyena', 'bite', 4, (Math.PI * 2) / 9, false, 'maul');
+  anim('hyena', 'dead', 1, 1, false);
 }
 
 // --- People ----------------------------------------------------------------------------

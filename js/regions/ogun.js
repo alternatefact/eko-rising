@@ -14,6 +14,7 @@ export const OGUN = {
   id: 'ogun',
   name: 'Ogun',
   yo: 'Ògùn',
+  culture: 'yoruba',
   width: 112,
   height: 84,
   defaultName: 'Ìbàrà',

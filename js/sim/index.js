@@ -9,7 +9,7 @@ import { Rng } from '../core/rng.js';
 import { BUILDINGS, nextUpgrade, costOf, mudBricksFor, materialsOf, buildWork } from '../data/buildings.js';
 import { ERAS } from '../data/eras.js';
 import { UNITS } from '../data/units.js';
-import { ORIGINS } from '../data/names.js';
+import { cultureOf, applyCulture, PREDATORS } from '../cultures/index.js';
 import { FOOD, GOODS } from '../data/resources.js';
 import { createBuilding, createCitizen, createUnit, removeBuilding, cleanup, notify } from './entities.js';
 import { goTo } from './move.js';
@@ -39,6 +39,8 @@ export const PACE = 0.6;
 
 export function newGame(opts = {}) {
   const region = REGIONS[opts.region || 'lagos'];
+  const culture = cultureOf({ region });
+  applyCulture(culture);
   const seed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
   const world = generateWorld(region, seed);
   const n = world.W * world.H;
@@ -108,8 +110,8 @@ export function newGame(opts = {}) {
       made: Object.fromEntries([...FOOD, ...GOODS].map((k) => [k, 0])),
     },
     name: (opts.name || region.defaultName).slice(0, 24),
-    founder: (opts.founder || 'Àdìó').slice(0, 20),
-    spouse: (opts.spouse || 'Àdùkẹ́').slice(0, 20),
+    founder: (opts.founder || culture.defaults.founder).slice(0, 20),
+    spouse: (opts.spouse || culture.defaults.spouse).slice(0, 20),
     nextId: 1,
     byId: new Map(),
     dirty: { territory: true, jobs: true, cleanup: false, reach: false, build: false },
@@ -155,12 +157,12 @@ export function newGame(opts = {}) {
 
   // Just the two of them, walking in up the path. Strangers come later (see
   // the region's story).
-  const awori = ORIGINS[0];
+  const own = cultureOf(st).origins[0];
   const way = world.arrival.length ? world.arrival[Math.min(world.arrival.length - 1, 9)] : sy * st.W + sx;
   const ax = way % st.W;
   const ay = Math.floor(way / st.W);
-  const founder = createCitizen(st, ax, ay, { origin: awori, female: false, name: st.founder, stranger: false, state: 'movein', special: 'founder', cloth: '#2f4a8a' });
-  const spouse = createCitizen(st, ax, ay, { origin: awori, female: true, name: st.spouse, stranger: false, state: 'movein', special: 'spouse', cloth: '#c0392b' });
+  const founder = createCitizen(st, ax, ay, { origin: own, female: false, name: st.founder, stranger: false, state: 'movein', special: 'founder', cloth: '#2f4a8a' });
+  const spouse = createCitizen(st, ax, ay, { origin: own, female: true, name: st.spouse, stranger: false, state: 'movein', special: 'spouse', cloth: '#c0392b' });
   for (const c of [founder, spouse]) {
     c.home = compound.id;
     compound.residents.push(c.id);
@@ -508,7 +510,7 @@ export function suggestPlace(st, type) {
       ay = floor.y + 1;
     }
   }
-  const herd = type === 'hunter' ? st.animals.filter((a) => !a.dead && !a.carcass && a.type !== 'wolf') : [];
+  const herd = type === 'hunter' ? st.animals.filter((a) => !a.dead && !a.carcass && !PREDATORS[a.type]) : [];
   const around = (x, y, r, pred) => {
     let n = 0;
     for (let dy = -r; dy <= r; dy++) {
@@ -1023,6 +1025,7 @@ export function deserialize(json) {
   delete st.arrays;
   delete st.rngState;
   st.region = region;
+  applyCulture(cultureOf(st));
   for (const k of TYPED) st[k] = fromB64(data.arrays[k], CTOR[k]);
   const n = st.W * st.H;
   st.visible = new Uint8Array(n);

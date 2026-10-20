@@ -6,6 +6,14 @@ how the history of Nigeria goes: trade with the Portuguese or send them away,
 stand up to Benin and the British, and unite the peoples of the land into
 **The New Nigeria**.
 
+The title screen is a map of Nigeria's old kingdoms around 1600, drawn from
+real borders: 28 kingdoms and peoples' lands, from Kanem-Bornu to the Delta
+city-states. Tap one to see who held it and what it is today. A home kingdom
+can be begun from there: **Èkó** (Lagos) and **Kano** are open, Nri and Benin
+come next, and the rest are to be won later in the campaign by alliance,
+tribute or war. Picking a kingdom puts its people's names in the new-game form
+(Àdìó, Àdùkẹ́ and Èkó; Garba, Hauwa and Dala).
+
 An original game by alternatefact Studios. For now the game is its own
 project, kept apart from the studio website.
 
@@ -144,6 +152,30 @@ picture in the style of the others). The Ọ̀yọ́ horsemen and Ìjẹ̀bú gu
 none yet: until theirs are baked they wear the nearest existing one, washed
 in their own colours.
 
+**Kano** is the northern home kingdom, a Hausa start. Garba and Hauwa walk
+across the dry plain to a wrecked mud house in a clearing of thorn trees below
+Dala hill, and the same guided opening plays as in Èkó, in Hausa words: the
+staple is millet (🌾, a Millet Farm), the newcomers come from Kano, Katsina,
+Zazzau, Borno and the Fulani herders, a pack of spotted hyenas comes out of
+the bush instead of wolves, and the ages are Gona, Gida, Gari, Birni and
+Babban Birni. There is no sea: the land is savanna, with Dala hill and Goron
+Dutse to quarry, the Jakara stream and the Kano river, and thorn woodland
+rings the clearing nearly all the way round. Its history: Katsina's riders at
+your wells, a first Sarki, Queen Amina of Zazzau offering her friendship and
+her way of building walls, caravans from across the Sahara that bring horses
+early (Kano's version of the ships), the Durbar, Muhammad Rumfa's Kurmi
+market, and the host of Kwararafa, the Jukun army from the Benue, which
+gathers in the south and marches when it is ready (gifts buy time; Zazzau's
+warriors come if she is your friend). Breaking it wins Kano. Its stories have
+their own pictures. The Kwararafa warriors wear the spearman's model in their
+own colours until theirs is made, and the Hausa people still wear the Èkó
+models in Hausa colours.
+
+Each people's names and words are a culture pack in `js/cultures/`: the
+founders' and settlement's names, where newcomers come from, the age names,
+the staple's name, the predator, the guided opening's words, and the local
+names of buildings and soldiers. The rules are the same everywhere.
+
 The view is a fixed isometric picture that can be turned in quarter turns
 (⟲ ⟳ beside the minimap, or Q and E), so the far side of a wood, a fence or a
 house can be seen; every building is baked from all four sides (those
@@ -226,18 +258,27 @@ js/sim/       the simulation, with no DOM: economy, citizens, military, factions
               events, story.js (the guided opening, step by step), migrate.js (save
               versions, and the steps that bring an older save up to date)
 js/world/     terrain types, map generator, A* pathfinding
-js/data/      buildings, units, resources, ages, names, the art catalogue
-js/regions/   one file per state; lagos.js is chapter one, put together from the files
-              in lagos/ (terrain, factions, events, story, objectives, and common.js
-              for what they share); ogun.js is chapter two, from ogun/ the same way
+js/data/      buildings, units, resources, ages, the art catalogue
+js/cultures/  one culture pack per people (yoruba.js, hausa.js): names, words, staple,
+              predator; index.js applies a pack's labels when a game starts or loads
+js/campaign/  the map of the old kingdoms: provinces.js (who held each, what it is
+              today, which can be played) and geometry.js (their shapes, made by
+              tools/map/build.py from Natural Earth's map of Nigeria's states)
+js/regions/   one file per land: lagos.js (Èkó), kano.js and ogun.js (Èkó's second
+              chapter), each put together from the files in its folder (terrain,
+              factions, events, story, objectives); opening.js is the guided opening
+              every home kingdom shares, in the words of its culture pack, and
+              common.js the questions they all ask about the town
 js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sheets,
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
               walls, flora.js trees, stocks.js goods on the floors, people.js animals and
               loads, characters.js the rigged characters (listed in js/data/people.js)
 tools/bake/   the sprite baker
+tools/map/    build.py, which draws the province map (see its header to run it)
 js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings,
-              feedback.js (the feedback form and when to ask for it)
+              kingdoms.js (the title screen's map), feedback.js (the feedback form
+              and when to ask for it)
 art/          story art, portraits, age pictures; art/iso the baked sprite sheets;
               art/real the life-like textures (ground textures are used by the game,
               the rest by the baker); art/people the 3D characters and their shared
@@ -251,12 +292,14 @@ The art in `art/` was made with Higgsfield and is listed in `js/data/art.js`;
 anything missing from that list falls back to emoji art or textures drawn in
 code.
 
-To open another state, copy `js/regions/ogun.js` and `js/regions/ogun/`
-(terrain template, the kit the founders bring, what they inherit from the land
-they came from, peoples, places to explore, events, goals), register it in
-`js/regions/index.js`, and give its entry in `STATES` a region id. A state
-listed in `LOCKED` stays shut until a flag in another chapter opens it (Ogun
-opens when the host of Benin is broken).
+To add a home kingdom, copy `js/regions/kano.js` and `js/regions/kano/`
+(terrain template, peoples, places to explore, events, goals, and the guided
+opening in its culture's words), add its people's culture pack to
+`js/cultures/`, register the region in `js/regions/index.js`, and point its
+province's `start` at it in `js/campaign/provinces.js`. A chapter that is not
+a home start (Ogun) is a province's `region` instead, and stays shut while it
+is listed in `LOCKED` until a flag in another chapter opens it (Ogun opens
+when the host of Benin is broken).
 
 ## Tests
 
@@ -265,7 +308,9 @@ played step by step (`tests/story.mjs`) and a scripted player that plays
 through the ages (`tests/bot.mjs`). `tests/long.test.mjs` plays every start
 for 200 game days on a fixed seed and fails on any error or broken state, and
 `tests/save.test.mjs` opens a real save from an older version of the game,
-and `tests/ogun.test.mjs` plays Ogun's stories and its start from Lagos. They
+`tests/ogun.test.mjs` plays Ogun's stories and its start from Lagos, and
+`tests/kano.test.mjs` plays Kano's guided opening in Hausa words, breaks the
+Kwararafa host, and checks the map of the old kingdoms. They
 need Node 20 or newer and nothing else:
 
 ```bash

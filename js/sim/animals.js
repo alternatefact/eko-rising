@@ -2,9 +2,10 @@
 // they drift back in from the wild over time.
 //
 // The first danger the household meets is not raiders but beasts: a pack of
-// African wolves (the golden wolf of the Nigerian savanna) comes out of the
-// bush, kills the farmers in the field and turns on the woodcutter and the
-// hunter, who fight back and kill them.
+// the land's predators comes out of the bush (in Lagos, African wolves, the
+// golden wolf of the Nigerian savanna; in Kano, spotted hyenas), kills the
+// farmers in the field and turns on the woodcutter and the hunter, who fight
+// back and kill them.
 
 import { T, WALK, treeBlocks } from '../world/terrain.js';
 import { createAnimal, notify, removeCitizen } from './entities.js';
@@ -12,8 +13,12 @@ import { goTo, stepMove, wander } from './move.js';
 import { addMood } from './economy.js';
 import { resume, hideIndoors } from './citizens.js';
 import { BUILDINGS } from '../data/buildings.js';
+import { PREDATORS } from '../cultures/index.js';
 
 const HABITAT = new Set([T.FOREST, T.SAVANNA, T.GRASS]);
+
+// A beast of the pack, whichever kind it is: they all hunt the same way.
+export const isBeast = (a) => !!PREDATORS[a.type];
 
 const WOLF = { hp: 30, speed: 2.9, bite: 12, biteEvery: 0.6, axe: 11, bare: 8, swingEvery: 0.9 };
 // What a worker has in hand to fight with.
@@ -27,7 +32,7 @@ export function updateAnimal(st, a, dt) {
     if (a.rotT > 90 && !a.reserved) a.dead = true;
     return;
   }
-  if (a.type === 'wolf') {
+  if (isBeast(a)) {
     updateWolf(st, a, dt);
     return;
   }
@@ -89,7 +94,7 @@ export function herdNear(st, n, rMin = 6, rMax = 11) {
 }
 
 export function replenishAnimals(st) {
-  const game = st.animals.filter((a) => !a.dead && !a.carcass && a.type !== 'wolf');
+  const game = st.animals.filter((a) => !a.dead && !a.carcass && !isBeast(a));
   if (game.length < st.animalTarget) spawnAnimals(st, 2, 14);
   // Herds drift back to the grassland around the settlement, too.
   const home = st.buildings.find((b) => b.type === 'compound' && !b.dead);
@@ -133,10 +138,11 @@ function wolfSpot(st, near) {
   return -1;
 }
 
-// A pack of wolves out of the bush. They fall on the farmers in the field;
-// then two turn on the woodcutter and two on the hunter, who fight back and
-// kill them. The founder and his wife shut themselves in the house.
-export function spawnPack(st, n = 4) {
+// A pack of wolves (or hyenas: `type`) out of the bush. They fall on the
+// farmers in the field; then two turn on the woodcutter and two on the
+// hunter, who fight back and kill them. The founder and his wife shut
+// themselves in the house.
+export function spawnPack(st, n = 4, type = 'wolf') {
   const farmers = workersAt(st, 'farm');
   const victims = farmers.slice(0, 2);
   while (victims.length < 2) {
@@ -156,7 +162,7 @@ export function spawnPack(st, n = 4) {
     const pair = Math.floor(k / 2) % 2;
     const ox = (spot % st.W) + (k % 2);
     const oy = Math.floor(spot / st.W) + pair;
-    const w = createAnimal(st, ox, oy, 'wolf');
+    const w = createAnimal(st, ox, oy, type);
     Object.assign(w, {
       hp: WOLF.hp, maxHp: WOLF.hp, phase: 'hunt', repathT: 0, biteT: 0,
       target: (victims[pair] || victims[0]).id, next: defenders[pair]?.id || 0,
@@ -167,7 +173,8 @@ export function spawnPack(st, n = 4) {
   for (const c of st.citizens) if (c.special && !c.dead) hideIndoors(st, c, 'wolves');
   const job = st.byId.get(victims[0].job);
   const where = job ? `the ${BUILDINGS[job.type].name.toLowerCase()}` : victims[0].name;
-  notify(st, `🐺 A pack of ${n} wolves has come out of the bush! They are running at ${where}.`, 'war', st.byId.get(ids[0]));
+  const P = PREDATORS[type];
+  notify(st, `${P.icon} A pack of ${n} ${P.plural} has come out of the bush! They are running at ${where}.`, 'war', st.byId.get(ids[0]));
   return ids;
 }
 
@@ -186,7 +193,7 @@ const alive = (a) => a && !a.dead && !a.carcass;
 // The wolves after one person, nearest first: the defender deals with the
 // front one.
 function wolvesOn(st, c) {
-  return st.animals.filter((a) => a.type === 'wolf' && alive(a) && a.target === c.id && (a.phase === 'hunt2' || a.phase === 'fight'));
+  return st.animals.filter((a) => isBeast(a) && alive(a) && a.target === c.id && (a.phase === 'hunt2' || a.phase === 'fight'));
 }
 
 function isFront(st, w, c) {
@@ -257,7 +264,7 @@ function updateWolf(st, w, dt) {
       st.story = st.story || {};
       (st.story.victims = st.story.victims || []).push({ name: target.name, female: target.female, job: job?.type || null });
       removeCitizen(st, target);
-      notify(st, `⚰️ ${target.name} was killed by the wolves${trade}.`, 'war', target);
+      notify(st, `⚰️ ${target.name} was killed by the ${PREDATORS[w.type].plural}${trade}.`, 'war', target);
       addMood(st, `Mourning ${target.name}`, -6, 3);
       const next = st.byId.get(w.next);
       w.next = 0;
@@ -322,13 +329,13 @@ function defend(st, c, w, dt, d) {
   const h = heroes.find((x) => x.id === c.id);
   if (h) h.kills++;
   else heroes.push({ id: c.id, name: c.name, female: c.female, tool, kills: 1 });
-  notify(st, `${bow ? '🏹' : '🪓'} ${c.name} killed a wolf${tool ? ` with ${his(c)} ${tool}` : ''}!`, 'good', c);
-  if (!wolvesOn(st, c).length && !st.animals.some((a) => a.type === 'wolf' && alive(a) && a.target === c.id)) {
+  notify(st, `${bow ? '🏹' : '🪓'} ${c.name} killed a ${PREDATORS[w.type].name}${tool ? ` with ${his(c)} ${tool}` : ''}!`, 'good', c);
+  if (!wolvesOn(st, c).length && !st.animals.some((a) => isBeast(a) && alive(a) && a.target === c.id)) {
     c.strikeT = 0.4;
     resume(st, c);
   }
   // The last of the pack.
-  if (!st.animals.some((a) => a.type === 'wolf' && alive(a))) {
+  if (!st.animals.some((a) => isBeast(a) && alive(a))) {
     st.flags.wolvesSlain = true;
     for (const p of st.citizens) if (p.special && !p.dead && p.hideFor === 'wolves') resume(st, p);
     st.eventQueue.push({ id: 'wolves_slain' });

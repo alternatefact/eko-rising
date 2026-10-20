@@ -17,6 +17,7 @@ export const LAGOS = {
   id: 'lagos',
   name: 'Lagos',
   yo: 'Èkó',
+  culture: 'yoruba',
   width: 112,
   height: 84,
   defaultName: 'Èkó',

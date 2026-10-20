@@ -66,6 +66,18 @@ export function generateWorld(region, seed) {
     }
   }
 
+  // Hills the template names (Dala and Goron Dutse at Kano): rock to quarry.
+  for (const hl of tp.hills || []) {
+    const cx = hl.x * W;
+    const cy = hl.y * H;
+    for (let y = Math.max(0, Math.floor(cy - hl.r - 2)); y <= Math.min(H - 1, Math.ceil(cy + hl.r + 2)); y++) {
+      for (let x = Math.max(0, Math.floor(cx - hl.r - 2)); x <= Math.min(W - 1, Math.ceil(cx + hl.r + 2)); x++) {
+        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) + (fbm(x * 0.4, y * 0.4, seed + 61, 2) - 0.5) * 1.6;
+        if (d <= hl.r && terrain[idx(x, y)] !== T.OCEAN) terrain[idx(x, y)] = T.HILL;
+      }
+    }
+  }
+
   // --- Rivers -----------------------------------------------------------
   for (const rv of tp.rivers) carveRiver(terrain, W, H, rv, rng);
 
@@ -152,6 +164,12 @@ export function generateWorld(region, seed) {
   }
   const waterAng = wx || wy ? Math.atan2(wy, wx) : rng.range(0, Math.PI * 2);
   const forestAng = waterAng + Math.PI;
+  // What closes in round the clearing: rainforest, or (`ring: 'savanna'`)
+  // thorn woodland, every tile a tree; and how far round it goes (`ringArc`,
+  // radians either side of the landward way: on dry land with no water to
+  // close the rest, nearly all the way).
+  const ringT = tp.ring === 'savanna' ? T.SAVANNA : T.FOREST;
+  const arc = tp.ringArc ?? 1.75;
   for (let dy = -21; dy <= 21; dy++) {
     for (let dx = -21; dx <= 21; dx++) {
       const x = start.x + dx;
@@ -170,9 +188,9 @@ export function generateWorld(region, seed) {
         terrain[i] = T.GRASS;
         trees[i] = 0;
         feature[i] = F.NONE;
-      } else if (d <= outer && diff < 1.75 + (wob - 0.5) * 0.4) {
-        terrain[i] = T.FOREST;
-        trees[i] = treePlanks(T.FOREST);
+      } else if (d <= outer && diff < arc + (wob - 0.5) * 0.4) {
+        terrain[i] = ringT;
+        trees[i] = treePlanks(ringT);
         feature[i] = F.NONE;
       } else if (d <= outer + 1 && diff < 2.25) {
         // The forest thins out into savanna toward the water.
@@ -200,7 +218,7 @@ export function generateWorld(region, seed) {
     let near = false;
     for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (trees[idx(x + ox, y + oy)]) near = true;
     if (near) continue;
-    terrain[i] = lone === 0 ? T.FOREST : T.SAVANNA;
+    terrain[i] = lone === 0 ? ringT : T.SAVANNA;
     trees[i] = treePlanks(terrain[i]);
     lone++;
   }
@@ -458,7 +476,7 @@ function landCover(nx, ny, seed, tp) {
   const moist = fbm(nx * 4.5 + 20, ny * 4.5, seed + 13, 4) + ny * 0.1;
   const savLine = tp.savanna + (fbm(nx * 4, 1.7, seed + 17, 3) - 0.5) * 0.12;
   if (elev > tp.hillLevel && ny < 0.72) return T.HILL;
-  if (ny < savLine) return moist > 0.7 ? T.FOREST : T.SAVANNA;
+  if (ny < savLine) return moist > (tp.woodMoist ?? 0.7) ? T.FOREST : T.SAVANNA;
   if (moist > tp.forestLevel) return T.FOREST;
   return T.GRASS;
 }

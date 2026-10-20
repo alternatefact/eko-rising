@@ -2,6 +2,7 @@
 // Region files supply the actual events; this module runs them.
 
 import { ERAS } from '../data/eras.js';
+import { eraName, eraBlurb, cultureOf } from '../cultures/index.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { notify, createUnit } from './entities.js';
 import { canAfford, spend, population, hasBuilding, addRes, addMood, spawnStranger } from './economy.js';
@@ -37,8 +38,9 @@ export function makeApi(st) {
     },
     // One newcomer walking in from the bush: { female, calling, guest, near, quiet }.
     wanderer: (opts) => spawnStranger(st, null, undefined, undefined, opts),
-    // A pack of wolves out of the bush (see animals.js).
-    pack: (n) => spawnPack(st, n),
+    // A pack of the land's predators out of the bush (see animals.js):
+    // wolves unless the culture's are another kind.
+    pack: (n, type) => spawnPack(st, n, type || cultureOf(st).predator),
     // Antelope grazing near the house.
     herd: (n) => herdNear(st, n),
     welcome: (ids) => ids.forEach((id) => takeIn(st, st.byId.get(id))),
@@ -164,9 +166,9 @@ function ageEvent(st, era) {
   const unlocks = Object.values(BUILDINGS).filter((d) => d.era === era && d.buildable !== false).map((d) => d.name);
   return {
     id: 'age',
-    title: `A new age: ${e.name} (${e.yo})`,
+    title: `A new age: ${e.name} (${eraName(st, era)})`,
     art: '🌅',
-    text: () => `${st.name} has grown into something new.\n\n${e.blurb}${unlocks.length ? `\n\nYou can now build: ${unlocks.join(', ')}.` : ''}`,
+    text: () => `${st.name} has grown into something new.\n\n${eraBlurb(st, era)}${unlocks.length ? `\n\nYou can now build: ${unlocks.join(', ')}.` : ''}`,
     choices: [{ label: 'Onward' }],
   };
 }
@@ -255,7 +257,7 @@ export function advanceEra(st) {
   }
   st.dirty.territory = true;
   addMood(st, `A new age: ${r.next.name}`, 8, 4);
-  notify(st, `🌅 ${st.name} enters the ${r.next.name} era (${r.next.yo}). ${r.next.blurb}`, 'good');
+  notify(st, `🌅 ${st.name} enters the ${r.next.name} era (${eraName(st, st.era)}). ${eraBlurb(st, st.era)}`, 'good');
   st.eventQueue.push({ id: 'age', era: st.era });
   return true;
 }

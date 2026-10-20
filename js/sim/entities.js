@@ -2,7 +2,7 @@
 
 import { BUILDINGS, buildWork } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
-import { ORIGINS, ORIGIN_WEIGHTS } from '../data/names.js';
+import { cultureOf } from '../cultures/index.js';
 import { T, F } from '../world/terrain.js';
 
 export function newId(st) {
@@ -163,17 +163,18 @@ export function leaveSite(st, c) {
 
 // --- People -----------------------------------------------------------------
 
+// Where a newcomer comes from: the land's own people most often (see the
+// culture pack's origins and their weights).
 export function pickOrigin(st) {
-  const total = ORIGIN_WEIGHTS.reduce((a, b) => a + b, 0);
+  const { origins, originWeights } = cultureOf(st);
+  const total = originWeights.reduce((a, b) => a + b, 0);
   let r = st.rng.next() * total;
-  for (let k = 0; k < ORIGINS.length; k++) {
-    r -= ORIGIN_WEIGHTS[k];
-    if (r <= 0) return ORIGINS[k];
+  for (let k = 0; k < origins.length; k++) {
+    r -= originWeights[k];
+    if (r <= 0) return origins[k];
   }
-  return ORIGINS[0];
+  return origins[0];
 }
-
-const CLOTH = ['#2f4a8a', '#1f3b73', '#c0392b', '#e6a417', '#2e8b57', '#8e44ad', '#d35400', '#16a085', '#b03a2e', '#f1c40f', '#6c3483'];
 
 export function createCitizen(st, x, y, opts = {}) {
   const origin = opts.origin || pickOrigin(st);
@@ -185,7 +186,7 @@ export function createCitizen(st, x, y, opts = {}) {
   let name = opts.name;
   for (let k = 0; !name || (!opts.name && taken.has(name) && k < 40); k++) {
     // After a while, borrow a name from any people of the land.
-    const from = k < 20 ? origin : st.rng.pick(ORIGINS);
+    const from = k < 20 ? origin : st.rng.pick(cultureOf(st).origins);
     name = st.rng.pick(female ? from.female : from.male);
   }
   const c = {
@@ -211,8 +212,8 @@ export function createCitizen(st, x, y, opts = {}) {
     pi: 0,
     timer: 0,
     fails: 0,
-    cloth: opts.cloth || st.rng.pick(CLOTH),
-    wrap: st.rng.pick(CLOTH),
+    cloth: opts.cloth || st.rng.pick(cultureOf(st).cloth),
+    wrap: st.rng.pick(cultureOf(st).cloth),
     ox: st.rng.range(-0.22, 0.22),
     oy: st.rng.range(-0.22, 0.22),
     homelessDays: 0,
