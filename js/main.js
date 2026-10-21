@@ -1198,6 +1198,9 @@ function chooseHome(id) {
 const TAGLINES = {
   eko: 'Start with a hoe, a wife and a patch of land by the lagoon. Build Lagos, and decide how the history of a nation goes.',
   kano: 'Start with a hoe, a wife and a patch of land under Dala hill. Build Kano, and decide how the history of a nation goes.',
+  benin: 'Start with a hoe, a wife and a clearing in the great forest. Build Benin, and decide how the history of a nation goes.',
+  warri: 'Start with a hoe, a wife and a patch of dry land among the creeks. Build Warri, and decide how the history of a nation goes.',
+  igbonorth: 'Start with a hoe, a wife and a clearing below the hills. Build a town of the northern Igbo, and decide how the history of a nation goes.',
 };
 
 function drawKingdoms(game) {

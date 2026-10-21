@@ -15,7 +15,7 @@ import { Flora } from '../../js/render3d/flora.js';
 import { People } from '../../js/render3d/people.js';
 import { Characters } from '../../js/render3d/characters.js';
 import { Stocks } from '../../js/render3d/stocks.js';
-import { makeProp } from '../../js/render3d/props.js';
+import { makeProp, makeWear, WEAR_AT } from '../../js/render3d/props.js';
 import { BUILDINGS } from '../../js/data/buildings.js';
 import { CHARACTERS } from '../../js/data/people.js';
 import { REGIONS } from '../../js/regions/index.js';
@@ -477,6 +477,12 @@ function bakeAnimals() {
   anim('hyena', 'run', 6, (Math.PI * 2) / (12 * 1.6), true, 'hunt');
   anim('hyena', 'bite', 4, (Math.PI * 2) / 9, false, 'maul');
   anim('hyena', 'dead', 1, 1, false);
+  for (const type of ['leopard', 'crocodile']) {
+    anim(type, 'idle', 1, 1, false, 'hunt');
+    anim(type, 'run', 6, (Math.PI * 2) / (12 * 1.7), true, 'hunt');
+    anim(type, 'bite', 4, (Math.PI * 2) / 9, false, 'maul');
+    anim(type, 'dead', 1, 1, false);
+  }
 }
 
 // --- People ----------------------------------------------------------------------------
@@ -499,8 +505,29 @@ export const LOOKS = {
   labourer: { model: 'labourer', anims: ['idle', 'walk', 'pull', 'swing', 'carry'] },
   builder: { model: 'labourer', prop: 'hammer', anims: ['idle', 'walk', 'swing'] },
   spearman: { model: 'spearman', anims: ['idle', 'spearwalk', 'slash'] },
-  // A warrior of Benin: the spearman with a war shield in the other hand.
-  benin: { model: 'spearman', extra: { prop: 'shield', hand: 'Left' }, dye: { from: [55, 185], to: 357 }, anims: ['idle', 'spearwalk', 'slash'] },
+  // A warrior of Benin as the bronze plaques show him: red cloth, a leather
+  // war shield, a brass war cap and a collar of coral beads.
+  benin: { model: 'spearman', extra: { prop: 'shield', hand: 'Left' }, dye: { from: [55, 185], to: 357 }, wear: ['helmet', 'collar'], anims: ['idle', 'spearwalk', 'slash'] },
+  edo_bow: { model: 'spearman', prop: 'bow', hand: 'Left', dye: { from: [55, 185], to: 357 }, wear: ['helmet'], anims: ['idle', 'walk', 'bow'] },
+  // Each people's own soldiers (the culture pack's `soldiers`), and their
+  // enemies'. The spearman's cloth is the one that dyes cleanly, so archers
+  // are the spearman with a bow, aiming as a hunter draws.
+  // Hausa: indigo robes, a white turban and a round hide shield; archers in white.
+  hausa_spear: { model: 'spearman', extra: { prop: 'hideshield', hand: 'Left' }, dye: { from: [55, 185], to: 225, s: 0.55, l: 0.34 }, wear: ['turban'], anims: ['idle', 'spearwalk', 'slash'] },
+  hausa_bow: { model: 'spearman', prop: 'bow', hand: 'Left', dye: { from: [55, 185], to: 40, s: 0.06, l: 0.95 }, wear: ['turban'], anims: ['idle', 'walk', 'bow'] },
+  // Igbo: rust-red cloth and a red head-tie with an eagle feather.
+  igbo_spear: { model: 'spearman', dye: { from: [55, 185], to: 12, s: 0.62, l: 0.4 }, wear: ['headtie'], anims: ['idle', 'spearwalk', 'slash'] },
+  igbo_bow: { model: 'spearman', prop: 'bow', hand: 'Left', dye: { from: [55, 185], to: 12, s: 0.62, l: 0.4 }, wear: ['headtie'], anims: ['idle', 'walk', 'bow'] },
+  // Itsekiri: wrappers of wine red and a white head-wrap, cutlass in hand.
+  itsekiri_spear: { model: 'spearman', prop: 'machete', dye: { from: [55, 185], to: 345, s: 0.55, l: 0.3 }, wear: ['wrap'], anims: ['idle', 'walk', 'slash'] },
+  itsekiri_bow: { model: 'spearman', prop: 'bow', hand: 'Left', dye: { from: [55, 185], to: 345, s: 0.55, l: 0.3 }, wear: ['wrap'], anims: ['idle', 'walk', 'bow'] },
+  // The Igala host: deep indigo, dark turbans and hide shields.
+  igala: { model: 'spearman', extra: { prop: 'hideshield', hand: 'Left' }, dye: { from: [55, 185], to: 245, s: 0.5, l: 0.26 }, wear: ['darkturban'], anims: ['idle', 'spearwalk', 'slash'] },
+  // Kwararafa: brown and red cloth and hide shields.
+  jukun: { model: 'spearman', extra: { prop: 'hideshield', hand: 'Left' }, dye: { from: [55, 185], to: 18, s: 0.55, l: 0.3 }, anims: ['idle', 'spearwalk', 'slash'] },
+  // The Aro's hired war bands: dark cloth and red caps, matchets and trade guns.
+  aro: { model: 'spearman', prop: 'machete', dye: { from: [55, 185], to: 20, s: 0.2, l: 0.16 }, wear: ['redcap'], anims: ['idle', 'walk', 'slash'] },
+  aro_gun: { model: 'spearman', prop: 'musket', hand: 'Left', dye: { from: [55, 185], to: 20, s: 0.2, l: 0.16 }, wear: ['redcap'], anims: ['idle', 'walk', 'bow'] },
   bandit: { model: 'bandit', anims: ['idle', 'walk', 'slash'] },
   // Dahomey's women soldiers. The swordswoman in her own blue-and-white
   // striped tunic; the musketeer the same woman with her stripes dyed red
@@ -519,11 +546,12 @@ async function until(fn, what) {
   throw new Error(`timed out loading ${what}`);
 }
 
-async function bakePeople() {
+async function bakePeople(only) {
   const chars = new Characters(new THREE.Scene());
   const box = new THREE.Box3(new THREE.Vector3(-0.45, 0, -0.45), new THREE.Vector3(0.45, 1.05, 0.45));
   const meta = {};
   for (const [look, def] of Object.entries(LOOKS)) {
+    if (only && !only.includes(look)) continue;
     const m = await until(() => chars.model(def.model), def.model);
     const inst = chars.make(def.model, m);
     // Swap the tool in hand for this look.
@@ -546,12 +574,14 @@ async function bakePeople() {
       }
     }
     // Cloth dyed another colour: every pixel of the texture whose hue falls
-    // in `from` takes the hue `to` (skin and leather keep theirs).
+    // in `from` takes the hue `to` (skin and leather keep theirs), and with
+    // `s` and `l` that saturation and lightness (white cloth, deep indigo).
+    // Several dyes apply in turn.
     if (def.dye) {
       inst.body.traverse((o) => {
         if (!o.isMesh || !o.material?.map) return;
         o.material = o.material.clone();
-        o.material.map = dyed(o.material.map, def.dye);
+        for (const d of [].concat(def.dye)) o.material.map = dyed(o.material.map, d);
       });
     }
     // A second thing in the other hand, kept with the first.
@@ -565,6 +595,19 @@ async function bakePeople() {
         prop.quaternion.copy(grip.quaternion);
         prop.scale.setScalar(grip.scale);
         hand.add(prop);
+      }
+    }
+    // Things worn on the head and round the neck.
+    for (const kind of def.wear || []) {
+      const place = wearFor(m.template, WEAR_AT[kind] || 'head');
+      const thing = makeWear(kind);
+      let bone = null;
+      inst.body.traverse((o) => o.name === place.bone && (bone = o));
+      if (bone && thing) {
+        thing.position.copy(place.position);
+        thing.quaternion.copy(place.quaternion);
+        thing.scale.setScalar(place.scale);
+        bone.add(thing);
       }
     }
     // Where the top of the head is, for loads.
@@ -592,8 +635,8 @@ async function bakePeople() {
 }
 
 const dyedCache = new Map();
-function dyed(map, { from, to }) {
-  const key = `${map.uuid}:${from}:${to}`;
+function dyed(map, { from, to, s: S, l: L }) {
+  const key = `${map.uuid}:${from}:${to}:${S}:${L}`;
   if (dyedCache.has(key)) return dyedCache.get(key);
   const img = map.image;
   const c = document.createElement('canvas');
@@ -619,7 +662,7 @@ function dyed(map, { from, to }) {
     h = (h * 60 + 360) % 360;
     if (h < from[0] || h > from[1]) continue;
     // The new hue, a little brighter and richer (dyed cloth is bright).
-    const [nr, ng, nb] = hsl(to, Math.min(1, s * 1.35), Math.min(0.62, l * 1.4 + 0.05));
+    const [nr, ng, nb] = hsl(to, S ?? Math.min(1, s * 1.35), L !== undefined ? Math.min(0.95, L * (0.7 + l * 0.6)) : Math.min(0.62, l * 1.4 + 0.05));
     d[i] = nr;
     d[i + 1] = ng;
     d[i + 2] = nb;
@@ -640,6 +683,35 @@ function hsl(h, s, l) {
   const a = s * Math.min(l, 1 - l);
   const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
   return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+
+// Where a thing is worn: on the head, its origin at the top of the skull,
+// facing the way the face looks; round the neck, at the base of the neck.
+// Sized for a head about 0.2 m tall.
+function wearFor(template, at) {
+  const bones = {};
+  template.traverse((o) => o.isBone && (bones[o.name] = o));
+  const head = bones.Head;
+  const neck = bones.neck || head;
+  const P = (b) => b.getWorldPosition(new THREE.Vector3());
+  const hp = P(head);
+  const tp = bones.head_end ? P(bones.head_end) : hp.clone().add(new THREE.Vector3(0, 0.2, 0));
+  const np = P(neck);
+  const up = (at === 'neck' ? hp.clone().sub(np) : tp.clone().sub(hp)).normalize();
+  const fwd = bones.headfront ? P(bones.headfront).sub(hp) : new THREE.Vector3(0, 0, 1);
+  fwd.addScaledVector(up, -fwd.dot(up)).normalize();
+  const basis = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(up, fwd), up, fwd);
+  const bone = at === 'neck' ? neck : head;
+  bone.updateWorldMatrix(true, false);
+  const inv = bone.getWorldQuaternion(new THREE.Quaternion()).invert();
+  const size = tp.distanceTo(hp) / 0.2;
+  const scale = bone.getWorldScale(new THREE.Vector3()).x || 1;
+  return {
+    bone: bone.name,
+    position: bone.worldToLocal((at === 'neck' ? np : tp).clone()),
+    quaternion: inv.multiply(new THREE.Quaternion().setFromRotationMatrix(basis)),
+    scale: size / scale,
+  };
 }
 
 // Where a tool sits in a hand (as js/render3d/characters.js works it out).
@@ -718,6 +790,8 @@ window.bakeAll = async (only) => {
   await new Promise((r) => setTimeout(r, 2500));
   sprites.clear();
   const parts = only || ['buildings', 'villages', 'flora', 'stocks', 'loads', 'animals', 'people'];
+  // A test bake of a few looks: 'people:benin,igbo_spear'.
+  const someLooks = parts.find((p) => p.startsWith('people:'))?.slice(7).split(',');
   let people = {};
   for (const p of parts) {
     log(`baking ${p}…`);
@@ -730,7 +804,7 @@ window.bakeAll = async (only) => {
     if (p === 'stocks') bakeStocks();
     if (p === 'loads') bakeLoads();
     if (p === 'animals') bakeAnimals();
-    if (p === 'people') people = await bakePeople();
+    if (p === 'people' || p.startsWith('people:')) people = await bakePeople(someLooks);
   }
   // Buildings from the other three sides go on sheets of their own, which
   // the game loads only when the view is first turned.

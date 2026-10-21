@@ -7,7 +7,7 @@
 // farmers in the field and turns on the woodcutter and the hunter, who fight
 // back and kill them.
 
-import { T, WALK, treeBlocks } from '../world/terrain.js';
+import { T, WALK, treeBlocks, isWater } from '../world/terrain.js';
 import { createAnimal, notify, removeCitizen } from './entities.js';
 import { goTo, stepMove, wander } from './move.js';
 import { addMood } from './economy.js';
@@ -124,7 +124,21 @@ function anyWorker(st, not = []) {
   return list.length ? st.rng.pick(list) : null;
 }
 
-function wolfSpot(st, near) {
+// Where the pack comes from: open ground 9 to 15 tiles from its first prey;
+// for crocodiles, the edge of the water if there is some that near.
+function wolfSpot(st, near, shore = false) {
+  if (shore) {
+    for (let k = 0; k < 200; k++) {
+      const a = st.rng.range(0, Math.PI * 2);
+      const r = st.rng.range(7, 16);
+      const x = Math.floor(near.x + Math.cos(a) * r);
+      const y = Math.floor(near.y + Math.sin(a) * r);
+      if (x < 2 || y < 2 || x >= st.W - 2 || y >= st.H - 2) continue;
+      const i = y * st.W + x;
+      if (!st.reach[i] || WALK[st.terrain[i]] === 0 || st.occ[i] || treeBlocks(st.trees, st.felled, st.terrain, i)) continue;
+      if ([i - 1, i + 1, i - st.W, i + st.W].some((j) => isWater(st.terrain[j]))) return i;
+    }
+  }
   for (let k = 0; k < 120; k++) {
     const a = st.rng.range(0, Math.PI * 2);
     const r = st.rng.range(9, 15);
@@ -155,13 +169,19 @@ export function spawnPack(st, n = 4, type = 'wolf') {
   const cutter = workersAt(st, 'woodcutter').find((c) => !taken.includes(c.id)) || anyWorker(st, taken);
   const hunter = workersAt(st, 'hunter').find((c) => !taken.includes(c.id) && c !== cutter) || cutter;
   const defenders = [cutter, hunter];
-  const spot = wolfSpot(st, victims[0]);
+  const spot = wolfSpot(st, victims[0], type === 'crocodile');
   if (spot < 0) return null;
   const ids = [];
   for (let k = 0; k < n; k++) {
     const pair = Math.floor(k / 2) % 2;
-    const ox = (spot % st.W) + (k % 2);
-    const oy = Math.floor(spot / st.W) + pair;
+    let ox = (spot % st.W) + (k % 2);
+    let oy = Math.floor(spot / st.W) + pair;
+    // Beside the spot, unless that is water or thicket: then on it.
+    const j = oy * st.W + ox;
+    if (!st.reach[j] || WALK[st.terrain[j]] === 0 || treeBlocks(st.trees, st.felled, st.terrain, j)) {
+      ox = spot % st.W;
+      oy = Math.floor(spot / st.W);
+    }
     const w = createAnimal(st, ox, oy, type);
     Object.assign(w, {
       hp: WOLF.hp, maxHp: WOLF.hp, phase: 'hunt', repathT: 0, biteT: 0,
@@ -174,7 +194,7 @@ export function spawnPack(st, n = 4, type = 'wolf') {
   const job = st.byId.get(victims[0].job);
   const where = job ? `the ${BUILDINGS[job.type].name.toLowerCase()}` : victims[0].name;
   const P = PREDATORS[type];
-  notify(st, `${P.icon} A pack of ${n} ${P.plural} has come out of the bush! They are running at ${where}.`, 'war', st.byId.get(ids[0]));
+  notify(st, `${P.icon} ${P.came(n)} They are running at ${where}.`, 'war', st.byId.get(ids[0]));
   return ids;
 }
 

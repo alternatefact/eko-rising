@@ -56,6 +56,8 @@ export const HAUSA = {
   staple: { res: 'yam', name: 'Millet', icon: '🌾', farm: 'Millet Farm', farmYo: 'Gonar Gero', great: 'Great Millet Farm', greatDesc: 'Wider fields and a granary of clay.', desc: 'Millet sown in rows in the sandy soil when the first rains come, and cut when the heads are heavy. Fastest in the rainy season; in the Harmattan the fields lie bare.' },
   predator: 'hyena',
   festival: 'durbar',
+  // Your own soldiers: indigo robes and white turbans, hide shields.
+  soldiers: { spearman: 'hausa_spear', archer: 'hausa_bow' },
   // Local names for buildings and soldiers (the data files carry Yoruba
   // ones). Anything not listed shows no local name.
   words: {

@@ -59,6 +59,13 @@ export const UNITS = {
   // horsemen, come north from the Benue.
   jukun: { name: 'Kwararafa Warrior', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.2, vision: 6 },
   jukunrider: { name: 'Kwararafa Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
+  // Benin's enemy: the army of the Attah of Igala, from Idah on the Niger.
+  igala: { name: 'Igala Warrior', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.2, vision: 6 },
+  igalarider: { name: 'Igala Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
+  // Northern Igbo's enemy: the warriors the Aro hired from the Abam, Ohafia
+  // and Edda towns, with matchets, and later with trade guns.
+  aroraider: { name: 'Aro War Band Fighter', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.3, vision: 6 },
+  arogun: { name: 'Aro Gunman', hp: 65, atk: 13, range: 5, cd: 2.3, speed: 2, vision: 6, ranged: true },
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];

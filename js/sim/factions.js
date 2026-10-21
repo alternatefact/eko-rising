@@ -232,6 +232,16 @@ function spawnGarrison(st, f) {
         x = f.x + (k % 5) - 2;
         y = f.y + 4;
       }
+      // The ranks stand on open ground: a tree where a warrior is placed is
+      // cleared, so no one is walled in by the forest round the camp.
+      const i = y * st.W + x;
+      if (st.trees[i] > 0) {
+        st.trees[i] = 0;
+        st.felled[i] = TREE.STUMP;
+        if (st.terrain[i] === T.FOREST) st.terrain[i] = T.GRASS;
+        markTile(st, i);
+        st.dirty.reach = true;
+      }
       const home = { x: x + 0.5, y: y + 0.5 };
       createUnit(st, type, x, y, f.id, { home, leash: 14, aggro: 7, order: { t: 'guard', x: home.x, y: home.y } });
     });

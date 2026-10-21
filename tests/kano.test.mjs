@@ -41,16 +41,15 @@ const band = (st, owner) => st.units.filter((u) => u.owner === owner && !u.dead)
 const kill = (st, list) => list.forEach((u) => damage(st, null, u, 1e6));
 const hausaNames = new Set(HAUSA.origins.flatMap((o) => [...o.male, ...o.female]));
 
-test('the map of the old kingdoms: 28 provinces, Èkó and Kano to play, Nri and Benin next', () => {
+test('the map of the old kingdoms: 28 provinces, five home kingdoms to play', () => {
   assert.equal(PROVINCES.length, 28);
   for (const p of PROVINCES) {
     assert.ok(GEOMETRY.provinces[p.id]?.path, `${p.id} has a shape`);
     assert.ok(PROVINCE[p.id].neighbours.length > 0, `${p.id} has neighbours`);
   }
-  assert.equal(provinceStatus(PROVINCE.eko), 'play');
-  assert.equal(provinceStatus(PROVINCE.kano), 'play');
-  assert.equal(provinceStatus(PROVINCE.nri), 'coming');
-  assert.equal(provinceStatus(PROVINCE.benin), 'coming');
+  // One in each part of the land: Èkó, Kano, Benin, Warri, Northern Igbo.
+  for (const id of ['eko', 'kano', 'benin', 'warri', 'igbonorth']) assert.equal(provinceStatus(PROVINCE[id]), 'play', id);
+  assert.equal(provinceStatus(PROVINCE.nri), 'campaign');
   // Ẹ̀gbá and Ìjẹ̀bú are campaign provinces, not starts; once Èkó has opened
   // the Ogun chapter, it is played there.
   for (const id of ['egba', 'ijebu', 'kanem', 'oyo']) assert.equal(provinceStatus(PROVINCE[id]), 'campaign', id);

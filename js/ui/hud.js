@@ -30,7 +30,7 @@ const ICONS = {
   stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
   bank: '🏦', brickyard: '🧱', stockpile: '🧺',
 };
-const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥', jukun: '🔱', jukunrider: '🐎' };
+const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥', jukun: '🔱', jukunrider: '🐎', igala: '🔱', igalarider: '🐎', aroraider: '⚔️', arogun: '💥' };
 // Goods that only show in the top bar once you have some (or reach the age they matter in).
 const TOP_GOODS = [
   ['wood', 0], ['bricks', 0], ['stone', 1], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
@@ -253,7 +253,7 @@ export class Hud {
   renderTop() {
     const st = this.st;
     $('#town-name').textContent = st.name;
-    $('#era-chip').textContent = `${ERAS[st.era].name} · ${eraName(st, st.era)}`;
+    $('#era-chip').textContent = [ERAS[st.era].name, eraName(st, st.era)].filter(Boolean).join(' · ');
     const cap = st.cap;
     const food = totalFood(st);
     const chips = [];
@@ -986,14 +986,14 @@ export class Hud {
   eraHtml() {
     const st = this.st;
     const era = ERAS[st.era];
-    let h = this.head(`🌅 ${era.name} era`, `${eraName(st, st.era)} · ${st.time.year}`);
+    let h = this.head(`🌅 ${era.name} era`, [eraName(st, st.era), st.time.year].filter(Boolean).join(' · '));
     const now = cultureOf(st).eraArt === false ? null : ageArt(st.era);
     if (now) h += `<img class="scene" src="${now}" alt="" onerror="this.remove()" />`;
     h += `<p>${esc(eraBlurb(st, st.era))}</p>`;
     const r = eraRequirements(st);
     if (r) {
       const next = cultureOf(st).eraArt === false ? null : ageArt(st.era + 1);
-      h += `<h4>Next: ${esc(r.next.name)} (${esc(eraName(st, st.era + 1))})</h4>${next ? `<img class="scene small" src="${next}" alt="" onerror="this.remove()" />` : ''}<p class="muted">${esc(eraBlurb(st, st.era + 1))}</p>`;
+      h += `<h4>Next: ${esc(r.next.name)}${eraName(st, st.era + 1) ? ` (${esc(eraName(st, st.era + 1))})` : ''}</h4>${next ? `<img class="scene small" src="${next}" alt="" onerror="this.remove()" />` : ''}<p class="muted">${esc(eraBlurb(st, st.era + 1))}</p>`;
       for (const q of r.reqs) h += `<div class="req ${q.met ? 'met' : ''}"><span>${q.met ? '✅' : '⬜'}</span><span>${esc(q.text)}${q.cost ? ` — ${costText(q.cost, st)}` : ''}${q.have !== undefined ? ` (now ${q.have})` : ''}</span></div>`;
       const ok = r.reqs.every((q) => q.met);
       h += `<h4></h4><button class="btn primary big" data-act="advance" ${ok ? '' : 'disabled'}>Advance to the ${esc(r.next.name)} era</button>`;

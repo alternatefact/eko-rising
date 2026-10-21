@@ -4,18 +4,26 @@
 
 import { YORUBA } from './yoruba.js';
 import { HAUSA } from './hausa.js';
+import { EDO } from './edo.js';
+import { IGBO } from './igbo.js';
+import { ITSEKIRI } from './itsekiri.js';
 import { RESOURCES } from '../data/resources.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { UNITS } from '../data/units.js';
 import { ERAS } from '../data/eras.js';
 
-export const CULTURES = { yoruba: YORUBA, hausa: HAUSA };
+export const CULTURES = { yoruba: YORUBA, hausa: HAUSA, edo: EDO, igbo: IGBO, itsekiri: ITSEKIRI };
 
 // The beasts a culture's bush sends against the first farmers. They hunt the
-// same way; only the name and the look change (sim/animals.js).
+// same way; only the name, the look and how they come change
+// (sim/animals.js). Leopards hunt alone, so it is a mother with her grown
+// cubs; crocodiles come up out of the creek.
+const comeOut = (plural) => (n) => `A pack of ${n} ${plural} has come out of the bush!`;
 export const PREDATORS = {
-  wolf: { name: 'wolf', plural: 'wolves', icon: '🐺' },
-  hyena: { name: 'hyena', plural: 'hyenas', icon: '🐾' },
+  wolf: { name: 'wolf', plural: 'wolves', icon: '🐺', came: comeOut('wolves') },
+  hyena: { name: 'hyena', plural: 'hyenas', icon: '🐾', came: comeOut('hyenas') },
+  leopard: { name: 'leopard', plural: 'leopards', icon: '🐆', came: (n) => `A leopard and her ${n - 1} grown cubs have come out of the forest!` },
+  crocodile: { name: 'crocodile', plural: 'crocodiles', icon: '🐊', came: (n) => `${n} crocodiles have come up out of the creek!` },
 };
 
 export const cultureOf = (st) => CULTURES[st?.region?.culture] || YORUBA;

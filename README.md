@@ -6,19 +6,24 @@ how the history of Nigeria goes: trade with the Portuguese or send them away,
 stand up to Benin and the British, and unite the peoples of the land into
 **The New Nigeria**.
 
-The title screen is a map of Nigeria's old kingdoms around 1600, drawn from
-real borders: 28 kingdoms and peoples' lands, from Kanem-Bornu to the Delta
-city-states, shaded by part of the land (the campaign map will colour them by
-who holds each instead). A key under it explains the hatching (lands without
-kings), PLAY, NEXT and the capital dots of the home kingdoms. Tap a kingdom,
-or its name, for a panel with its full name, ruler, culture, today's states
-and the elite unit it lets you hire, and what can be done there: **Start** in
-Èkó (Lagos) or Kano, "Coming in a later update" for Nri and Benin, and "Win
-it in the campaign" for the rest. Small kingdoms (Èkó, Ẹ̀gbá, Ìjẹ̀bú, Nri)
-have a tap zone round their names, so they are easy to hit on a phone. Once
-breaking Benin's host has opened the Ogun chapter, Ẹ̀gbá's and Ìjẹ̀bú's panels
-also offer to play it. Picking a kingdom puts its people's names in the
-new-game form (Àdìó, Àdùkẹ́ and Èkó; Garba, Hauwa and Dala).
+The title screen opens on a map of Nigeria's old kingdoms around 1600, drawn
+from real borders: 28 kingdoms and peoples' lands, from Kanem-Bornu to the
+Delta city-states, shaded by part of the land (the campaign map will colour
+them by who holds each instead). The new-game form sits beside it on a wide
+screen and under it on a phone. A key under the map explains the hatching
+(lands without kings), PLAY and the capital dots of the home kingdoms (and
+NEXT, while a home kingdom is still to come). Tap a kingdom, or its name, for
+a panel with its full name, ruler, culture, today's states and the elite unit
+it lets you hire, and what can be done there: **Start** in one of the five
+home kingdoms, one in each part of the country but the North East and North
+Central (Èkó in the south-west, Kano in the north-west, Benin and Warri in the
+south-south, the Northern Igbo lands in the south-east), and "Win it in the
+campaign" for the rest. Small kingdoms (Èkó, Ẹ̀gbá, Ìjẹ̀bú, Nri) have a tap
+zone round their names, so they are easy to hit on a phone. Once breaking
+Benin's host has opened the Ogun chapter, Ẹ̀gbá's and Ìjẹ̀bú's panels also
+offer to play it. Picking a kingdom puts its people's names in the new-game
+form (Àdìó, Àdùkẹ́ and Èkó; Garba, Hauwa and Dala; Osaro, Ivie and
+Igodomigodo; Tosan, Omawumi and Ijala; Nwankwo, Adaeze and Umunwankwo).
 
 An original game by alternatefact Studios. For now the game is its own
 project, kept apart from the studio website.
@@ -173,9 +178,43 @@ early (Kano's version of the ships), the Durbar, Muhammad Rumfa's Kurmi
 market, and the host of Kwararafa, the Jukun army from the Benue, which
 gathers in the south and marches when it is ready (gifts buy time; Zazzau's
 warriors come if she is your friend). Breaking it wins Kano. Its stories have
-their own pictures. The Kwararafa warriors wear the spearman's model in their
-own colours until theirs is made, and the Hausa people still wear the Èkó
-models in Hausa colours.
+their own pictures.
+
+**Benin** is the Edo start. Osaro and Ivie come through the rainforest to a
+wrecked red-mud house between the Ogba and Ikpoba rivers; leopards come out
+of the forest instead of wolves (a mother and her grown cubs). Its peoples are
+the rival town of Udo, the Esan chiefdoms, Owo, the Ika of Agbor and the river
+port of Ughoton, and its history Oba Ewuare's walls, the Portuguese of the
+1480s (the earliest anywhere), the bronze casters' guild, the Igue festival,
+and the Igala army from Idah: Queen Mother Idia can raise warriors of her own
+for that war, and the Esan come if they are your friends. Breaking it wins
+Benin.
+
+**Warri** is the Itsekiri start, in the delta: Tosan and Omawumi paddle up a
+creek to an empty house among mangroves, lagoons and channels, plantain is the
+staple, and crocodiles come up out of the creek. Prince Ginuwa of Benin
+brings followers, there is creek trade with the Urhobo, Isoko and Ijaw, the
+Portuguese come, and the canoe regatta. Then Benin claims Warri as its own,
+and its war fleet is the great host (the Urhobo come if asked).
+
+**The Northern Igbo lands** are the Igbo start, in the hills round Nsukka and
+Udi: Nwankwo and Adaeze, leopards, the four market days (Eke, Orie, Afọ,
+Nkwọ), the Iri Ji new-yam festival, the old furnaces of Lejja, bronzes in the
+earth, the shrine of Ani, the Nsukka villages, the Udi hill towns, the Ezza of
+Abakaliki and the Igala of Idah. The priests of Nri come as friends; when the
+Aro war bands come with their hired fighters and trade guns, the Nri priests
+can be asked to make peace, which sends a third of the host home. Breaking
+the rest wins the land. Nri itself is a campaign province, not a start.
+
+Soldiers wear their own people's dress, on the shared spearman and archer
+models: Benin's warriors brass helmets and coral collars, Hausa spearmen
+indigo with white turbans and hide shields, Igbo fighters red head-ties,
+Itsekiri fighters white head-wraps and cutlasses; the Igala dark turbans, the
+Aro red caps with matchets and trade guns. Èkó keeps its own looks. Each
+look is a recolour plus headgear, collar and weapon added when the sprites
+are baked (`LOOKS` in `tools/bake/bake.js`, the headgear in
+`js/render3d/props.js`); a people's own 3D model can replace it later.
+Townspeople still wear the Èkó models in every land for now.
 
 Each people's names and words are a culture pack in `js/cultures/`: the
 founders' and settlement's names, where newcomers come from, the age names,
@@ -265,16 +304,19 @@ js/sim/       the simulation, with no DOM: economy, citizens, military, factions
               versions, and the steps that bring an older save up to date)
 js/world/     terrain types, map generator, A* pathfinding
 js/data/      buildings, units, resources, ages, the art catalogue
-js/cultures/  one culture pack per people (yoruba.js, hausa.js): names, words, staple,
-              predator; index.js applies a pack's labels when a game starts or loads
+js/cultures/  one culture pack per people (yoruba, hausa, edo, igbo, itsekiri): names,
+              words, staple, predator, soldiers' looks; index.js applies a pack's
+              labels when a game starts or loads, and lists the predators
 js/campaign/  the map of the old kingdoms: provinces.js (who held each, what it is
               today, which can be played) and geometry.js (their shapes, made by
               tools/map/build.py from Natural Earth's map of Nigeria's states)
-js/regions/   one file per land: lagos.js (Èkó), kano.js and ogun.js (Èkó's second
-              chapter), each put together from the files in its folder (terrain,
-              factions, events, story, objectives); opening.js is the guided opening
-              every home kingdom shares, in the words of its culture pack, and
-              common.js the questions they all ask about the town
+js/regions/   one file per land: lagos.js (Èkó), kano.js, benin.js, warri.js, nigbo.js
+              (Northern Igbo) and ogun.js (Èkó's second chapter), each put together
+              from the files in its folder (terrain, factions, events, story,
+              objectives); opening.js is the guided opening every home kingdom
+              shares, in the words of its culture pack; kit.js builds a land's
+              opening pop-ups and its first great host; common.js the questions
+              they all ask about the town
 js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sheets,
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
@@ -298,11 +340,14 @@ The art in `art/` was made with Higgsfield and is listed in `js/data/art.js`;
 anything missing from that list falls back to emoji art or textures drawn in
 code.
 
-To add a home kingdom, copy `js/regions/kano.js` and `js/regions/kano/`
+To add a home kingdom, copy `js/regions/benin.js` and `js/regions/benin/`
 (terrain template, peoples, places to explore, events, goals, and the guided
-opening in its culture's words), add its people's culture pack to
-`js/cultures/`, register the region in `js/regions/index.js`, and point its
-province's `start` at it in `js/campaign/provinces.js`. A chapter that is not
+opening in its culture's words; `openingEvents` and `greatHost` from
+`kit.js` write most of the story), add its people's culture pack to
+`js/cultures/` (with its soldiers' looks, baked from `LOOKS` in
+`tools/bake/bake.js`), register the region in `js/regions/index.js`, point
+its province's `start` at it in `js/campaign/provinces.js`, and give its
+stories pictures in `REGION_STORY` in `js/data/art.js`. A chapter that is not
 a home start (Ogun) is a province's `region` instead, and stays shut while it
 is listed in `LOCKED` until a flag in another chapter opens it (Ogun opens
 when the host of Benin is broken).
@@ -316,7 +361,9 @@ for 200 game days on a fixed seed and fails on any error or broken state, and
 `tests/save.test.mjs` opens a real save from an older version of the game,
 `tests/ogun.test.mjs` plays Ogun's stories and its start from Lagos, and
 `tests/kano.test.mjs` plays Kano's guided opening in Hausa words, breaks the
-Kwararafa host, and checks the map of the old kingdoms. They
+Kwararafa host, and checks the map of the old kingdoms, and
+`tests/lands.test.mjs` does the same for Benin, Warri and the Northern Igbo
+lands, and plays each from the first day to breaking its host. They
 need Node 20 or newer and nothing else:
 
 ```bash

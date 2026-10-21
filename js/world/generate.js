@@ -394,6 +394,10 @@ export function generateWorld(region, seed) {
       const cx = Math.round(start.x + Math.cos(a) * pitElse);
       const cy = Math.round(start.y + Math.sin(a) * pitElse);
       if (cx < 4 || cy < 4 || cx >= W - 4 || cy >= H - 4 || isWater(terrain[idx(cx, cy)]) || from.cost[idx(cx, cy)] === Infinity) continue;
+      // Not in the hills or the mangroves, where clay does not settle.
+      let soft = true;
+      for (let dy = -1; dy <= 1 && soft; dy++) for (let dx = -1; dx <= 1 && soft; dx++) soft = terrain[idx(cx + dx, cy + dy)] !== T.HILL && terrain[idx(cx + dx, cy + dy)] !== T.MANGROVE;
+      if (!soft) continue;
       clayPit(cx, cy, 2);
       wear(trail(cx, cy));
       mudPit = { x: cx, y: cy };

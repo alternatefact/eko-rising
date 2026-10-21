@@ -18,7 +18,7 @@ import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
 import { isHostileOwner } from '../sim/military.js';
 import { BUILD_STATES, DRESS_TIME, siteStage } from '../sim/citizens.js';
-import { PREDATORS } from '../cultures/index.js';
+import { PREDATORS, cultureOf } from '../cultures/index.js';
 
 const HW = 32; // half a tile's width at zoom 1
 const HH = 16; // half its height
@@ -30,10 +30,10 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun', jukun: 'spearman', jukunrider: 'spearman' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun', jukun: 'jukun', jukunrider: 'jukun', igala: 'igala', igalarider: 'igala', aroraider: 'aro', arogun: 'aro_gun' };
 // Fighters with no model of their own yet wear another's, washed in their
 // colours until theirs is baked.
-const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', jukun: 'rgba(70, 38, 18, 0.42)', jukunrider: 'rgba(120, 52, 22, 0.4)' };
+const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', jukunrider: 'rgba(120, 52, 22, 0.25)', igalarider: 'rgba(40, 30, 90, 0.2)' };
 
 // Eight screen directions (0 = right, going clockwise) to a baked direction
 // and whether it is mirrored. Baked: 0 down, 1 down-right, 2 right, 3 up-right, 4 up.
@@ -486,7 +486,11 @@ export class IsoRenderer {
       const moving = !!u.path && (Math.abs(u.x - u.px) + Math.abs(u.y - u.py) > 1e-4);
       const target = u.order?.target ? st.byId.get(u.order.target) : null;
       const striking = u.swingT && st.time.t - u.swingT < 0.45;
-      const lookName = this.atlas.meta.looks[UNIT_LOOK[u.type]] ? UNIT_LOOK[u.type] : 'spearman';
+      // Your own soldiers dress as your people do (the culture pack's
+      // `soldiers`); everyone else as theirs.
+      const own = u.owner === 'player' && !u.ally ? cultureOf(st).soldiers?.[u.type] : null;
+      const want = own && this.atlas.meta.looks[own] ? own : UNIT_LOOK[u.type];
+      const lookName = this.atlas.meta.looks[want] ? want : 'spearman';
       const anims = this.atlas.meta.looks[lookName].anims;
       const anim = striking
         ? anims.includes('bow') ? 'bow' : anims.includes('slash') ? 'slash' : 'swing'
@@ -501,7 +505,7 @@ export class IsoRenderer {
         if (sel) this.ellipse(ctx, x, y, 0.38, '#ffe066');
         this.teamMark(ctx, p.x, p.y, color);
         if (sel && u.stance === 'hold') this.ellipse(ctx, x, y, 0.5, 'rgba(120,200,255,0.8)');
-        this.atlas.draw(ctx, key, p.x, p.y, z, mirror, UNIT_TINT[u.type]);
+        this.atlas.draw(ctx, key, p.x, p.y, z, mirror, own ? null : UNIT_TINT[u.type]);
         if (u.hp < u.maxHp || sel) {
           const top = this.tileToScreen(x, y, 1.0);
           this.hpBar(ctx, top.x, top.y, u.hp / u.maxHp, 24 * z);

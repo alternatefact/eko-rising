@@ -89,7 +89,13 @@
           <p class="subtitle">Build your Nigeria</p>
           <p class="tagline" id="title-tagline">Start with a hoe, a wife and a patch of land by the lagoon. Build Lagos, and decide how the history of a nation goes.</p>
           <div class="title-grid">
-            <div class="card">
+            <div class="card kingdoms-card">
+              <h2>Choose your kingdom</h2>
+              <p class="muted">Nigeria around 1600: 28 kingdoms and peoples’ lands. Tap one, or its name, to see who ruled it. Start in a home kingdom; the others you will win in the campaign, by alliance, tribute or war.</p>
+              <div id="nigeria"></div>
+              <div id="kingdom-info"></div>
+            </div>
+            <div class="card newgame-card">
               <h2>New game</h2>
               <label>Founder <input id="ng-founder" maxlength="20" value="Àdìó" /></label>
               <label>Wife <input id="ng-spouse" maxlength="20" value="Àdùkẹ́" /></label>
@@ -103,12 +109,6 @@
                 <button id="ng-feedback" class="btn big">💬 Send feedback</button>
               </div>
               <div id="title-saves" hidden></div>
-            </div>
-            <div class="card">
-              <h2>Choose your kingdom</h2>
-              <p class="muted">Nigeria around 1600: 28 kingdoms and peoples’ lands. Tap one, or its name, to see who ruled it. Start in a home kingdom; the others you will win in the campaign, by alliance, tribute or war.</p>
-              <div id="nigeria"></div>
-              <div id="kingdom-info"></div>
             </div>
           </div>
           <details class="howto">

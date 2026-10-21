@@ -76,6 +76,30 @@ const REGION_STORY = {
     kwararafa_beaten: 'kwararafa_beaten',
     kano_united: 'kwararafa_beaten',
   },
+  benin: {
+    intro: 'benin_intro',
+    portuguese_benin: 'portuguese',
+    idah: 'igala_camp',
+    igala_host_seen: 'igala_camp',
+    igala_host_march_seen: 'igala_camp',
+    idia: 'idia',
+    igala_host_beaten: 'idia',
+    edo_united: 'idia',
+  },
+  warri: {
+    intro: 'warri_intro',
+    ginuwa: 'benin',
+    portuguese_warri: 'portuguese',
+    benin_claim: 'benin',
+    benin_fleet_seen: 'benin_fleet',
+    benin_fleet_march_seen: 'benin_fleet',
+  },
+  nigbo: {
+    intro: 'nigbo_intro',
+    aro: 'aro_camp',
+    aro_host_seen: 'aro_camp',
+    aro_host_march_seen: 'aro_camp',
+  },
 };
 
 export function storyArt(id, region) {

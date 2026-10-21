@@ -44,13 +44,13 @@ export const PROVINCES = [
   { id: 'ijebu', name: 'Ìjẹ̀bú', short: 'Ìjẹ̀bú', area: 'west', holder: 'The Awùjalẹ̀, at Ìjẹ̀bú-Òde', people: 'Yoruba', today: 'East Ogun', culture: 'yoruba', region: 'ogun', tap: 40 },
   { id: 'egba', name: 'Ẹ̀gbá and Awori towns', short: 'Ẹ̀gbá', area: 'west', holder: 'Forest towns under Ọ̀yọ́’s sway', people: 'Yoruba', today: 'West Ogun', culture: 'yoruba', overlord: 'oyo', region: 'ogun', tap: 44 },
   { id: 'eko', name: 'Èkó', short: 'Èkó', area: 'west', holder: 'The Ọba of Èkó', people: 'Yoruba', today: 'Lagos', culture: 'yoruba', overlord: 'benin', start: 'lagos', seat: [3.4, 6.45], labelAt: [62, 668], tap: 44 },
-  { id: 'benin', name: 'Benin', short: 'Benin', area: 'south', holder: 'The Oba of Benin', people: 'Edo', today: 'Edo', culture: 'edo', seat: [5.63, 6.34], coming: 4 },
-  { id: 'warri', name: 'Warri, Urhobo and Isoko', short: 'Warri', area: 'south', holder: 'The Olu of Warri; Urhobo and Isoko clans', people: 'Itsekiri, Urhobo and Isoko', today: 'Delta' },
+  { id: 'benin', name: 'Benin', short: 'Benin', area: 'south', holder: 'The Oba of Benin', people: 'Edo', today: 'Edo', culture: 'edo', start: 'benin', seat: [5.63, 6.34] },
+  { id: 'warri', name: 'Warri, Urhobo and Isoko', short: 'Warri', area: 'south', holder: 'The Olu of Warri; Urhobo and Isoko clans', people: 'Itsekiri, Urhobo and Isoko', today: 'Delta', culture: 'itsekiri', start: 'warri', seat: [5.42, 5.62] },
   { id: 'delta', name: 'Delta city-states', short: 'Delta', area: 'south', holder: 'The trading houses of Bonny, Kalabari, Nembe and Okrika', people: 'Ijaw', today: 'Rivers, Bayelsa' },
   { id: 'calabar', name: 'Old Calabar and Ibibio lands', short: 'Calabar', area: 'south', holder: 'Efik trading houses; Ibibio and Annang councils', people: 'Efik, Ibibio and Annang', today: 'Cross River, Akwa Ibom' },
-  { id: 'nri', name: 'Nri and Onitsha', short: 'Nri', area: 'south', holder: 'The Eze Nri, a priest-king; the Obi of Onitsha', people: 'Igbo', today: 'Anambra', culture: 'igbo', seat: [6.98, 6.13], coming: 4, tap: 34 },
+  { id: 'nri', name: 'Nri and Onitsha', short: 'Nri', area: 'south', holder: 'The Eze Nri, a priest-king; the Obi of Onitsha', people: 'Igbo', today: 'Anambra', culture: 'igbo', tap: 34 },
   { id: 'aro', name: 'Aro lands', short: 'Aro', area: 'south', holder: 'The Aro, through their oracle at Arochukwu', people: 'Igbo', today: 'Abia, Imo', culture: 'igbo', labelAt: [394, 702] },
-  { id: 'igbonorth', name: 'Northern Igbo lands', short: 'N. Igbo', area: 'south', holder: 'No king: village councils', people: 'Igbo', today: 'Enugu, Ebonyi', council: true, culture: 'igbo' },
+  { id: 'igbonorth', name: 'Northern Igbo lands', short: 'N. Igbo', area: 'south', holder: 'No king: village councils', people: 'Igbo', today: 'Enugu, Ebonyi', council: true, culture: 'igbo', start: 'nigbo', seat: [7.4, 6.86] },
 ];
 
 // The elite unit each culture fields (DESIGN.md, Elite units), which a

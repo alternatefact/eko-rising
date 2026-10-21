@@ -166,7 +166,7 @@ function ageEvent(st, era) {
   const unlocks = Object.values(BUILDINGS).filter((d) => d.era === era && d.buildable !== false).map((d) => d.name);
   return {
     id: 'age',
-    title: `A new age: ${e.name} (${eraName(st, era)})`,
+    title: `A new age: ${e.name}${eraName(st, era) ? ` (${eraName(st, era)})` : ''}`,
     art: '🌅',
     text: () => `${st.name} has grown into something new.\n\n${eraBlurb(st, era)}${unlocks.length ? `\n\nYou can now build: ${unlocks.join(', ')}.` : ''}`,
     choices: [{ label: 'Onward' }],
@@ -257,7 +257,7 @@ export function advanceEra(st) {
   }
   st.dirty.territory = true;
   addMood(st, `A new age: ${r.next.name}`, 8, 4);
-  notify(st, `🌅 ${st.name} enters the ${r.next.name} era (${eraName(st, st.era)}). ${eraBlurb(st, st.era)}`, 'good');
+  notify(st, `🌅 ${st.name} enters the ${r.next.name} era${eraName(st, st.era) ? ` (${eraName(st, st.era)})` : ''}. ${eraBlurb(st, st.era)}`, 'good');
   st.eventQueue.push({ id: 'age', era: st.era });
   return true;
 }

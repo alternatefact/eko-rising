@@ -18,7 +18,7 @@ Every coding session on Naija Rising starts by reading this brief, then builds e
 
 Eko Rising becomes **Naija Rising — Build your Nigeria**: one long campaign in which you pick your home kingdom, build it up, unite Nigeria, and win it back from colonial rule. Each home kingdom is a chapter: Naija Rising: Èkó (today's Eko Rising), Naija Rising: Kano, and so on.
 
-- **Choose your kingdom.** Every player starts in a kingdom of their choice: Èkó, Kano, Nri or Benin in the first release.
+- **Choose your kingdom.** Every player starts in a kingdom of their choice: Èkó, Kano, Benin, Warri or the Northern Igbo lands in the first release, one in each part of the country but the North East and North Central, which come next (decided October 2026).
 - **Same game, different skin.** Rules, buildings, economy and eras are identical everywhere. What changes is the culture: names, clothing, staple crop labels, an elite unit, festivals and stories from that region's history.
 - **One long campaign.** Players come back for weeks. They city-build their home kingdom and expand across a map of Nigeria's old kingdoms, province by province.
 - **Choices with consequences.** Big decisions, starting with the slave trade, come back later in ways the player is not warned about.
@@ -109,20 +109,20 @@ export const HAUSA = {
 - `people.js` and `names.js` are keyed by culture. Elite units in `units.js` carry a `culture` field.
 - The title screen's Nigeria map becomes the home-kingdom picker, drawn as the province map (see The Nigeria map). Tap a kingdom, and its region and culture load.
 
-## The four starting cultures
+## The starting cultures
 
-The first release offers four home kingdoms, one per culture: Èkó (Yoruba, already built), Kano (Hausa), Nri (Igbo) and Benin (Edo).
+The first release offers five home kingdoms, one per culture: Èkó (Yoruba), Kano (Hausa), the Northern Igbo lands (Igbo), Benin (Edo) and Warri (Itsekiri). Nri was the first plan for the Igbo start; in October 2026 Kay chose the Northern Igbo lands (Enugu, Ebonyi) instead, so Nri is a campaign province that a Northern Igbo player meets as a friend who can end wars.
 
 | | Yoruba | Hausa | Igbo | Edo |
 | --- | --- | --- | --- | --- |
-| Home kingdom (today) | Èkó (Lagos) | Kano | Nri (Anambra) | Benin (Edo) |
+| Home kingdom (today) | Èkó (Lagos) | Kano | Northern Igbo lands (Enugu, Ebonyi) | Benin (Edo) |
 | Founder · spouse | Àdìó · Àdùkẹ́ | Garba · Hauwa | Nwankwo · Adaeze | Osaro · Ivie |
 | Settlement | Èkó | Dala, the hill Kano grew around | Umunwankwo, "children of Nwankwo" | Igodomigodo, the old name of Benin |
 | Ruler's title | Ọba | Sarki | Eze (Obi in some towns) | Oba |
 | Welcome line | Ẹ káàbọ̀ | Sannu da zuwa | Nnọọ | Kóyo (check) |
 | Staple label | Yam, with fish and garri | Millet | Yam | Yam |
-| Terrain | Lagoon, creeks, coastal forest | Dry savanna, Dala and Goron Dutse hills, no sea | Farmland and forest, gullies, River Niger to the west | Rainforest, the city's moats |
-| Predator | Leopard (replaces wolves) | Hyena pack | Leopard | Leopard |
+| Terrain | Lagoon, creeks, coastal forest | Dry savanna, Dala and Goron Dutse hills, no sea | Hills and light forest, the Nsukka–Udi uplands | Rainforest, the Ogba and Ikpoba rivers |
+| Predator | Wolves for now (leopard planned) | Hyena pack | Leopard | Leopard |
 | Nature event | Lagoon flood, Harmattan | Drought, Harmattan, locusts | Gully erosion, heavy rains | Floods, heavy rains |
 | First big enemy | The Oba's host from Benin (exists) | Kwararafa (Jukun) raiders | Aro raiding bands | The Igala army from Idah |
 | Festival | Eyo (exists) | Durbar | New Yam Festival (Iri Ji) | Igue |
@@ -143,7 +143,7 @@ Each start gets three to six events from its own history, run by the existing ev
 - Usman dan Fodio's movement (1804) and the Sokoto Caliphate. Handle with care (see Sensitivity).
 - British conquest of Kano and Sokoto, 1903: the northern front of the colonial arc.
 
-**Igbo (Nri)**
+**Igbo (Northern Igbo lands)**
 
 - Nri priest-kings, whose authority settled feuds without armies. Unique option: pay Nri priests to end a war.
 - The Igbo-Ukwu bronzes (9th–10th century): a place of interest and a discovery event.
@@ -161,6 +161,16 @@ Each start gets three to six events from its own history, run by the existing ev
 - Queen Mother Idia and the Idah war against the Igala (around 1515–16): the first great host.
 - The bronze casters' guild on Igun Street: a craft building that makes wealth.
 - The British expedition of 1897 and the taking of the bronzes. This time the player can change the ending.
+
+**Itsekiri (Warri)**
+
+The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement Ijala; the ruler is the Olu; the staple is plantain; the predator is crocodiles from the creeks; the festival is the canoe regatta. The greeting and the age names stay in English until a speaker checks them.
+
+- Prince Ginuwa of Benin founds the Olu's line (around 1480) and brings followers from Benin.
+- Creek trade with the Urhobo, Isoko and Ijaw: salt, fish and palm oil.
+- The Portuguese reach Warri soon after Benin; an Olu's son is schooled in Portugal.
+- Benin claims Warri as its own: the war fleet of Benin is the first great host, and the Urhobo can be asked to stand with you.
+- Nana Olomu and the British at Ebrohimi, 1894: the delta front of the colonial arc.
 
 ### Names
 
@@ -207,7 +217,7 @@ The slave-trade choice is the game's signature: selling captives pays fast and b
 
 **When it comes:** early, in the Compound or Town era, while guns still matter. It must not wait until the player already holds many provinces, or saying no costs nothing.
 
-**How it arrives in each culture:** Èkó and Benin through the ships (Benin first, as it met the Portuguese earliest); Kano through buyers travelling with the desert caravans; Nri through the Aro and their oracle. Each version offers the same three options and sets the same flags.
+**How it arrives in each culture:** Èkó and Benin through the ships (Benin first, as it met the Portuguese earliest); Kano through buyers travelling with the desert caravans; the Igbo lands through the Aro and their oracle; Warri through the Portuguese ships in the creeks. Each version offers the same three options and sets the same flags.
 
 | Choice | Shown right away | Hidden until it happens |
 | --- | --- | --- |
@@ -260,12 +270,12 @@ Players city-build only their home kingdom. The rest of Nigeria is 28 provinces 
 | Ẹ̀gbá and Awori towns | West | Forest towns under Ọ̀yọ́'s sway | West Ogun |
 | Èkó (home start) | West | The Ọba of Èkó, paying tribute to Benin | Lagos |
 | Benin (home start) | South | The Oba of Benin | Edo |
-| Warri, Urhobo and Isoko | South | The Olu of Warri; Urhobo and Isoko clans | Delta |
+| Warri, Urhobo and Isoko (home start) | South | The Olu of Warri; Urhobo and Isoko clans | Delta |
 | Delta city-states | South | The trading houses of Bonny, Kalabari, Nembe and Okrika | Rivers, Bayelsa |
 | Old Calabar and Ibibio lands | South | Efik trading houses; Ibibio and Annang councils | Cross River, Akwa Ibom |
-| Nri and Onitsha (home start) | South | The Eze Nri, a priest-king; the Obi of Onitsha | Anambra |
+| Nri and Onitsha | South | The Eze Nri, a priest-king; the Obi of Onitsha | Anambra |
 | Aro lands | South | The Aro, through their oracle at Arochukwu | Abia, Imo |
-| Northern Igbo lands | South | Village councils (council) | Enugu, Ebonyi |
+| Northern Igbo lands (home start) | South | Village councils (council) | Enugu, Ebonyi |
 
 The borders and tribute links are a design snapshot, not a single historical year. Have a historian check them before milestone 7.
 
@@ -413,9 +423,9 @@ Nine milestones, each one or a few coding sessions, in this order. Character art
    - Done when: a Kano game runs the guided opening with Hausa names and words, and the Kwararafa host can be beaten.
 3. **Elite units.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied provinces.
    - Done when: each start trains its elite in the Town era, and the test shows no unit winning every fight.
-4. **Nri and Benin starts.** Add Igbo and Edo packs, their region files, story beats and festivals.
-   - Done when: all four home kingdoms are playable from the title screen.
-5. **The slave-trade branch.** Add the sell option and its hidden consequences in all four cultural versions.
+4. **Benin, Warri and Northern Igbo starts** (done October 2026, ahead of milestone 3, at Kay's request). Igbo, Edo and Itsekiri packs; `benin.js`, `warri.js` and `nigbo.js` with their story beats, festivals and first great hosts (the Igala army, Benin's war fleet, the Aro war bands); leopard and crocodile packs; soldiers dressed by culture. New starts are built from `js/regions/kit.js` (the guided opening's story pop-ups and the great host). Next: a start in the North East (Kanem-Bornu) and one in North Central (Nupe or Kwararafa).
+   - Done when: all five home kingdoms are playable from the title screen. Done: each runs the guided opening, and its host can be beaten (tests/lands.test.mjs).
+5. **The slave-trade branch.** Add the sell option and its hidden consequences in each culture's version.
    - Done when: in a test run, selling produces sold-captive riflemen in a later landing with the reveal card, and freeing produces settlers over the cap.
 6. **Live events and the empire card.** Add `live.js` with the hyena season as the first event, the title-screen banner, badges, and the shareable card in both sizes.
    - Done when: setting the device date into an event week triggers it, and the card shares on a phone.
@@ -435,7 +445,7 @@ These need Kay's answer before the milestone that depends on them.
 - [ ] **How many provinces before the British advance** (milestone 7): the brief starts it at the Port City era with era goals of 1, 4 and 10 provinces out of 28. The original idea was 10 to 15 states first, which is a third to half of the map.
 - [ ] **Where players play** (milestones 6 and 9): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
 - [ ] **Studio server** (milestone 9): hosting, cost, and who moderates display names.
-- [ ] **Reviewers:** who checks the Hausa, Igbo and Edo names, clothing and stories.
+- [ ] **Reviewers:** who checks the Hausa, Igbo, Edo and Itsekiri names, clothing and stories. The Edo and Itsekiri age names and the Itsekiri greeting are left in English until then.
 
 ## Later updates
 

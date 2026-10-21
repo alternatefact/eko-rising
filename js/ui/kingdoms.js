@@ -146,10 +146,11 @@ function infoHtml(p, opened) {
     <div class="km-act">${act}</div></div>`;
 }
 
+// NEXT is in the key only while some home kingdom is still to come.
 const LEGEND = `<div class="km-legend" aria-label="Key">
   <span><i class="km-key-council"></i>Lands without kings</span>
   <span><i class="km-key-play">PLAY</i>Playable start</span>
-  <span><i class="km-key-next">NEXT</i>Coming soon</span>
+  ${PROVINCES.some((p) => provinceStatus(p) === 'coming') ? '<span><i class="km-key-next">NEXT</i>Coming soon</span>' : ''}
   <span><i class="km-key-seat"></i>Capital</span>
 </div>`;
 
