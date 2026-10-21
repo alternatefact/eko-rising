@@ -8,11 +8,17 @@ stand up to Benin and the British, and unite the peoples of the land into
 
 The title screen is a map of Nigeria's old kingdoms around 1600, drawn from
 real borders: 28 kingdoms and peoples' lands, from Kanem-Bornu to the Delta
-city-states. Tap one to see who held it and what it is today. A home kingdom
-can be begun from there: **Èkó** (Lagos) and **Kano** are open, Nri and Benin
-come next, and the rest are to be won later in the campaign by alliance,
-tribute or war. Picking a kingdom puts its people's names in the new-game form
-(Àdìó, Àdùkẹ́ and Èkó; Garba, Hauwa and Dala).
+city-states, shaded by part of the land (the campaign map will colour them by
+who holds each instead). A key under it explains the hatching (lands without
+kings), PLAY, NEXT and the capital dots of the home kingdoms. Tap a kingdom,
+or its name, for a panel with its full name, ruler, culture, today's states
+and the elite unit it lets you hire, and what can be done there: **Start** in
+Èkó (Lagos) or Kano, "Coming in a later update" for Nri and Benin, and "Win
+it in the campaign" for the rest. Small kingdoms (Èkó, Ẹ̀gbá, Ìjẹ̀bú, Nri)
+have a tap zone round their names, so they are easy to hit on a phone. Once
+breaking Benin's host has opened the Ogun chapter, Ẹ̀gbá's and Ìjẹ̀bú's panels
+also offer to play it. Picking a kingdom puts its people's names in the
+new-game form (Àdìó, Àdùkẹ́ and Èkó; Garba, Hauwa and Dala).
 
 An original game by alternatefact Studios. For now the game is its own
 project, kept apart from the studio website.

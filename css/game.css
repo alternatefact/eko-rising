@@ -1071,13 +1071,19 @@ input {
   margin-top: 12px;
 }
 
-/* The map of Nigeria's old kingdoms on the title screen. */
+/* The map of Nigeria's old kingdoms on the title screen, with its key. */
+#nigeria .km-frame {
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background: #241b12;
+}
+
 #nigeria svg {
   width: 100%;
   height: auto;
   display: block;
-  border-radius: 12px;
-  border: 1px solid var(--line);
+  touch-action: manipulation;
 }
 
 #nigeria .km-land {
@@ -1098,13 +1104,6 @@ input {
   transition: filter 0.15s;
 }
 
-/* Home kingdoms and opened chapters stand out with a gold edge. */
-#nigeria .km-play > path:first-child,
-#nigeria .km-chapter > path:first-child {
-  stroke: #ffd36b;
-  stroke-width: 2.5;
-}
-
 #nigeria .km-prov:hover > path:first-child,
 #nigeria .km-prov:focus-visible > path:first-child,
 #nigeria .km-sel > path:first-child {
@@ -1115,12 +1114,29 @@ input {
   pointer-events: none;
 }
 
+/* Edges are drawn over every shape, so they show all the way round. */
+#nigeria .km-play-edge,
+#nigeria .km-hover-edge,
 #nigeria .km-sel-edge {
   fill: none;
-  stroke: #fff3c4;
-  stroke-width: 4;
   stroke-linejoin: round;
   pointer-events: none;
+}
+
+#nigeria .km-play-edge {
+  stroke: #ffd36b;
+  stroke-width: 2.6;
+}
+
+#nigeria .km-hover-edge {
+  stroke: #fff3c4;
+  stroke-width: 3;
+  stroke-opacity: 0.8;
+}
+
+#nigeria .km-sel-edge {
+  stroke: #fff3c4;
+  stroke-width: 4.5;
 }
 
 #nigeria .km-lake {
@@ -1155,13 +1171,16 @@ input {
   stroke-linejoin: round;
 }
 
+#nigeria .km-label {
+  cursor: pointer;
+}
+
 #nigeria .km-name {
   font-size: 21px;
   font-weight: 700;
   fill: #1f150a;
   stroke: rgba(250, 238, 210, 0.72);
   stroke-width: 4px;
-  cursor: pointer;
 }
 
 #nigeria .km-name.km-small {
@@ -1182,23 +1201,17 @@ input {
   fill: #fff6dc;
   stroke: rgba(30, 18, 6, 0.85);
   stroke-width: 4px;
-  cursor: pointer;
 }
 
-#nigeria .km-tag-play,
-#nigeria .km-tag-chapter {
+#nigeria .km-tag-play {
   fill: #ffd36b;
 }
 
+/* Every home kingdom's capital, the same dot. */
 #nigeria .km-seat {
   fill: #fff3c4;
   stroke: #2a1405;
   stroke-width: 2.5;
-  pointer-events: none;
-}
-
-#nigeria .km-seat-open {
-  fill: #ffcf4a;
 }
 
 #nigeria .km-leader {
@@ -1225,8 +1238,9 @@ input {
 #nigeria .km-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 8px;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
   color: #e8dcc2;
 }
@@ -1242,36 +1256,40 @@ input {
   font-style: normal;
 }
 
-.km-key-play {
-  width: 16px;
-  height: 11px;
-  border: 2px solid #ffd36b;
+.km-key-council {
+  width: 18px;
+  height: 12px;
   border-radius: 2px;
-  background: hsl(88, 34%, 50%);
+  background: repeating-linear-gradient(45deg, hsl(24, 42%, 56%) 0 3px, hsl(24, 42%, 40%) 3px 5px);
+}
+
+.km-key-play,
+.km-key-next {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(30, 18, 6, 0.85);
+}
+
+.km-key-play {
+  color: #ffd36b;
 }
 
 .km-key-next {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
   color: #fff6dc;
-}
-
-.km-key-council {
-  width: 16px;
-  height: 11px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, hsl(24, 42%, 52%) 0 3px, hsl(24, 42%, 40%) 3px 5px);
 }
 
 .km-key-seat {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ffcf4a;
+  background: #fff3c4;
   border: 2px solid #2a1405;
 }
 
+/* The chosen kingdom's panel. */
 #kingdom-info .km-card {
   margin-top: 10px;
   padding: 12px 14px;
@@ -1289,7 +1307,7 @@ input {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 10px;
+  gap: 4px 10px;
   flex-wrap: wrap;
 }
 
@@ -1306,17 +1324,46 @@ input {
 }
 
 #kingdom-info .km-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 6px 0 10px;
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 12px;
   font-size: 14px;
   color: #f2e6cc;
 }
 
-#kingdom-info p {
-  margin: 8px 0 0;
+#kingdom-info .km-lines div {
+  display: grid;
+  grid-template-columns: 6.6em 1fr;
+  gap: 8px;
+}
+
+#kingdom-info .km-lines dt {
+  color: #c9b48f;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+
+#kingdom-info .km-lines dd {
+  margin: 0;
+  min-width: 0;
+}
+
+#kingdom-info .km-act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#kingdom-info .km-status {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 217, 160, 0.5);
   font-size: 13px;
+  font-weight: 700;
+  color: #ffd9a0;
 }
 
 .howto {

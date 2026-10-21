@@ -271,6 +271,8 @@ The borders and tribute links are a design snapshot, not a single historical yea
 
 **Data** (`js/campaign/provinces.js`, new): for each province, its id, name, area, neighbours, holder and title, overlord if it pays tribute, culture pack if one exists, `council: true` for lands without kings, strength 1–5, daily yield, land type (coast, forest, savanna, delta), and the modern states it covers, shown in the picker. A simple province map replaces the state cartogram (`STATES` in `js/regions/index.js`).
 
+**Colours:** the title-screen picker shades each province by its part of the land (north, Middle Belt, west, south) so a player can find their way; those colours belong to the picker only. The campaign map colours each province by who holds it.
+
 **Province status:** independent, allied, paying tribute, conquered, or British. Some provinces start out paying tribute to another: Èkó to Benin, the Ẹ̀gbá towns to Ọ̀yọ́. Freeing a tributary wins a quick friend and angers its overlord.
 
 **Lands without kings** (marked "council" in the table): Igbo village groups, the Tiv, the Plateau and Upper Benue peoples and the Ibibio were governed by councils of elders, not thrones. There is no capital to capture. The player wins them council by council, through gifts, trade, settling disputes and defending them from raiders. Force works, but each council resists separately and unrest stays high.

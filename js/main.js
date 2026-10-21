@@ -1190,7 +1190,7 @@ function chooseHome(id) {
     const input = document.getElementById(field);
     if (!input.value.trim() || input.value.trim() === from[k]) input.value = to[k];
   }
-  document.getElementById('ng-start').textContent = `Begin in ${PROVINCE[id].short}`;
+  document.getElementById('ng-start').textContent = `Start in ${PROVINCE[id].short}`;
   const line = document.getElementById('title-tagline');
   if (line) line.textContent = TAGLINES[id] || TAGLINES.eko;
 }
@@ -1208,15 +1208,14 @@ function drawKingdoms(game) {
       if (status === 'play') chooseHome(id);
     },
     onPlay: (p) => {
-      if (p.start) {
-        chooseHome(p.id);
-        game.ready.then(() => game.newGame({ ...readNewGameForm(), region: p.start }));
-      }
-      else if (p.region) {
-        // A chapter of Èkó's story: its people's names.
-        chooseHome('eko');
-        game.ready.then(() => game.pickRegion(p.region));
-      }
+      chooseHome(p.id);
+      game.ready.then(() => game.newGame({ ...readNewGameForm(), region: p.start }));
+    },
+    // Ogun, once breaking Benin's host in Èkó has opened it: a chapter of
+    // Èkó's story, so its people's names.
+    onChapter: (p) => {
+      chooseHome('eko');
+      game.ready.then(() => game.pickRegion(p.region));
     },
   });
 }

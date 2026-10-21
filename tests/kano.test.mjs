@@ -14,7 +14,7 @@ import { YORUBA } from '../js/cultures/yoruba.js';
 import { eraName } from '../js/cultures/index.js';
 import { PROVINCES, PROVINCE } from '../js/campaign/provinces.js';
 import { GEOMETRY } from '../js/campaign/geometry.js';
-import { provinceStatus } from '../js/ui/kingdoms.js';
+import { provinceStatus, chapterOf } from '../js/ui/kingdoms.js';
 import { makeBot, botTick } from './bot.mjs';
 import { playStory, makeStoryBot, storyAct } from './story.mjs';
 
@@ -51,9 +51,17 @@ test('the map of the old kingdoms: 28 provinces, Èkó and Kano to play, Nri and
   assert.equal(provinceStatus(PROVINCE.kano), 'play');
   assert.equal(provinceStatus(PROVINCE.nri), 'coming');
   assert.equal(provinceStatus(PROVINCE.benin), 'coming');
-  assert.equal(provinceStatus(PROVINCE.egba), 'locked');
-  assert.equal(provinceStatus(PROVINCE.egba, new Set(['ogun'])), 'chapter');
-  assert.equal(provinceStatus(PROVINCE.kanem), 'campaign');
+  // Ẹ̀gbá and Ìjẹ̀bú are campaign provinces, not starts; once Èkó has opened
+  // the Ogun chapter, it is played there.
+  for (const id of ['egba', 'ijebu', 'kanem', 'oyo']) assert.equal(provinceStatus(PROVINCE[id]), 'campaign', id);
+  assert.equal(chapterOf(PROVINCE.egba), null);
+  assert.equal(chapterOf(PROVINCE.egba, new Set(['ogun'])), 'ogun');
+  assert.equal(chapterOf(PROVINCE.kano, new Set(['ogun'])), null);
+  // Every home kingdom has a capital; every province names its people.
+  for (const p of PROVINCES) {
+    assert.ok(p.people, `${p.id} has a people`);
+    if (p.start || p.coming) assert.ok(p.seat, `${p.id} has a capital`);
+  }
   assert.ok(PROVINCE.kano.neighbours.includes('katsina') && PROVINCE.kano.neighbours.includes('zazzau'));
 });
 
