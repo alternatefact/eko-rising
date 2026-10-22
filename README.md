@@ -216,6 +216,33 @@ are baked (`LOOKS` in `tools/bake/bake.js`, the headgear in
 `js/render3d/props.js`); a people's own 3D model can replace it later.
 Townspeople still wear the Èkó models in every land for now.
 
+**Elite units.** From the Town age each people trains its own elite at the
+Guard House, and only its own: the Ẹ̀ṣọ́ Rider (Èkó), a fast raider who rides
+down archers, gunmen and carriers but tires in a long melee; the Lifidi
+Horseman (Kano), horse and rider in quilted cotton armour, who breaks men on
+foot but is slow to wheel round; the Abam Warrior (Northern Igbo), whose
+two-handed sword catches the man beside the one he strikes; the Leopard
+Guard (Benin), strongest by your walls and palace, who steadies the soldiers
+beside him; and the War-Canoe Gunman (Warri), who crosses creeks, lagoons
+and mangroves like dry land, stands in his canoe on the water, is hard to
+hit there, and frightens horses. An allied or conquered people of another
+culture lends its elite for hire (Warri can hire Leopard Guards from the
+Oba's river post). Each has his own 3D model made with Higgsfield; the riders
+sit on horses (a light chestnut and an armoured war horse) whose legs are
+rigged in code, and every other horseman, yours and your enemies', rides
+the light horse too. The numbers were tuned with a headless fight test so
+that each beats some and is beaten by others.
+
+**The adviser.** Each people has an old man who knew the land before the
+founder came: Baba Ajayi (Èkó), Malam Sule (Kano), Pa Osagie (Benin),
+Pa Omatsola (Warri) and Ozo Nwafor (Northern Igbo). He speaks the guide's
+lines in the guided opening, heads the goals with his tips beside each,
+frowns beside every warning, and smiles when a goal is done. Tap him for what
+he advises now and every goal, done and to do. His tips can be turned off in
+the ☰ menu or his panel; the goals and his warnings stay. He has three faces
+(art/adviser_*_calm, _pleased, _worried), and will close with proverbs once a
+native speaker has given them (`proverbs` in each culture pack).
+
 Each people's names and words are a culture pack in `js/cultures/`: the
 founders' and settlement's names, where newcomers come from, the age names,
 the staple's name, the predator, the guided opening's words, and the local
@@ -321,7 +348,8 @@ js/render/    the isometric view: iso.js draws the world, atlas.js the sprite sh
               ground.js the land, minimap.js the overview map
 js/render3d/  the 3D models the sprites are baked from: models.js buildings, fences and
               walls, flora.js trees, stocks.js goods on the floors, people.js animals and
-              loads, characters.js the rigged characters (listed in js/data/people.js)
+              loads, characters.js the rigged characters (listed in js/data/people.js),
+              horse.js the horses (rigged from their own shape) and the rider's seat
 tools/bake/   the sprite baker
 tools/map/    build.py, which draws the province map (see its header to run it)
 js/ui/        HUD, panels, story pop-ups, mouse/touch/keyboard input, settings,
@@ -363,7 +391,10 @@ for 200 game days on a fixed seed and fails on any error or broken state, and
 `tests/kano.test.mjs` plays Kano's guided opening in Hausa words, breaks the
 Kwararafa host, and checks the map of the old kingdoms, and
 `tests/lands.test.mjs` does the same for Benin, Warri and the Northern Igbo
-lands, and plays each from the first day to breaking its host. They
+lands, and plays each from the first day to breaking its host.
+`tests/elite.test.mjs` checks that each people trains only its own elite,
+that allies lend theirs, what each elite does, and, with the battlefield in
+`tests/fight.mjs`, that no soldier wins every fight. They
 need Node 20 or newer and nothing else:
 
 ```bash

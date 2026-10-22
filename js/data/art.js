@@ -108,6 +108,12 @@ export function storyArt(id, region) {
   return name ? `art/${name}.webp` : null;
 }
 
+// The adviser's face: calm, pleased or worried (the culture pack names them).
+export function adviserArt(adviser, mood = 'calm') {
+  const name = adviser?.portraits?.[mood] || adviser?.portraits?.calm;
+  return name ? `art/${name}.webp` : null;
+}
+
 export function leaderArt(f) {
   if (!f) return null;
   if (f.temperament === 'bandit' && f.people === 'Bandits') return 'art/leader_bandits.webp';

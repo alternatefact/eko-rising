@@ -2,7 +2,8 @@
 
 import { RESOURCES, FOOD, GOODS } from '../data/resources.js';
 import { BUILDINGS, stat, levelName } from '../data/buildings.js';
-import { HIRES } from '../data/units.js';
+import { HIRES, UNITS } from '../data/units.js';
+import { CULTURES, PEOPLE_CULTURE, cultureOf } from '../cultures/index.js';
 import { F, WALK } from '../world/terrain.js';
 import { createCitizen, notify, notifyOnce, removeCitizen } from './entities.js';
 import { goTo } from './move.js';
@@ -367,7 +368,17 @@ function payWages(st) {
 }
 
 export function hireOptions(st) {
-  return HIRES.filter((h) => h.era <= knownEra(st) + 1);
+  const out = HIRES.filter((h) => h.era <= knownEra(st) + 1);
+  // A people of another culture who are your allies, or whom you have
+  // conquered, lend you their elite for a wage (DESIGN.md, Elite units).
+  const own = cultureOf(st).elite;
+  for (const f of st.factions) {
+    const elite = CULTURES[PEOPLE_CULTURE[f.people]]?.elite;
+    if (!elite || elite === own || (f.status !== 'allied' && f.status !== 'conquered')) continue;
+    if (out.some((h) => h.unit === elite)) continue;
+    out.push({ id: `hire_${elite}`, unit: elite, name: UNITS[elite].name, from: f.name, era: 2, cost: 150, wage: 5 });
+  }
+  return out;
 }
 
 // The age whose buildings, soldiers and crafts a town knows: its own, or the

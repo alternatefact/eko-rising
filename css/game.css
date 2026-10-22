@@ -372,6 +372,113 @@ input {
   transition: opacity 0.8s;
 }
 
+/* The adviser frowning beside a warning. */
+.msg-face {
+  float: left;
+  width: 26px;
+  height: 26px;
+  margin: -2px 8px 0 -4px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--red);
+}
+
+.msg.bad .msg-face {
+  border-color: var(--gold);
+}
+
+/* The adviser's face in the folded goals title. */
+#objectives h3 .mini-face {
+  width: 22px;
+  height: 22px;
+  margin: -4px 4px -6px -2px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+  border: 1.5px solid var(--gold);
+}
+
+/* The adviser at the head of the goals: tap him for all of them. */
+.adviser-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 4px 0 6px;
+  cursor: pointer;
+}
+
+.adviser-row .adviser-face {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+  transition: border-color 0.3s;
+}
+
+.adviser-row.worried .adviser-face {
+  border-color: var(--red);
+}
+
+.adviser-row.pleased .adviser-face {
+  border-color: var(--green);
+}
+
+.adviser-row div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.adviser-row b {
+  color: var(--gold);
+  font-size: 12.5px;
+}
+
+.adviser-row span {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.adviser-row.worried span {
+  color: #f4b3a8;
+}
+
+.adviser-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.adviser-card img {
+  width: 96px;
+  height: 96px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+}
+
+.adviser-card.worried img {
+  border-color: var(--red);
+}
+
+.adviser-card.pleased img {
+  border-color: var(--green);
+}
+
+.adviser-card p {
+  margin: 0;
+  line-height: 1.45;
+  min-width: 0;
+}
+
 @keyframes msg-in {
   from {
     transform: translateX(-12px);
@@ -459,6 +566,23 @@ input {
 
 .list .item.click {
   cursor: pointer;
+}
+
+/* A people's elite unit, in the train and hire lists. */
+.list .item.elite {
+  background: rgba(242, 184, 75, 0.08);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.list .item .tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2a1a08;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .list .item.click:hover {
@@ -1598,6 +1722,20 @@ input {
 
 .who-guide .face {
   border-color: #8fb3d9;
+}
+
+.guide-head .face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.who-guide .guide-head .face {
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
 }
 
 .guide-head b {

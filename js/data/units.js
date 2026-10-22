@@ -25,7 +25,7 @@ export const UNITS = {
     desc: 'Iron-armed warrior. Needs weapons from the blacksmith.',
   },
   horseman: {
-    name: 'Horseman', yo: 'Ẹlẹ́ṣin', era: 2, hp: 140, atk: 15, range: 1.3, cd: 1.1, speed: 3.2, vision: 7,
+    name: 'Horseman', yo: 'Ẹlẹ́ṣin', mounted: true, era: 2, hp: 140, atk: 15, range: 1.3, cd: 1.1, speed: 3.2, vision: 7,
     cost: { horses: 1, weapons: 1, cowries: 40 }, train: 12,
     desc: 'Fast, hard-hitting cavalry. Needs a horse, bought from ships or the Kano caravans.',
   },
@@ -33,6 +33,47 @@ export const UNITS = {
     name: 'Musketeer', yo: 'Agbébọn', era: 2, hp: 95, atk: 24, range: 6, cd: 2.4, speed: 1.9, vision: 6, ranged: true,
     cost: { muskets: 1, cowries: 40 }, train: 13, requires: 'port',
     desc: 'Fires an imported musket. Buy muskets from the ships at your port.',
+  },
+
+  // Elite units (DESIGN.md, Elite units): one for each people, trained at the
+  // Guard House from the Town age by that people alone, and hired from allied
+  // peoples of another. Each fights in its own way:
+  //   vs      attack multiplied against 'foot' (soldiers on foot, not
+  //           archers or gunmen), 'mounted', 'ranged' or 'folk' (townsfolk
+  //           and carriers)
+  //   tires   weaker after six seconds in one melee
+  //   turn    a beat to wheel round before striking a new target
+  //   cleave  each blow also strikes the enemy beside the target, at this share
+  //   walls   stronger and harder to hurt near your walls, towers and palace;
+  //           steadies your soldiers near him
+  //   creeks  crosses lagoons, rivers and mangroves like dry land; arrows and
+  //           shots do half on the water
+  // The numbers start from the brief's and were tuned with tests/elite.test.mjs
+  // so that each has something it beats and something that beats it.
+  eso: {
+    name: 'Ẹ̀ṣọ́ Rider', culture: 'yoruba', elite: true, mounted: true, era: 2, hp: 135, atk: 14, range: 1.3, cd: 1, speed: 3.9, vision: 8,
+    cost: { horses: 1, weapons: 1, cowries: 45 }, train: 12, vs: { ranged: 3.5, folk: 1.8 }, tires: true,
+    desc: 'A light rider of Ọ̀yọ́: fast, he hunts down archers, gunmen and carriers. He tires in a long melee.',
+  },
+  lifidi: {
+    name: 'Lifidi Horseman', culture: 'hausa', elite: true, mounted: true, era: 2, hp: 250, atk: 20, range: 1.4, cd: 1.2, speed: 2.7, vision: 7,
+    cost: { horses: 1, weapons: 2, cloth: 4, cowries: 70 }, train: 14, vs: { foot: 2 }, turn: 0.8,
+    desc: 'Heavy cavalry, horse and rider in quilted cotton armour: he breaks spear lines, but is slow to turn and costly.',
+  },
+  abam: {
+    name: 'Abam Warrior', culture: 'igbo', elite: true, era: 2, hp: 200, atk: 20, range: 1.2, cd: 1.5, speed: 1.8, vision: 5,
+    cost: { weapons: 2, food: 20, cowries: 50 }, train: 12, cleave: 0.7,
+    desc: 'A huge fighter with a heavy two-handed sword: slow, and each blow also strikes the enemy beside the target.',
+  },
+  leopardguard: {
+    name: 'Leopard Guard', culture: 'edo', elite: true, era: 2, hp: 170, atk: 16, range: 1.2, cd: 1, speed: 2.1, vision: 6,
+    cost: { weapons: 2, iron: 4, cowries: 55 }, train: 12, walls: true,
+    desc: 'The Oba’s palace guard: stronger near your walls, towers and palace, and the soldiers beside him stand firmer.',
+  },
+  canoegun: {
+    name: 'War-Canoe Gunman', culture: 'itsekiri', elite: true, era: 2, hp: 100, atk: 22, range: 6, cd: 2.3, speed: 2.4, vision: 7, ranged: true,
+    cost: { weapons: 1, wood: 12, cowries: 60 }, train: 12, vs: { mounted: 1.5 }, creeks: true,
+    desc: 'The Olu’s canoe men fire trade guns from the water: they cross creeks, lagoons and mangroves as fast as dry land, are hard to hit afloat, and their guns scare horses.',
   },
 
   // Fielded by other peoples and powers.
@@ -48,7 +89,7 @@ export const UNITS = {
   benin: { name: 'Benin Warrior', hp: 78, atk: 8.5, range: 1.2, cd: 1, speed: 2.1, vision: 6 },
   // Ogun's enemies. The Alaafin of Ọ̀yọ́'s horsemen ride down out of the
   // savanna, strike and are gone.
-  oyorider: { name: 'Ọ̀yọ́ Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.5, vision: 7 },
+  oyorider: { name: 'Ọ̀yọ́ Horseman', mounted: true, hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.5, vision: 7 },
   // The Ìjẹ̀bú bought guns on the coast early, and fire from cover.
   ijebugun: { name: 'Ìjẹ̀bú Gunman', hp: 70, atk: 15, range: 5.5, cd: 2.2, speed: 2, vision: 6, ranged: true },
   // Dahomey's army is its women soldiers, the Agojie: swordswomen, fast,
@@ -58,10 +99,10 @@ export const UNITS = {
   // Kano's enemy: the Jukun of Kwararafa, spearmen with hide shields and
   // horsemen, come north from the Benue.
   jukun: { name: 'Kwararafa Warrior', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.2, vision: 6 },
-  jukunrider: { name: 'Kwararafa Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
+  jukunrider: { name: 'Kwararafa Horseman', mounted: true, hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
   // Benin's enemy: the army of the Attah of Igala, from Idah on the Niger.
   igala: { name: 'Igala Warrior', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.2, vision: 6 },
-  igalarider: { name: 'Igala Horseman', hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
+  igalarider: { name: 'Igala Horseman', mounted: true, hp: 110, atk: 12, range: 1.3, cd: 1, speed: 3.4, vision: 7 },
   // Northern Igbo's enemy: the warriors the Aro hired from the Abam, Ohafia
   // and Edda towns, with matchets, and later with trade guns.
   aroraider: { name: 'Aro War Band Fighter', hp: 80, atk: 9, range: 1.2, cd: 1, speed: 2.3, vision: 6 },
@@ -69,6 +110,7 @@ export const UNITS = {
 };
 
 export const PLAYER_UNITS = ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'];
+export const ELITES = ['eso', 'lifidi', 'abam', 'leopardguard', 'canoegun'];
 
 // Fighters for hire, paid up front and then every day. If the treasury runs
 // dry they walk away.

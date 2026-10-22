@@ -10,6 +10,8 @@ import { findPath } from '../world/path.js';
 import { distToRect, findLanding } from './world.js';
 import { spend, canAfford, armySize, armyCap, addMood, spawnStranger, knownEra, DAY } from './economy.js';
 import { conquer } from './factions.js';
+import { CULTURES, cultureOf } from '../cultures/index.js';
+import { T } from '../world/terrain.js';
 
 // --- Who fights whom -----------------------------------------------------------
 
@@ -113,6 +115,7 @@ function nearestPlayerBuilding(st, u) {
 // --- Damage ---------------------------------------------------------------------
 
 export function damage(st, attacker, target, amount) {
+  if (target.kind === 'unit') amount *= guarded(st, attacker, target);
   target.hp -= amount;
   target.hitT = st.time.t;
   if (target.kind === 'unit' && target.owner !== 'player' && attacker?.owner === 'player') {
@@ -234,6 +237,12 @@ export function declareWar(st, f, provoked) {
 
 function attack(st, u, target) {
   const def = UNITS[u.type];
+  // Heavy horse wheels round before it strikes someone new.
+  if (def.turn && u.lastFoe !== target.id) {
+    u.lastFoe = target.id;
+    u.cd = def.turn;
+    return;
+  }
   u.cd = def.cd * st.rng.range(0.9, 1.1);
   const tx = target.kind === 'building' ? target.x + target.w / 2 : target.x;
   const ty = target.kind === 'building' ? target.y + target.h / 2 : target.y;
@@ -243,10 +252,71 @@ function attack(st, u, target) {
     const musket = u.type === 'musketeer' || def.atk >= 18;
     st.fx.push({ kind: musket ? 'shot' : 'arrow', x0: u.x, y0: u.y, x1: tx, y1: ty, t: 0, dur: musket ? 0.12 : 0.35 });
   }
-  let dmg = def.atk * st.rng.range(0.8, 1.2);
+  let dmg = def.atk * st.rng.range(0.8, 1.2) * strikeBonus(st, u, def, target);
   // Spears and arrows are poor tools for knocking down mud walls.
   if (target.kind === 'building') dmg *= def.ranged ? 0.3 : 0.55;
   damage(st, u, target, dmg);
+  // The Abam's great sword also catches the enemy beside the one it hits.
+  if (def.cleave && target.kind === 'unit') {
+    const next = st.units.find((v) => v !== target && !v.dead && isHostileOwner(st, u.owner, v.owner) && Math.hypot(v.x - target.x, v.y - target.y) < 1.3);
+    if (next) damage(st, u, next, dmg * def.cleave);
+  }
+}
+
+// --- What elite units do (UNITS: vs, tires, walls, creeks) ----------------------------
+
+// How much harder a blow lands: against the soldiers this unit is made to
+// beat, less once a light rider has fought too long, more by your walls.
+function strikeBonus(st, u, def, target) {
+  let k = 1;
+  if (def.vs) {
+    if (target.kind === 'citizen') k *= def.vs.folk || 1;
+    else if (target.kind === 'unit') {
+      const t = UNITS[target.type];
+      k *= (t.ranged ? def.vs.ranged : t.mounted ? def.vs.mounted : def.vs.foot) || 1;
+    }
+  }
+  if (def.tires) {
+    if (st.time.t - (u.lastBlow ?? -99) > 2.5) u.meleeFrom = st.time.t;
+    u.lastBlow = st.time.t;
+    if (st.time.t - u.meleeFrom > 6) k *= 0.6;
+  }
+  if (def.walls && nearDefences(st, u)) k *= 1.3;
+  return k;
+}
+
+// How much of a blow a unit takes: canoe men afloat are hard to hit with
+// arrows and shot; a Leopard Guard by the walls, and anyone beside him,
+// stands firmer.
+function guarded(st, attacker, target) {
+  const def = UNITS[target.type];
+  if (!def) return 1;
+  let k = 1;
+  if (def.creeks && attacker && (attacker.kind === 'building' || UNITS[attacker.type]?.ranged) && afloat(st, target)) k *= 0.5;
+  if (def.walls) {
+    if (nearDefences(st, target)) k *= 0.75;
+  } else if (steadied(st, target)) k *= 0.85;
+  return k;
+}
+
+const DEFENCES = new Set(['watchtower', 'fort', 'palace']);
+function nearDefences(st, u) {
+  if (u.defAt !== undefined && st.time.t - u.defAt < 1) return u.defNear;
+  u.defAt = st.time.t;
+  u.defNear = st.buildings.some((b) => !b.dead && b.owner === u.owner && b.built >= 1 && (b.wall || b.gate || DEFENCES.has(b.type)) && distToRect(u.x, u.y, b) < 4);
+  return u.defNear;
+}
+
+function steadied(st, u) {
+  for (const v of st.units) {
+    if (v !== u && !v.dead && v.owner === u.owner && UNITS[v.type].walls && Math.hypot(v.x - u.x, v.y - u.y) < 3) return true;
+  }
+  return false;
+}
+
+export function afloat(st, u) {
+  const t = st.terrain[Math.floor(u.y) * st.W + Math.floor(u.x)];
+  return t === T.LAGOON || t === T.RIVER || t === T.MANGROVE;
 }
 
 // --- Unit brain ------------------------------------------------------------------
@@ -449,6 +519,7 @@ export function updateTowers(st, dt) {
 export function canTrain(st, b, type) {
   const def = UNITS[type];
   if (!BUILDINGS[b.type].trains?.includes(type)) return { ok: false, reason: 'Not trained here.' };
+  if (def.elite && cultureOf(st).elite !== type) return { ok: false, reason: `Only the ${CULTURES[def.culture].name} train them. Hire them from allies.`, foreign: true };
   if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
   if ((def.era || 0) > knownEra(st)) return { ok: false, reason: `Needs the ${ERAS[def.era].name} age.` };
   if (def.requires && !st.buildings.some((x) => x.type === def.requires && x.built >= 1 && !x.dead)) {

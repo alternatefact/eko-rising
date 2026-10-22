@@ -5,9 +5,9 @@
 
 import { RESOURCES } from '../data/resources.js';
 import { BUILDINGS } from '../data/buildings.js';
-import { UNITS, HIRES } from '../data/units.js';
+import { UNITS } from '../data/units.js';
 import { createUnit, notify, notifyOnce } from './entities.js';
-import { addRes, roomFor, armySize, armyCap, knownEra, DAY } from './economy.js';
+import { addRes, roomFor, armySize, armyCap, knownEra, hireOptions, DAY } from './economy.js';
 import { sendShip } from './military.js';
 
 // What each foreign power's merchants buy (price paid per unit) and sell
@@ -183,7 +183,7 @@ export function dailyTrade(st) {
 
 export function hire(st, buildingId, hireId) {
   const b = st.byId.get(buildingId);
-  const h = HIRES.find((x) => x.id === hireId);
+  const h = hireOptions(st).find((x) => x.id === hireId);
   if (!b || !h || !BUILDINGS[b.type].hires) return { ok: false, reason: 'You cannot hire here.' };
   if (b.wrecked) return { ok: false, reason: 'Mend the house first.' };
   if (h.era > knownEra(st)) return { ok: false, reason: 'Not available in this age yet.' };
@@ -196,7 +196,7 @@ export function hire(st, buildingId, hireId) {
   u.wage = h.wage;
   u.hired = true;
   st.stats.hired = (st.stats.hired || 0) + 1;
-  notifyOnce(st, `hired-${h.id}`, 3, `💰 A ${h.name.toLowerCase()} has joined you for ${h.cost}, and will want ${h.wage} a day.`, 'good', u);
+  notifyOnce(st, `hired-${h.id}`, 3, `💰 ${h.from ? `A ${h.name} from ${h.from}` : `A ${h.name.toLowerCase()}`} has joined you for ${h.cost}, and will want ${h.wage} a day.`, 'good', u);
   return { ok: true, unit: u };
 }
 

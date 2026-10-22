@@ -135,7 +135,8 @@ export const BUILDINGS = {
   warcamp: {
     name: 'Guard House', yo: 'Ilé Ẹ̀ṣọ́', cat: 'military', era: 0, w: 3, h: 3,
     cost: { wood: 40 }, mudBricks: 6, hp: 260, place: 'land', influence: 5, army: 10,
-    trains: ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer'],
+    // And each people's elite unit, which only that people trains.
+    trains: ['scout', 'spearman', 'archer', 'swordsman', 'horseman', 'musketeer', 'eso', 'lifidi', 'abam', 'leopardguard', 'canoegun'],
     upgrades: [{ name: 'Barracks', era: 2, cost: { stone: 30, cowries: 80 }, army: 10, desc: 'Room for ten more soldiers.' }],
     desc: 'A plank barracks where your own people are trained and housed as guards. Recruits come from those sitting at the fire; if nobody is free, a volunteer walks in from the villages around. +10 army size.',
   },

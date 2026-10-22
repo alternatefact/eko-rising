@@ -27,6 +27,15 @@ export const PREDATORS = {
 };
 
 export const cultureOf = (st) => CULTURES[st?.region?.culture] || YORUBA;
+
+// The culture pack each people of the lands belongs to, where one exists, so
+// that their allies can hire their elite unit. Peoples without a pack yet
+// (Egun, Esan, Ika, Igala, Urhobo, Isoko, Ijaw, Fulani) lend none.
+export const PEOPLE_CULTURE = {
+  Awori: 'yoruba', Egba: 'yoruba', Ijebu: 'yoruba', Owu: 'yoruba', Remo: 'yoruba', Yewa: 'yoruba', Ilaje: 'yoruba', Owo: 'yoruba',
+  Kano: 'hausa', Katsina: 'hausa', Zazzau: 'hausa', Rano: 'hausa', Daura: 'hausa',
+  Edo: 'edo', Igbo: 'igbo', Itsekiri: 'itsekiri',
+};
 export const predatorOf = (st) => PREDATORS[cultureOf(st).predator] || PREDATORS.wolf;
 
 // Every people any culture knows, for newcomers from a conquered village.

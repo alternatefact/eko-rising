@@ -55,6 +55,17 @@ export const EDO = {
   // How your own soldiers look: Edo warriors with leather shields, brass
   // helmets and coral collars, as the bronze plaques show them.
   soldiers: { spearman: 'benin', archer: 'edo_bow' },
+  // The elite unit only this people trains (DESIGN.md, Elite units).
+  elite: 'leopardguard',
+  // The old man who knew the land before the founder came, and advises him
+  // (DESIGN.md, The adviser). His three faces are art/adviser_edo_*.webp.
+  adviser: {
+    name: 'Pa Osagie',
+    portraits: { calm: 'adviser_edo_calm', pleased: 'adviser_edo_pleased', worried: 'adviser_edo_worried' },
+    // Proverbs come only from a native speaker who has checked them (DESIGN.md,
+    // The adviser); until then he closes with none.
+    proverbs: [],
+  },
 
   opening: {
     founderLook: 'He wears the blue wrapper.',

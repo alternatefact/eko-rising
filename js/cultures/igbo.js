@@ -60,6 +60,17 @@ export const IGBO = {
   words: { buildings: { market: 'Ahịa', granary: 'Ọba', school: 'Ụlọ Akwụkwọ', hospital: 'Ụlọ Ọgwụ' }, units: { archer: 'Onye ụta' } },
   // Your own warriors: red head-ties with an eagle feather.
   soldiers: { spearman: 'igbo_spear', archer: 'igbo_bow' },
+  // The elite unit only this people trains (DESIGN.md, Elite units).
+  elite: 'abam',
+  // The old man who knew the land before the founder came, and advises him
+  // (DESIGN.md, The adviser). His three faces are art/adviser_igbo_*.webp.
+  adviser: {
+    name: 'Ozo Nwafor',
+    portraits: { calm: 'adviser_igbo_calm', pleased: 'adviser_igbo_pleased', worried: 'adviser_igbo_worried' },
+    // Proverbs come only from a native speaker who has checked them (DESIGN.md,
+    // The adviser); until then he closes with none.
+    proverbs: [],
+  },
 
   opening: {
     founderLook: 'He wears the blue wrapper.',

@@ -16,7 +16,8 @@ import { STRENGTH, garrisonAlive, factionPower, giftCost, unified, majors, subdu
 import { eventDef, eraRequirements, proclaimRequirements } from '../sim/events.js';
 import { canBarter, barterRoom, importName, importIcon, UPGRADE_ITEMS } from '../sim/trade.js';
 import { buildLocked, canUpgrade, currentStep, stepText, storyRunning, mudUpgradeCost, suggestPlace, canRepair, repairCost } from '../sim/index.js';
-import { storyArt, leaderArt, ageArt, sceneArt } from '../data/art.js';
+import { storyArt, leaderArt, ageArt, sceneArt, adviserArt } from '../data/art.js';
+import { adviserTips, setAdviserTips } from './settings.js';
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -30,7 +31,7 @@ const ICONS = {
   stonewall: '🧱', port: '⚓', fort: '🛡️', school: '🏫', assembly: '🏛️', campfire: '🔥', hospital: '🏥', factory: '🏭',
   bank: '🏦', brickyard: '🧱', stockpile: '🧺',
 };
-const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥', jukun: '🔱', jukunrider: '🐎', igala: '🔱', igalarider: '🐎', aroraider: '⚔️', arogun: '💥' };
+const UNIT_ICON = { scout: '👁️', spearman: '🔱', archer: '🏹', swordsman: '🗡️', horseman: '🐎', musketeer: '💥', bowman: '🏹', oyorider: '🐎', ijebugun: '💥', agojie: '⚔️', dahomey: '💥', jukun: '🔱', jukunrider: '🐎', igala: '🔱', igalarider: '🐎', aroraider: '⚔️', arogun: '💥', eso: '🏇', lifidi: '🐎', abam: '⚔️', leopardguard: '🐆', canoegun: '🛶' };
 // Goods that only show in the top bar once you have some (or reach the age they matter in).
 const TOP_GOODS = [
   ['wood', 0], ['bricks', 0], ['stone', 1], ['cassava', 1], ['palmoil', 1], ['iron', 2], ['weapons', 2],
@@ -97,6 +98,10 @@ export class Hud {
       if (m) this.game.centerOn(+m.dataset.x, +m.dataset.y);
     });
     $('#objectives').addEventListener('click', (e) => {
+      if (e.target.closest('[data-adviser]')) {
+        this.openPanel('adviser');
+        return;
+      }
       if (e.target.closest('[data-guide="show"]')) {
         this.game.showPoint();
         return;
@@ -340,7 +345,9 @@ export class Hud {
       return;
     }
     const goals = st.objCurrent.map((id) => st.region.objectives.find((o) => o.id === id)).filter(Boolean);
-    const key = goals.map((g) => g.id).join() + this.collapsedGoals;
+    const mood = this.adviserMood();
+    const tips = adviserTips();
+    const key = goals.map((g) => g.id).join() + this.collapsedGoals + mood + tips;
     if (key === this.lastGoals && !force) return;
     this.lastGoals = key;
     const el = $('#objectives');
@@ -348,9 +355,45 @@ export class Hud {
     el.classList.remove('guiding');
     this.lastGuide = null;
     el.hidden = !goals.length;
-    el.innerHTML = `<h3><span>🎯 Goals</span><span>${this.collapsedGoals ? '▸' : '▾'}</span></h3>${goals
-      .map((g) => `<div class="goal"><b>${esc(g.text)}</b><span>${esc(g.hint)}</span></div>`)
+    // The adviser heads the goals, his face showing how things stand; his
+    // tips are the line under each goal.
+    const adv = cultureOf(st).adviser;
+    const line = mood === 'worried' ? this.lastWarning : mood === 'pleased' ? `Well done: ${this.lastDone}.${this.proverb ? ` ${this.proverb}` : ''}` : tips ? 'Tap me for all your goals.' : '';
+    const row = adv && (!this.collapsedGoals || mood !== 'calm')
+      ? `<div class="adviser-row ${mood}" data-adviser="1" title="${esc(adv.name)}: tap for all your goals"><img class="adviser-face" src="${adviserArt(adv, mood)}" alt="" onerror="this.remove()" /><div><b>${esc(adv.name)}</b>${line ? `<span>${esc(line)}</span>` : ''}</div></div>`
+      : '';
+    // Folded away (as on a phone), his face stays in the title.
+    const mini = adv && this.collapsedGoals && !row ? `<img class="mini-face" data-adviser="1" src="${adviserArt(adv, mood)}" alt="${esc(adv.name)}" onerror="this.remove()" />` : '🎯';
+    el.innerHTML = `<h3><span>${mini} Goals</span><span>${this.collapsedGoals ? '▸' : '▾'}</span></h3>${row}${goals
+      .map((g) => `<div class="goal"><b>${esc(g.text)}</b>${tips ? `<span>${esc(g.hint)}</span>` : ''}</div>`)
       .join('')}`;
+  }
+
+  // How the adviser looks: worried for a while after a warning, pleased
+  // after a goal is done, and otherwise calm.
+  adviserMood() {
+    const now = performance.now();
+    return now < (this.worriedUntil || 0) ? 'worried' : now < (this.pleasedUntil || 0) ? 'pleased' : 'calm';
+  }
+
+  // The adviser's panel: what he says now, and every goal, done and to do.
+  adviserHtml() {
+    const st = this.st;
+    const adv = cultureOf(st).adviser;
+    const mood = this.adviserMood();
+    const goals = st.objCurrent.map((id) => st.region.objectives.find((o) => o.id === id)).filter(Boolean);
+    const done = st.region.objectives.filter((o) => st.objDone[o.id]);
+    const step = storyRunning(st) && currentStep(st);
+    let advice = step ? `${stepText(st, step, 'say')} ${stepText(st, step, 'task')}.` : goals[0] ? `${goals[0].text}. ${goals[0].hint}` : 'Nothing presses on us today. Build, trade and grow.';
+    if (mood === 'worried' && this.lastWarning) advice = this.lastWarning;
+    const tips = adviserTips();
+    return `${this.head(`🧓 ${esc(adv.name)}`, `Adviser to ${esc(st.founder)}`)}
+      <div class="adviser-card ${mood}"><img src="${adviserArt(adv, mood)}" alt="${esc(adv.name)}" onerror="this.remove()" /><p>${esc(advice)}</p></div>
+      <h4>Goals now</h4>
+      <div class="list">${goals.length ? goals.map((o) => `<div class="item"><span>▶ <b>${esc(o.text)}</b>${tips ? `<br><span class="muted">${esc(o.hint)}</span>` : ''}</span></div>`).join('') : `<p class="muted">${step ? 'Follow the guide at the top left for now.' : 'None for now.'}</p>`}</div>
+      ${done.length ? `<h4>Done</h4><div class="list">${done.map((o) => `<div class="item"><span>✓ ${esc(o.text)}</span></div>`).join('')}</div>` : ''}
+      <div class="list"><button class="btn" data-act="tips">🧓 His tips beside each goal: ${tips ? 'on' : 'off'}</button></div>
+      <p class="muted">With his tips off you still see your goals and his warnings.</p>`;
   }
 
   // The guide: who is speaking, what they say, and the one thing to do now.
@@ -363,8 +406,11 @@ export class Hud {
       return;
     }
     const steps = st.region.story;
-    const who = step.who === 'founder' ? st.founder : step.who === 'spouse' ? st.spouse : 'Guide';
-    const face = step.who === 'founder' ? '👨🏾' : step.who === 'spouse' ? '👩🏾' : '🧭';
+    // The guide's lines are the adviser's (DESIGN.md, The adviser).
+    const adv = cultureOf(st).adviser;
+    const mood = this.adviserMood();
+    const who = step.who === 'founder' ? st.founder : step.who === 'spouse' ? st.spouse : adv?.name || 'Guide';
+    const face = step.who === 'founder' ? '👨🏾' : step.who === 'spouse' ? '👩🏾' : adv ? `<img src="${adviserArt(adv, mood)}" alt="" data-adviser="1" onerror="this.replaceWith('🧭')" />` : '🧭';
     const say = stepText(st, step, 'say');
     const task = stepText(st, step, 'task');
     const hint = stepText(st, step, 'hint');
@@ -392,7 +438,27 @@ export class Hud {
       this.shownMsgs.add(m.id);
       const el = document.createElement('div');
       el.className = `msg ${m.kind}`;
-      el.textContent = m.text;
+      const warning = m.kind === 'war' || m.kind === 'bad';
+      const adv = cultureOf(st).adviser;
+      if (warning && adv) {
+        // The adviser frowns beside every warning, and for a while after.
+        const face = document.createElement('img');
+        face.className = 'msg-face';
+        face.src = adviserArt(adv, 'worried');
+        face.alt = '';
+        face.onerror = () => face.remove();
+        el.appendChild(face);
+        this.worriedUntil = now + 9000;
+        this.lastWarning = m.text.replace(/^[^\p{L}\p{N}“"]+/u, '');
+      }
+      if (m.kind === 'good' && m.text.startsWith('✅ Goal complete: ')) {
+        this.pleasedUntil = now + 7000;
+        this.lastDone = m.text.slice('✅ Goal complete: '.length).replace(/ \(reward.*$/, '');
+        const proverbs = adviserTips() ? adv?.proverbs || [] : [];
+        const p = proverbs.length ? proverbs[Math.floor(Math.random() * proverbs.length)] : null;
+        this.proverb = p ? `“${p.text}” (${p.meaning})` : '';
+      }
+      el.appendChild(document.createTextNode(m.text));
       if (m.x !== undefined) {
         el.dataset.x = m.x;
         el.dataset.y = m.y;
@@ -586,6 +652,9 @@ export class Hud {
       case 'menu':
         html = this.menuHtml();
         break;
+      case 'adviser':
+        html = this.adviserHtml();
+        break;
       case 'saves':
         html = `${this.head(p.data === 'load' ? '📂 Load a game' : '💾 Save the game', esc(st.name))}${this.savesHtml(true, p.data)}`;
         break;
@@ -681,8 +750,8 @@ export class Hud {
       for (const type of def.trains) {
         const u = UNITS[type];
         const can = canTrain(st, b, type);
-        if ((u.era || 0) > knownEra(st) + 1) continue;
-        h += `<div class="item"><span>${UNIT_ICON[type]} <b>${esc(u.name)}</b> <span class="muted">${esc(u.yo)}</span><br><span class="muted">${costText(u.cost, st)}</span>${can.ok ? '' : `<br><span class="muted warn">${esc(can.reason)}</span>`}</span>
+        if ((u.era || 0) > knownEra(st) + 1 || can.foreign) continue;
+        h += `<div class="item${u.elite ? ' elite' : ''}"><span>${UNIT_ICON[type]} <b>${esc(u.name)}</b> <span class="muted">${esc(u.yo || '')}</span>${u.elite ? ` <span class="tag">★ Elite</span><br><span class="muted">${esc(u.desc)}</span>` : ''}<br><span class="muted">${costText(u.cost, st)}</span>${can.ok ? '' : `<br><span class="muted warn">${esc(can.reason)}</span>`}</span>
           <button class="btn ${can.ok ? 'primary' : ''}" data-act="train" data-type="${type}" ${can.ok ? '' : `disabled title="${esc(can.reason)}"`}>Train</button></div>`;
       }
       h += '</div>';
@@ -779,7 +848,7 @@ export class Hud {
       const u = UNITS[o.unit];
       const locked = o.era > knownEra(st);
       const ok = !locked && st.res.cowries >= o.cost && armySize(st) < armyCap(st);
-      h += `<div class="item"><span>${UNIT_ICON[o.unit] || '⚔️'} <b>${esc(o.name)}</b><br><span class="muted">${m.icon} ${o.cost} now, then ${m.icon} ${o.wage} a day · ${u.hp}♥ ${u.atk}⚔</span>${locked ? `<br><span class="muted">🔒 ${esc(ERAS[o.era].name)} age</span>` : ''}</span>
+      h += `<div class="item${u.elite ? ' elite' : ''}"><span>${UNIT_ICON[o.unit] || '⚔️'} <b>${esc(o.name)}</b>${o.from ? ` <span class="tag">★ Elite</span><br><span class="muted">Lent by ${esc(o.from)}, your allies. ${esc(u.desc)}</span>` : ''}<br><span class="muted">${m.icon} ${o.cost} now, then ${m.icon} ${o.wage} a day · ${u.hp}♥ ${u.atk}⚔</span>${locked ? `<br><span class="muted">🔒 ${esc(ERAS[o.era].name)} age</span>` : ''}</span>
         <button class="btn ${ok ? 'primary' : ''}" data-act="hire" data-id="${o.id}" ${ok ? '' : 'disabled'}>Hire</button></div>`;
     }
     const wages = wagesDue(st);
@@ -1067,6 +1136,7 @@ export class Hud {
         <button class="btn primary" data-act="saves" data-mode="save">💾 Save game</button>
         <button class="btn primary" data-act="saves" data-mode="load">📂 Load game</button>
         <button class="btn" data-act="territory">${g.view.showTerritory ? '🗺️ Hide' : '🗺️ Show'} building land</button>
+        <button class="btn" data-act="tips">🧓 ${esc(cultureOf(this.st).adviser?.name || 'Adviser')}’s tips: ${adviserTips() ? 'on' : 'off'}</button>
       </div>
       <div class="list">
         <button class="btn" data-act="log">📜 Message history</button>
@@ -1294,6 +1364,10 @@ export class Hud {
         break;
       case 'territory':
         g.view.showTerritory = !g.view.showTerritory;
+        break;
+      case 'tips':
+        setAdviserTips(!adviserTips());
+        this.renderGoals(true);
         break;
       case 'log':
         this.panel.data = this.panel.data === 'log' ? null : 'log';

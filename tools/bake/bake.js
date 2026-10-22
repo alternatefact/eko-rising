@@ -14,6 +14,7 @@ import { buildingModel, villageModel, shipModel } from '../../js/render3d/models
 import { Flora } from '../../js/render3d/flora.js';
 import { People } from '../../js/render3d/people.js';
 import { Characters } from '../../js/render3d/characters.js';
+import { Horses, seatRider, holdSeat } from '../../js/render3d/horse.js';
 import { Stocks } from '../../js/render3d/stocks.js';
 import { makeProp, makeWear, WEAR_AT } from '../../js/render3d/props.js';
 import { BUILDINGS } from '../../js/data/buildings.js';
@@ -477,6 +478,35 @@ function bakeAnimals() {
   anim('hyena', 'run', 6, (Math.PI * 2) / (12 * 1.6), true, 'hunt');
   anim('hyena', 'bite', 4, (Math.PI * 2) / 9, false, 'maul');
   anim('hyena', 'dead', 1, 1, false);
+  // A dugout war canoe, for the Olu's canoe men on the water: a hollowed
+  // trunk, dark outside, paler where it was carved, with a raised prow.
+  const canoe = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: '#5a3a22' });
+  const inner = new THREE.MeshLambertMaterial({ color: '#8a6440' });
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.86, 4, 12), wood);
+  hull.rotation.x = Math.PI / 2;
+  hull.scale.set(1, 1, 0.55);
+  hull.position.y = 0.04;
+  canoe.add(hull);
+  const hollow = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.8, 4, 12), inner);
+  hollow.rotation.x = Math.PI / 2;
+  hollow.scale.set(1, 1, 0.3);
+  hollow.position.y = 0.075;
+  canoe.add(hollow);
+  for (const z of [0.52, -0.52]) {
+    const prow = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), wood);
+    prow.rotation.x = z > 0 ? Math.PI / 2 - 0.5 : -Math.PI / 2 + 0.5;
+    prow.position.set(0, 0.09, z);
+    canoe.add(prow);
+  }
+  root.add(canoe);
+  const boatBox = new THREE.Box3(new THREE.Vector3(-0.65, 0, -0.65), new THREE.Vector3(0.65, 0.3, 0.65));
+  DIRS.forEach((d, k) => {
+    canoe.rotation.y = d.heading;
+    canoe.updateMatrixWorld(true);
+    keep(`a/canoe/idle/${k}/0`, shoot(canoe, { box: boatBox, shadow: true, pad: 2 }));
+  });
+  root.remove(canoe);
   for (const type of ['leopard', 'crocodile']) {
     anim(type, 'idle', 1, 1, false, 'hunt');
     anim(type, 'run', 6, (Math.PI * 2) / (12 * 1.7), true, 'hunt');
@@ -505,6 +535,15 @@ export const LOOKS = {
   labourer: { model: 'labourer', anims: ['idle', 'walk', 'pull', 'swing', 'carry'] },
   builder: { model: 'labourer', prop: 'hammer', anims: ['idle', 'walk', 'swing'] },
   spearman: { model: 'spearman', anims: ['idle', 'spearwalk', 'slash'] },
+  // Horsemen: the spearman on a light horse (the Ọ̀yọ́, Kwararafa and Igala
+  // riders wear him in their own colours).
+  rider: { model: 'spearman', mount: 'horse_light', anims: ['idle', 'walk', 'slash'] },
+  // The elite units, each in his own model.
+  eso: { model: 'eso', mount: 'horse_light', anims: ['idle', 'walk', 'slash'] },
+  lifidi: { model: 'lifidi', mount: 'horse_armour', anims: ['idle', 'walk', 'slash'] },
+  abam: { model: 'abam', anims: ['idle', 'walk', 'slash'] },
+  leopardguard: { model: 'leopardguard', extra: { prop: 'shield', hand: 'Left' }, anims: ['idle', 'walk', 'slash'] },
+  canoegun: { model: 'canoegun', anims: ['idle', 'walk', 'bow'] },
   // A warrior of Benin as the bronze plaques show him: red cloth, a leather
   // war shield, a brass war cap and a collar of coral beads.
   benin: { model: 'spearman', extra: { prop: 'shield', hand: 'Left' }, dye: { from: [55, 185], to: 357 }, wear: ['helmet', 'collar'], anims: ['idle', 'spearwalk', 'slash'] },
@@ -548,12 +587,26 @@ async function until(fn, what) {
 
 async function bakePeople(only) {
   const chars = new Characters(new THREE.Scene());
+  const horses = new Horses();
   const box = new THREE.Box3(new THREE.Vector3(-0.45, 0, -0.45), new THREE.Vector3(0.45, 1.05, 0.45));
+  // A rider on his horse needs more room.
+  const mountedBox = new THREE.Box3(new THREE.Vector3(-0.72, 0, -0.72), new THREE.Vector3(0.72, 1.4, 0.72));
   const meta = {};
   for (const [look, def] of Object.entries(LOOKS)) {
     if (only && !only.includes(look)) continue;
     const m = await until(() => chars.model(def.model), def.model);
     const inst = chars.make(def.model, m);
+    // A rider: seated (legs held round the barrel) on the saddle of a horse
+    // that walks and gallops beneath him.
+    let mount = null;
+    let seat = null;
+    if (def.mount) {
+      await until(() => horses.model(def.mount), def.mount);
+      mount = horses.make(def.mount);
+      seat = seatRider(inst.body);
+      mount.saddle.add(inst.root);
+      inst.root.position.set(mount.seat[0], mount.seat[1] - seat.hipY, mount.seat[2]);
+    }
     // Swap the tool in hand for this look.
     if (def.prop !== undefined || def.hand) {
       // Anything hung on a bone that is not itself a bone is the tool in hand.
@@ -613,19 +666,26 @@ async function bakePeople(only) {
     // Where the top of the head is, for loads.
     meta[look] = { height: (CHARACTERS[def.model]?.height || 1) * 0.82 };
     for (const anim of def.anims) {
-      const clip = await until(() => chars.clip(anim), anim);
+      // A rider keeps still in the saddle while his horse walks; he strikes
+      // from a standing horse.
+      const clip = await until(() => chars.clip(mount && anim === 'walk' ? 'idle' : anim), anim);
       const action = inst.mixer.clipAction(clip);
       inst.mixer.stopAllAction();
       action.reset();
       action.play();
       const frames = FRAMES[anim] || 8;
+      const turn = mount ? mount.root : inst.root;
       for (let k = 0; k < DIRS.length; k++) {
-        inst.root.rotation.y = DIRS[k].heading;
+        turn.rotation.y = DIRS[k].heading;
         for (let f = 0; f < frames; f++) {
           action.time = (f / frames) * clip.duration;
           inst.mixer.update(0);
-          inst.root.updateMatrixWorld(true);
-          keep(`c/${look}/${anim}/${k}/${f}`, shoot(inst.root, { box, shadow: false, pad: 2 }));
+          if (mount) {
+            holdSeat(seat);
+            mount.pose(anim === 'walk' ? 'gallop' : 'idle', f / frames);
+          }
+          turn.updateMatrixWorld(true);
+          keep(`c/${look}/${anim}/${k}/${f}`, shoot(turn, { box: mount ? mountedBox : box, shadow: false, pad: 2 }));
         }
       }
       log(`  ${look} ${anim}`);

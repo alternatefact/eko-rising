@@ -7,7 +7,7 @@
 // In the hand the handle points forward when the arm hangs; TILT turns each
 // tool from there towards the fingers (down) or away from them (up), the way
 // it is carried: blades hang forward and down, spears and paddles stand up.
-const TILT = { whisk: 1.25, hoe: 0.85, axe: 0.85, hammer: 0.85, machete: 0.95, spear: -1.15, paddle: -1.2, musket: 1.25 };
+const TILT = { whisk: 1.25, hoe: 0.85, axe: 0.85, hammer: 0.85, machete: 0.95, greatsword: 0.75, spear: -1.15, paddle: -1.2, musket: 1.25 };
 
 import * as THREE from '../vendor/three.module.js';
 import { withFog } from './materials.js';
@@ -87,6 +87,17 @@ const BUILD = {
     g.add(rod(0.13, 0.017, DARK_WOOD, -0.05));
     const blade = new THREE.BoxGeometry(0.008, 0.48, 0.05);
     blade.translate(0, 0.08 + 0.24, 0.008);
+    g.add(new THREE.Mesh(blade, mat(BLADE)));
+    return g;
+  },
+  // The Abam warrior's sword: a long grip for two hands and a heavy, broad
+  // iron blade.
+  greatsword() {
+    const g = new THREE.Group();
+    g.add(rod(0.24, 0.018, DARK_WOOD, -0.12));
+    g.add(box(0.03, 0.03, 0.16, IRON, 0, 0.12, 0));
+    const blade = new THREE.BoxGeometry(0.012, 0.78, 0.085);
+    blade.translate(0, 0.135 + 0.39, 0);
     g.add(new THREE.Mesh(blade, mat(BLADE)));
     return g;
   },

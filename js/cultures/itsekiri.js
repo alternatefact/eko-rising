@@ -54,6 +54,17 @@ export const ITSEKIRI = {
   words: { buildings: {}, units: {} },
   // Your own fighters: canoe warriors in white head-wraps with cutlasses.
   soldiers: { spearman: 'itsekiri_spear', archer: 'itsekiri_bow' },
+  // The elite unit only this people trains (DESIGN.md, Elite units).
+  elite: 'canoegun',
+  // The old man who knew the land before the founder came, and advises him
+  // (DESIGN.md, The adviser). His three faces are art/adviser_itsekiri_*.webp.
+  adviser: {
+    name: 'Pa Omatsola',
+    portraits: { calm: 'adviser_itsekiri_calm', pleased: 'adviser_itsekiri_pleased', worried: 'adviser_itsekiri_worried' },
+    // Proverbs come only from a native speaker who has checked them (DESIGN.md,
+    // The adviser); until then he closes with none.
+    proverbs: [],
+  },
 
   opening: {
     founderLook: 'He wears the blue wrapper.',

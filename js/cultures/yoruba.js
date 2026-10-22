@@ -59,6 +59,17 @@ export const YORUBA = {
   // The brief swaps the wolves for a leopard once there is a model for it.
   predator: 'wolf',
   festival: 'eyo',
+  // The elite unit only this people trains (DESIGN.md, Elite units).
+  elite: 'eso',
+  // The old man who knew the land before the founder came, and advises him
+  // (DESIGN.md, The adviser). His three faces are art/adviser_yoruba_*.webp.
+  adviser: {
+    name: 'Baba Ajayi',
+    portraits: { calm: 'adviser_yoruba_calm', pleased: 'adviser_yoruba_pleased', worried: 'adviser_yoruba_worried' },
+    // Proverbs come only from a native speaker who has checked them (DESIGN.md,
+    // The adviser); until then he closes with none.
+    proverbs: [],
+  },
 
   // The guided opening's words (regions/opening.js). The steps are the same
   // everywhere; only these change.

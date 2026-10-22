@@ -54,9 +54,8 @@ export const PROVINCES = [
 ];
 
 // The elite unit each culture fields (DESIGN.md, Elite units), which a
-// province of that culture lets you hire. The units themselves come in
-// milestone 3; the picker names them.
-export const ELITE = { yoruba: 'Ẹ̀ṣọ́ Rider', hausa: 'Lifidi Horseman', igbo: 'Abam Warrior', edo: 'Leopard Guard' };
+// province of that culture lets you hire (js/data/units.js).
+export const ELITE = { yoruba: 'Ẹ̀ṣọ́ Rider', hausa: 'Lifidi Horseman', igbo: 'Abam Warrior', edo: 'Leopard Guard', itsekiri: 'War-Canoe Gunman' };
 
 export const PROVINCE = Object.fromEntries(PROVINCES.map((p) => [p.id, { ...p, ...GEOMETRY.provinces[p.id] }]));
 

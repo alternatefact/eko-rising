@@ -2,6 +2,7 @@
 //
 // Options:
 //   canoe   lagoon and river tiles are passable (the town owns a canoe yard)
+//   creeks  lagoon, river and mangrove are as easy as dry land (war canoes)
 //   enemy   the walker is hostile to the player: walls and gates are passable
 //           at a high cost, because the walker will smash through them
 //   naval   only water is passable (ships)
@@ -42,7 +43,8 @@ export function tileCost(st, i, opts) {
   const t = st.terrain[i];
   if (opts.naval) return t === T.OCEAN || t === T.LAGOON || t === T.RIVER ? 1 : Infinity;
   let w = WALK[t];
-  if (w === 0) {
+  if (opts.creeks && (t === T.LAGOON || t === T.RIVER || t === T.MANGROVE)) w = 1;
+  else if (w === 0) {
     if (opts.canoe && (t === T.LAGOON || t === T.RIVER)) w = CANOE_SPEED;
     else return Infinity;
   }

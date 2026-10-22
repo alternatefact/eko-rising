@@ -3,10 +3,15 @@
 
 import { findPath } from '../world/path.js';
 import { WALK, CANOE_SPEED, T, treeBlocks } from '../world/terrain.js';
+import { UNITS } from '../data/units.js';
+
+// Canoe men (UNITS creeks) cross water and mangrove like dry land.
+const creeksOf = (e) => e.kind === 'unit' && !!UNITS[e.type]?.creeks;
+const CREEKS = new Set([T.LAGOON, T.RIVER, T.MANGROVE]);
 
 export function pathOpts(st, e, extra) {
   const enemy = e.owner && e.owner !== 'player';
-  return { canoe: e.owner === 'player' && st.flags.canoes, enemy, ...extra };
+  return { canoe: e.owner === 'player' && st.flags.canoes, enemy, creeks: creeksOf(e), ...extra };
 }
 
 // Sets a path toward (tx, ty). Returns false if no route exists.
@@ -21,9 +26,10 @@ export function goTo(st, e, tx, ty, extra = {}) {
   return true;
 }
 
-export function speedAt(st, x, y) {
+export function speedAt(st, x, y, creeks = false) {
   const i = Math.floor(y) * st.W + Math.floor(x);
   const t = st.terrain[i];
+  if (creeks && CREEKS.has(t)) return 1;
   const w = WALK[t];
   if (w === 0) return t === T.OCEAN ? 0.3 : CANOE_SPEED;
   return w;
@@ -37,7 +43,7 @@ export function stepMove(st, e, dt, speed, blocked) {
     e.path = null;
     return true;
   }
-  let budget = speed * speedAt(st, e.x, e.y) * dt;
+  let budget = speed * speedAt(st, e.x, e.y, creeksOf(e)) * dt;
   while (budget > 0 && e.path && e.pi < e.path.length) {
     const next = e.path[e.pi];
     if (blocked && blocked(next)) {

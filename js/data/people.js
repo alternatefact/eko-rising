@@ -18,6 +18,13 @@ export const CHARACTERS = {
   bandit: { name: 'Bandit', height: 1.02, prop: 'machete' },
   // A woman soldier of Dahomey: striped tunic, white cap, a blade.
   agojie: { name: 'Agojie', height: 0.98, prop: 'machete' },
+  // The elite units (DESIGN.md, Elite units). The riders are modelled on
+  // foot and seated on their horses by the baker (js/render3d/horse.js).
+  eso: { name: 'Ẹ̀ṣọ́ Rider', height: 0.99, prop: 'spear' },
+  lifidi: { name: 'Lifidi Horseman', height: 1.03, prop: 'spear' },
+  abam: { name: 'Abam Warrior', height: 1.08, prop: 'greatsword' },
+  leopardguard: { name: 'Leopard Guard', height: 1.04, prop: 'machete' },
+  canoegun: { name: 'War-Canoe Gunman', height: 1.0, prop: 'musket', hand: 'Left' },
 };
 
 // Animation clips in art/people/clips, by the name the game uses. `from` and

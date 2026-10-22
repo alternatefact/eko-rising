@@ -58,6 +58,17 @@ export const HAUSA = {
   festival: 'durbar',
   // Your own soldiers: indigo robes and white turbans, hide shields.
   soldiers: { spearman: 'hausa_spear', archer: 'hausa_bow' },
+  // The elite unit only this people trains (DESIGN.md, Elite units).
+  elite: 'lifidi',
+  // The old man who knew the land before the founder came, and advises him
+  // (DESIGN.md, The adviser). His three faces are art/adviser_hausa_*.webp.
+  adviser: {
+    name: 'Malam Sule',
+    portraits: { calm: 'adviser_hausa_calm', pleased: 'adviser_hausa_pleased', worried: 'adviser_hausa_worried' },
+    // Proverbs come only from a native speaker who has checked them (DESIGN.md,
+    // The adviser); until then he closes with none.
+    proverbs: [],
+  },
   // Local names for buildings and soldiers (the data files carry Yoruba
   // ones). Anything not listed shows no local name.
   words: {

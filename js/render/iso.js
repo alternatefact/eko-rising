@@ -16,7 +16,8 @@ import { Ground, CHUNK } from './ground.js';
 import { PLAYER, ENEMY } from './palette.js';
 import { BUILDINGS } from '../data/buildings.js';
 import { season } from '../sim/economy.js';
-import { isHostileOwner } from '../sim/military.js';
+import { isHostileOwner, afloat } from '../sim/military.js';
+import { UNITS } from '../data/units.js';
 import { BUILD_STATES, DRESS_TIME, siteStage } from '../sim/citizens.js';
 import { PREDATORS, cultureOf } from '../cultures/index.js';
 
@@ -30,7 +31,7 @@ const MALE_LOOK = { farm: 'farmer', cassava: 'farmer', woodcutter: 'woodcutter',
 const FEMALE_LOOK = { woodcutter: 'woman_axe', farm: 'woman_hoe', cassava: 'woman_hoe', hunter: 'woman_bow' };
 const WORK_ANIM = { farm: 'pull', cassava: 'pull', woodcutter: 'swing', brickyard: 'pull', quarry: 'swing', ironmine: 'swing', blacksmith: 'swing', hunter: 'bow', palmpress: 'pull', garri: 'pull', fisher: 'pull' };
 const WORKING = new Set(['fell', 'saw', 'gather', 'farm', 'harvest', 'craft', 'process', 'butcher', 'shoot', 'tend']);
-const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', oyorider: 'spearman', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun', jukun: 'jukun', jukunrider: 'jukun', igala: 'igala', igalarider: 'igala', aroraider: 'aro', arogun: 'aro_gun' };
+const UNIT_LOOK = { bandit: 'bandit', slaver: 'bandit', archer: 'hunter', bowman: 'hunter', benin: 'benin', edo: 'benin', horseman: 'rider', oyorider: 'rider', ijebugun: 'hunter', agojie: 'agojie', dahomey: 'agojie_gun', jukun: 'jukun', jukunrider: 'rider', igala: 'igala', igalarider: 'rider', aroraider: 'aro', arogun: 'aro_gun', eso: 'eso', lifidi: 'lifidi', abam: 'abam', leopardguard: 'leopardguard', canoegun: 'canoegun' };
 // Fighters with no model of their own yet wear another's, washed in their
 // colours until theirs is baked.
 const UNIT_TINT = { oyorider: 'rgba(156, 59, 27, 0.38)', ijebugun: 'rgba(109, 63, 160, 0.34)', jukunrider: 'rgba(120, 52, 22, 0.25)', igalarider: 'rgba(40, 30, 90, 0.2)' };
@@ -501,13 +502,17 @@ export class IsoRenderer {
       const key = this.frameKey({ look: lookName, anim }, dir, at, u.id);
       const color = u.owner === 'player' ? PLAYER : isHostileOwner(st, 'player', u.owner) ? ENEMY : st.factionMap[u.owner]?.color || st.foreign[u.owner]?.color || '#888';
       const sel = view.selected.has(u.id);
+      const def = UNITS[u.type];
+      // Canoe men on the water stand in their war canoe.
+      const boat = def?.creeks && afloat(st, u);
       add(this.depthAt(x, y), () => {
         if (sel) this.ellipse(ctx, x, y, 0.38, '#ffe066');
         this.teamMark(ctx, p.x, p.y, color);
         if (sel && u.stance === 'hold') this.ellipse(ctx, x, y, 0.5, 'rgba(120,200,255,0.8)');
-        this.atlas.draw(ctx, key, p.x, p.y, z, mirror, own ? null : UNIT_TINT[u.type]);
+        if (boat) this.atlas.draw(ctx, `a/canoe/idle/${dir}/0`, p.x, p.y, z, mirror);
+        this.atlas.draw(ctx, key, p.x, p.y + (boat ? 4 * z : 0), z, mirror, own ? null : UNIT_TINT[u.type]);
         if (u.hp < u.maxHp || sel) {
-          const top = this.tileToScreen(x, y, 1.0);
+          const top = this.tileToScreen(x, y, def?.mounted ? 1.4 : 1.0);
           this.hpBar(ctx, top.x, top.y, u.hp / u.maxHp, 24 * z);
         }
       });

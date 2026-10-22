@@ -165,7 +165,7 @@ Each start gets three to six events from its own history, run by the existing ev
 
 **Itsekiri (Warri)**
 
-The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement Ijala; the ruler is the Olu; the staple is plantain; the predator is crocodiles from the creeks; the festival is the canoe regatta. The greeting and the age names stay in English until a speaker checks them. It has no adviser or elite unit yet (see Open decisions).
+The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement Ijala; the ruler is the Olu; the staple is plantain; the predator is crocodiles from the creeks; the festival is the canoe regatta. The greeting and the age names stay in English until a speaker checks them. Its elite is the War-Canoe Gunman, and its adviser Pa Omatsola (see Open decisions).
 
 - Prince Ginuwa of Benin founds the Olu's line (around 1480) and brings followers from Benin.
 - Creek trade with the Urhobo, Isoko and Ijaw: salt, fish and palm oil.
@@ -197,6 +197,7 @@ Each culture has one old male adviser, the same man for the whole game, whose po
 | Hausa | Malam Sule | White beard, indigo turban, plain white gown, leather sandals, tall walking staff |
 | Igbo | Ozo Nwafor | Grey beard, red cap of a titled elder, wrapper at the waist, carved walking stick and a hand fan |
 | Edo | Pa Osagie | Grey beard, white wrapper, coral bead necklace, plain cap, walking stick |
+| Itsekiri | Pa Omatsola | Grey beard, white cloth cap, loose white smock, woven wrapper over the shoulder, coral bead necklace, walking stick |
 
 **Where he appears**
 
@@ -205,7 +206,7 @@ Each culture has one old male adviser, the same man for the whole game, whose po
 - Beside warnings: raiders sighted, food running low, stores full, fear too high, a tower standing empty.
 - Tapping his portrait repeats his current advice and opens the full list of goals.
 
-**Three expressions:** calm for advice, pleased when a goal is done, worried when danger comes. That is three portraits per culture, 12 in all.
+**Three expressions:** calm for advice, pleased when a goal is done, worried when danger comes. That is three portraits per culture, 15 in all with the Itsekiri.
 
 **Proverbs:** now and then he closes with a proverb in his own language, with its English meaning. Each culture pack carries 10 to 15 real proverbs collected and checked by a native speaker, never invented ones.
 
@@ -228,22 +229,24 @@ Each culture trains one elite unit at its Training Ground from the Town era, and
 | Ẹ̀ṣọ́ Rider (`eso`) | Yoruba | Lighter horse, quilted vest, aso-oke sash, cap, spear and bow | Fast raider: hunts archers and supply carriers, weak in a long melee |
 | Abam Warrior (`abam`) | Igbo | No horse. Big, muscular fighter with a heavy two-handed iron sword, raffia anklets, red war cloth on the head, white chalk lines | Slow, devastating melee: each blow also strikes one enemy beside the target |
 | Leopard Guard (`leopardguard`) | Edo | Leopard-skin tunic, coral collar, bronze bells, iron sword, decorated shield | Defensive heavy: stronger near walls, moats or the palace, and steadies nearby soldiers |
+| War-Canoe Gunman (`canoegun`) | Itsekiri | No horse. White head cloth, white smock, indigo-and-white wrapper, coral beads, powder gourds on a bandolier, trade gun | Fires from the water: crosses creeks, lagoons and mangroves like dry land, takes half from arrows and shot afloat, and his gun frightens horses |
 
-**Starting numbers** (compare: Horseman 140 hp, 15 attack, speed 3.2; Swordsman 125, 14, 2.0)
+**Numbers, as tuned** (compare: Horseman 140 hp, 15 attack, speed 3.2; Swordsman 125, 14, 2.0). The first guesses let the Abam win every fight and the Lifidi none; these came out of the headless fight test (`tests/fight.mjs`, `tests/elite.test.mjs`), which sets armies of equal worth against each other on open ground, counting each recruit as worth 100 because people and army places are what run short by the Town age.
 
-| Unit | HP | Attack | Speed | Cost |
-| --- | --- | --- | --- | --- |
-| Lifidi Horseman | 200 | 18 | 2.7 | 1 horse, 2 weapons, 4 cloth, 70 money |
-| Ẹ̀ṣọ́ Rider | 120 | 14 | 3.9 | 1 horse, 1 weapons, 45 money |
-| Abam Warrior | 220 | 22 | 1.9 | 2 weapons, 20 food, 50 money |
-| Leopard Guard | 170 | 16 | 2.1 | 2 weapons, 4 iron, 55 money |
+| Unit | HP | Attack | Speed | Cost | Its edge |
+| --- | --- | --- | --- | --- | --- |
+| Lifidi Horseman | 250 | 20 | 2.7 | 1 horse, 2 weapons, 4 cloth, 70 money | Double against soldiers on foot; a beat to wheel round before each new foe |
+| Ẹ̀ṣọ́ Rider | 135 | 14 | 3.9 | 1 horse, 1 weapons, 45 money | 3.5 times against archers and gunmen, 1.8 against carriers; weaker after six seconds in one melee |
+| Abam Warrior | 200 | 20 (every 1.5 s) | 1.8 | 2 weapons, 20 food, 50 money | Each blow also strikes the enemy beside the target, at 70% |
+| Leopard Guard | 170 | 16 | 2.1 | 2 weapons, 4 iron, 55 money | Within 4 tiles of your walls, towers or palace: 30% harder blows, 25% less harm; soldiers beside him take 15% less |
+| War-Canoe Gunman | 100 | 22 (range 6) | 2.4 | 1 weapons, 12 wood, 60 money | Lagoon, river and mangrove like dry land; half damage from arrows and shot afloat; 1.5 times against horsemen |
 
-These are first guesses; tune them with the headless test run.
+Who beats whom in the open: Lifidi breaks Abam, Leopard Guards and spearmen; Abam beats swordsmen, Leopard Guards and the gunmen; swordsmen and gunmen stop the Lifidi; Ẹ̀ṣọ́ rides down archers, musketeers and the canoe men. By your walls the Leopard Guard holds against the Abam who beats him in the open.
 
 **Rules**
 
 - Only your own culture's elite can be trained.
-- Allied or conquered provinces of another culture let you hire their elite for a daily wage. Uniting a Hausa kingdom gives you Lifidi Horsemen, so diverse alliances pay.
+- Allied or conquered provinces of another culture let you hire their elite for a daily wage. Uniting a Hausa kingdom gives you Lifidi Horsemen, so diverse alliances pay. Until the campaign map exists (milestone 8), the peoples of your own land stand in for provinces: an allied or conquered people of another culture lends its elite (150 money, then 5 a day), so Warri can hire Leopard Guards from the Oba's river post, and Benin Ẹ̀ṣọ́ riders from Owo.
 - Optional, to test: horses slowly lose health in forest (the tsetse fly). This is why northern cavalry never conquered the forest belt, and it keeps north and south different.
 
 ## Love and fear
@@ -574,12 +577,13 @@ Ten milestones, each one or a few coding sessions, in this order. Character art 
    - Done when: the game plays exactly as before, old saves load, and the test passes.
 2. **Culture packs and the Kano start.** Create `js/cultures/` with a Yoruba pack (moved from today's data) and a Hausa pack. Move the guided opening into a shared file that takes its words from the pack. Add `kano.js` with savanna terrain, the Katsina and Zazzau kingdoms, the Kwararafa host, hyena packs and the Durbar. Replace the title screen's state cartogram with the province map, and make Èkó and Kano tappable. Add the Yoruba and Hausa advisers beside objectives and hints.
    - Done when: a Kano game runs the guided opening with Hausa names and words, and the Kwararafa host can be beaten.
-   - Status (October 2026): built and shipped, except the advisers, which joined this milestone afterwards.
+   - Status (October 2026): built and shipped; the advisers, added to this milestone afterwards, followed with milestone 3's elite units.
 3. **Elite units and wooden towers.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied provinces. Turn the watchtower into a wooden tower that archers man (see Wooden towers).
    - Done when: each start trains its elite in the Town era, the test shows no unit winning every fight, archers on a tower outshoot the same archers on the ground, and a tower that falls kills those on it.
+   - Status (October 2026): the elite units are built, at Kay's request, with a fifth for Warri, the War-Canoe Gunman. Each has its own 3D model made with Higgsfield; the two riders sit on horses whose legs are rigged in code (`js/render3d/horse.js`), and the ordinary horsemen ride the light horse too. Each start trains its own elite from the Town age and no other, allies lend theirs, and no unit wins every fight (`tests/elite.test.mjs`). The wooden towers are still to do.
 4. **Benin, Warri and Northern Igbo starts.** Add Igbo, Edo and Itsekiri packs, their region files, story beats, festivals and advisers.
    - Done when: all five home kingdoms are playable from the title screen.
-   - Status (October 2026): built ahead of milestone 3, at Kay's request, except the advisers. Each start runs the guided opening and its first great host can be beaten: the Igala army, Benin's war fleet, the Aro war bands (`tests/lands.test.mjs`). New starts are built from `js/regions/kit.js`. Next: a start in the North East (Kanem-Bornu) and one in North Central (Nupe or Kwararafa).
+   - Status (October 2026): built ahead of milestone 3, at Kay's request, and the advisers followed with the elite units. Each start runs the guided opening and its first great host can be beaten: the Igala army, Benin's war fleet, the Aro war bands (`tests/lands.test.mjs`). New starts are built from `js/regions/kit.js`. Next: a start in the North East (Kanem-Bornu) and one in North Central (Nupe or Kwararafa).
 5. **Love and fear.** Add the Rule dial, the joyful and fearful buildings with their culture skins, the Palm Wine Tapper and the drunkard, the elders' prompts and the three choice events.
    - Done when: in a test run, joyful buildings speed up workers, fearful ones make soldiers stronger and workers slower, the drunkard can be killed in a raid, and each prompt fires in its situation.
 6. **The slave-trade branch.** Add the sell option and its hidden consequences in each culture's version.
@@ -603,7 +607,8 @@ These need Kay's answer before the milestone that depends on them.
 - [ ] **Where players play** (milestones 7 and 10): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
 - [ ] **Studio server** (milestone 10): hosting, cost, and who moderates display names.
 - [ ] **Reviewers:** who checks the Hausa, Igbo, Edo and Itsekiri names, clothing and stories. The Edo and Itsekiri age names and the Itsekiri greeting are left in English until then.
-- [ ] **Warri's adviser and elite unit** (milestones 3 and 4): the brief names four advisers and four elite units; the Itsekiri start has neither yet. Name and describe them, or leave Warri without until a reviewer suggests them.
+- [x] **Warri's elite unit** (milestone 3): Kay asked for one in October 2026: the War-Canoe Gunman.
+- [ ] **Warri's adviser** (milestone 4): built as Pa Omatsola, an Itsekiri name chosen for the game. An Itsekiri speaker should confirm the name and his look, or give a better one.
 
 ## Later updates
 
@@ -649,5 +654,7 @@ For a horse, change the first line to a side view of the horse standing square, 
 | Hausa adviser (Malam Sule) | an old Hausa man in his seventies, white beard, indigo turban, plain white gown, leather sandals, a tall walking staff |
 | Igbo adviser (Ozo Nwafor) | an old Igbo titled elder in his seventies, grey beard, red cap of a titled man, wrapper at the waist, a carved walking stick and a hand fan |
 | Edo adviser (Pa Osagie) | an old Edo man in his seventies, grey beard, white wrapper, coral bead necklace, plain cap, a walking stick |
+| Itsekiri adviser (Pa Omatsola) | an old Itsekiri man of Warri in his seventies, grey beard, plain white cloth cap, loose white cotton smock, a woven wrapper over one shoulder, coral bead necklace, a walking stick |
+| War-Canoe Gunman | an Itsekiri war-canoe gunman of Warri, white cloth wound round the head, loose white cotton smock, wrapper of indigo-and-white woven cloth to the knee, leather bandolier with small powder gourds, coral beads, bare feet |
 
 For an adviser, change the first line to a head-and-shoulders portrait, use a warm painted look matching the leader portraits, and make calm, pleased and worried versions from the same reference image so the face stays the same.
