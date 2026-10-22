@@ -76,7 +76,7 @@ A culture pack is one data file that reskins the game for one people; a home kin
 - One elite unit (see Elite units).
 - Words: era names in the local language, the welcome greeting, the festival.
 - Staple crop label and icon. The internal resource id stays `yam` so saves and code keep working; Kano simply shows it as millet.
-- Story: opening text, first big enemy, three to six historical events, places of interest.
+- Story: opening text, first big enemy, three to six historical events, places of interest, and the adviser who guides the player.
 - Threats: the local predator and the local environmental event.
 
 **What stays the same everywhere**
@@ -121,12 +121,13 @@ The first release offers five home kingdoms, one per culture: Èkó (Yoruba), Ka
 | Ruler's title | Ọba | Sarki | Eze (Obi in some towns) | Oba |
 | Welcome line | Ẹ káàbọ̀ | Sannu da zuwa | Nnọọ | Kóyo (check) |
 | Staple label | Yam, with fish and garri | Millet | Yam | Yam |
-| Terrain | Lagoon, creeks, coastal forest | Dry savanna, Dala and Goron Dutse hills, no sea | Hills and light forest, the Nsukka–Udi uplands | Rainforest, the Ogba and Ikpoba rivers |
-| Predator | Wolves for now (leopard planned) | Hyena pack | Leopard | Leopard |
+| Terrain | Lagoon, creeks, coastal forest | Dry savanna, Dala and Goron Dutse hills, no sea | Hills and light forest, the Nsukka–Udi uplands | Rainforest, the city's moats |
+| Predator | Leopard (replaces wolves) | Hyena pack | Leopard | Leopard |
 | Nature event | Lagoon flood, Harmattan | Drought, Harmattan, locusts | Gully erosion, heavy rains | Floods, heavy rains |
 | First big enemy | The Oba's host from Benin (exists) | Kwararafa (Jukun) raiders | Aro raiding bands | The Igala army from Idah |
 | Festival | Eyo (exists) | Durbar | New Yam Festival (Iri Ji) | Igue |
 | Elite unit | Ẹ̀ṣọ́ Rider | Lifidi Horseman | Abam Warrior | Leopard Guard |
+| Adviser | Baba Ajayi | Malam Sule | Ozo Nwafor | Pa Osagie |
 
 ### Story beats
 
@@ -164,7 +165,7 @@ Each start gets three to six events from its own history, run by the existing ev
 
 **Itsekiri (Warri)**
 
-The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement Ijala; the ruler is the Olu; the staple is plantain; the predator is crocodiles from the creeks; the festival is the canoe regatta. The greeting and the age names stay in English until a speaker checks them.
+The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement Ijala; the ruler is the Olu; the staple is plantain; the predator is crocodiles from the creeks; the festival is the canoe regatta. The greeting and the age names stay in English until a speaker checks them. It has no adviser or elite unit yet (see Open decisions).
 
 - Prince Ginuwa of Benin founds the Olu's line (around 1480) and brings followers from Benin.
 - Creek trade with the Urhobo, Isoko and Ijaw: salt, fish and palm oil.
@@ -182,6 +183,40 @@ The fifth start, added in October 2026. Founder Tosan, wife Omawumi, settlement 
 | Edo | Osaro, Osagie, Eghosa, Idahosa, Omoruyi, Efosa, Osayande, Ehigiator, Uyi, Ogbeide | Ivie, Osasu, Eseosa, Imade, Ewere, Ofure, Osayuki, Isoken, Itohan |
 
 Have a native speaker check every name, title and greeting, with tone marks, before release.
+
+## The adviser
+
+Each culture has one old male adviser, the same man for the whole game, whose portrait appears beside every new objective, hint and warning.
+
+- He is an elder of the founder's people who knew the land before the founder came. He replaces the unnamed guide in the guided opening (steps with `who: 'guide'`), and he speaks every prompt in Love and fear and Wooden towers.
+- Story characters keep their own faces: the founder and spouse in the guided opening, and envoys, kings and foreign captains in events, using the existing leader art.
+
+| Culture | Adviser | Look |
+| --- | --- | --- |
+| Yoruba | Baba Ajayi | Short grey beard, plain fila cap, faded indigo buba and wrapper, a string of beads, carved walking stick |
+| Hausa | Malam Sule | White beard, indigo turban, plain white gown, leather sandals, tall walking staff |
+| Igbo | Ozo Nwafor | Grey beard, red cap of a titled elder, wrapper at the waist, carved walking stick and a hand fan |
+| Edo | Pa Osagie | Grey beard, white wrapper, coral bead necklace, plain cap, walking stick |
+
+**Where he appears**
+
+- A head-and-shoulders portrait beside the objectives box at top left, with his name.
+- Beside every new objective and hint, with one or two lines of plain advice.
+- Beside warnings: raiders sighted, food running low, stores full, fear too high, a tower standing empty.
+- Tapping his portrait repeats his current advice and opens the full list of goals.
+
+**Three expressions:** calm for advice, pleased when a goal is done, worried when danger comes. That is three portraits per culture, 12 in all.
+
+**Proverbs:** now and then he closes with a proverb in his own language, with its English meaning. Each culture pack carries 10 to 15 real proverbs collected and checked by a native speaker, never invented ones.
+
+**Settings:** experienced players can turn off his optional tips. Objectives and warnings still show.
+
+**Implementation notes**
+
+- Each culture pack gains `adviser: { name, portraits: { calm, pleased, worried }, proverbs: [...] }`.
+- Story steps with `who: 'guide'` show the adviser. The objectives box and warning notices show his portrait, with the expression set by the kind of message.
+- Art: 12 portraits made with Higgsfield in the style of the leader portraits (`art/leader_*.webp`), each culture's three expressions made from one reference image so the face stays the same. Descriptors are in the Appendix.
+- Later: a short voiced greeting per culture in the local language.
 
 ## Elite units
 
@@ -210,6 +245,124 @@ These are first guesses; tune them with the headless test run.
 - Only your own culture's elite can be trained.
 - Allied or conquered provinces of another culture let you hire their elite for a daily wage. Uniting a Hausa kingdom gives you Lifidi Horsemen, so diverse alliances pay.
 - Optional, to test: horses slowly lose health in forest (the tsetse fly). This is why northern cavalry never conquered the forest belt, and it keeps north and south different.
+
+## Love and fear
+
+A new Rule dial runs from Loved to Feared. Joyful buildings push it one way and speed up workers; fearful buildings push it the other way and make soldiers stronger but workers slower.
+
+**How it works**
+
+- Happiness stays as it is (food, taxes, events) and still decides whether newcomers arrive or people leave. Joyful buildings raise it; fearful ones lower it a little.
+- The Rule dial runs from −5 (Feared) to +5 (Loved). It comes from the joy and fear points of your buildings, measured against population, so a growing town needs more of them to hold its level. It shows in the Rule panel (⚖️) and on the top bar.
+
+| Dial | Workers | Soldiers | Also |
+| --- | --- | --- | --- |
+| Loved (+5) | Up to 25% faster | No change | Newcomers come more often; joyful buildings cost upkeep |
+| Feared (−5) | Up to 20% slower | Up to 20% stronger attack | Less theft and desertion, conquered provinces rebel more slowly, lower happiness, fewer newcomers |
+
+Each step on the dial gives a fifth of the full effect.
+
+**Joyful buildings**
+
+| Building | What you see | Joy | Upkeep |
+| --- | --- | --- | --- |
+| Palm wine hut | Drinkers on benches, singing; one drunkard wanders out | 2 | Palm wine from a new Palm Wine Tapper |
+| Storyteller's tree | Children round an elder at dusk | 1 | None |
+| Board-game shade | Elders playing ayò or their culture's own board game | 1 | None |
+| Wrestling ground | A bout every few days with a cheering crowd | 3 | 10 money prize per bout |
+| Drum and dance ground | Drummers and dancers in the evening | 2 | 5 money a day |
+| Festival ground | The culture's festival: Eyo, Durbar, New Yam Festival or Igue | 4 during a festival, 1 otherwise | Food and money for each festival |
+
+**Fearful buildings**
+
+| Building | What you see | Fear | Upkeep |
+| --- | --- | --- | --- |
+| Stocks | Now and then a wrongdoer sits in the stocks while villagers jeer | 2 | None |
+| Lock-up | A guarded hut with a barred door | 2 | A guard's wage |
+| War-trophy rack | Captured shields, spears and banners at the gate, growing with each victory | 1 for every 3 victories, up to 4 | None: earned in war |
+| Curfew drum | A drummer beats curfew at dusk and everyone goes indoors | 3 | A drummer's wage; workers stop at dusk |
+| Guards' parade ground | Palace guards drilling in the square | 2 | Soldiers' upkeep |
+| Executioner's platform | A raised platform and a ceremonial sword; sentences are announced in event text and no violence is shown | 5 | None |
+
+**Culture skins**
+
+- Kano gets a kola-nut house instead of a palm wine hut, with no drunkard: kola was the north's great social pleasure and suits a Muslim court. Its wrestling ground holds dambe boxing and kokawa wrestling, and its guards are the emir's dogarai.
+- Yoruba: ẹmu (palm wine), ìjàkadì wrestling and ayò. Igbo: palm wine and mgba wrestling. Edo: palm wine and the Oba's palace guard.
+- Native speakers name every building in each culture.
+
+**The drunkard**
+
+- Each palm wine hut lets out one drunkard. He wanders the lanes singing, naps under trees, and sometimes drifts towards the bush.
+- He is an ordinary villager: raiders and wild animals can kill him. If he dies, the village mourns him for a day, with a small dip in happiness.
+- Now and then he starts a palm wine brawl (see the choice events below).
+- He is played for comedy: a sway in his walk and a calabash in his hand, nothing crude.
+
+**Prompts along the way**
+
+The adviser nudges the player. These are advice, not orders.
+
+| When | His expression | What he suggests |
+| --- | --- | --- |
+| Happiness low for 3 days | Worried | "The people are weary": a palm wine hut, wrestling ground or festival |
+| Theft from the stores | Worried | Stocks or a lock-up |
+| A great host gathers | Worried | A trophy rack or guards' parade, so the men fear you more than the enemy |
+| After a big victory | Pleased | Show the captured shields on a trophy rack |
+| Workers slowed by fear for 5 days | Worried | Ease off: a festival or a storyteller's tree |
+
+Choice events, run by the existing event engine:
+
+- **A thief at the granary:** pardon him (one step towards Loved for a few days), a day in the stocks (one step towards Feared), or banish him (lose one villager).
+- **A palm wine brawl:** laugh it off (happiness up, but it may happen again), fine the drinkers (money and a little fear), or close the hut for a week (happiness down).
+- **Families talk of leaving** (the dial at Feared for 10 days): ease up (one step towards Loved) or crack down (fear holds and two families leave).
+
+**Beheading stands are left out.** They break the brief's no-gore rule, push the age rating up, limit where the game can be advertised, and repeat the "City of Blood" image British accounts used to justify the 1897 attack on Benin. The executioner's platform gives the same top level of fear without showing violence.
+
+**Implementation notes**
+
+- Building definitions gain `joy` or `fear` points and an `upkeep`. A daily update in `js/sim/economy.js` sets `st.rule`: joy minus fear, divided by one point per 10 people, rounded and capped at ±5. Old saves start at 0.
+- The workers' speed multiplier goes where work rates are worked out (`js/sim/citizens.js`); the soldiers' attack multiplier goes in `js/sim/military.js`.
+- New resource `palmwine`, made by a Palm Wine Tapper workplace beside oil palms.
+- The drunkard is a citizen with `special: 'drunk'`: an idle wander loop, a slowed walk with a sway, and a calabash prop.
+- Culture packs carry the building names and skins, for example `skins: { winehut: 'kolahouse' }` for Hausa.
+- The empire card shows "Ruled by love" or "Ruled by fear".
+- Art: about 12 building sprites plus culture variants, the drunkard (an existing villager model with a calabash) and a villager-in-the-stocks pose.
+
+## Wooden towers
+
+The watchtower becomes a wooden tower that archers climb. From the top they see further, shoot further, raise the alarm sooner and are harder to kill, but if the tower falls, everyone on it dies.
+
+**How it works**
+
+- Select archers (tap them, or drag a box with ⬚ Select), then tap a tower. They walk to it and climb up, taking a couple of seconds each. The tower's panel shows its places and a "Come down" button.
+- Archers and hired bowmen can climb, and so can musketeers and Dane-gun men once they exist. Spearmen, swordsmen and riders cannot.
+- An empty tower still gives a little vision but shoots nothing. Today's watchtower shoots by itself; that goes.
+- When enemies come into a manned tower's view, it raises the alarm: a drum, a notice and a flash on the minimap.
+
+| | Archer on the ground | Archer on a wooden tower |
+| --- | --- | --- |
+| Sees | 6 tiles | 10 tiles |
+| Shoots | 5 tiles | 7 tiles |
+| Enemy arrows and shots | Full damage | Half damage |
+| Enemy spears and swords | Can reach him | Cannot reach him; the enemy must bring the tower down |
+
+**The tower:** Compound era, 3 archers, strength 260, costing 25 wood, 6 stone and 15 money (today's watchtower cost). A later upgrade can add a mud-brick tower with 4 places and twice the strength.
+
+**When a tower falls**
+
+- Enemy spearmen and swordsmen hack at the base while enemy archers shoot at the men on top.
+- When the tower's strength runs out, it collapses in dust and falling timber, and every archer on it dies. A notice names the loss, for example "The east tower has fallen. Three archers died with it." No bodies are shown.
+- A damaged tower can be mended with 🔨 Repair like any building, so the player can repair it in time or call the archers down.
+
+**Prompts:** when raiders are sighted and a tower stands empty, the adviser says the towers need archers. The first time a tower falls with men on it, the adviser suggests mending damaged towers or bringing the men down sooner.
+
+**Implementation notes**
+
+- `watchtower` in `js/data/buildings.js` becomes the Wooden Tower. It loses its `tower` auto-fire (the palace keeps its own) and gains `garrison: { places: 3, accepts: ['archer', 'bowman', 'musketeer'], range: 2, vision: 4, shotDamage: 0.5 }`.
+- Units on a tower carry `u.inTower = <building id>`. They stay at the top, are drawn on the tower, and melee enemies cannot target them.
+- `damage()` in `js/sim/military.js` halves ranged damage to a unit with `inTower`. When the tower's strength reaches 0, every unit with that `inTower` dies.
+- `armyPower` counts a tower only when it is manned; today it adds 25 for every watchtower.
+- Old saves: existing watchtowers become empty wooden towers, and a one-time notice asks the player to man them.
+- Art: a platform with three archer spots on the tower sprite, a climbing pose, and a collapse effect.
 
 ## Hidden consequences: the slave trade
 
@@ -277,7 +430,7 @@ Players city-build only their home kingdom. The rest of Nigeria is 28 provinces 
 | Aro lands | South | The Aro, through their oracle at Arochukwu | Abia, Imo |
 | Northern Igbo lands (home start) | South | Village councils (council) | Enugu, Ebonyi |
 
-The borders and tribute links are a design snapshot, not a single historical year. Have a historian check them before milestone 7.
+The borders and tribute links are a design snapshot, not a single historical year. Have a historian check them before milestone 8.
 
 **Data** (`js/campaign/provinces.js`, new): for each province, its id, name, area, neighbours, holder and title, overlord if it pays tribute, culture pack if one exists, `council: true` for lands without kings, strength 1–5, daily yield, land type (coast, forest, savanna, delta), and the modern states it covers, shown in the picker. A simple province map replaces the state cartogram (`STATES` in `js/regions/index.js`).
 
@@ -415,37 +568,42 @@ The game asks Nigerians "what if?" about their own history, so it must never set
 
 ## Build order
 
-Nine milestones, each one or a few coding sessions, in this order. Character art runs alongside: until a culture's models are baked, the code uses the existing models with a colour tint, so art never blocks code.
+Ten milestones, each one or a few coding sessions, in this order. Character art runs alongside: until a culture's models are baked, the code uses the existing models with a colour tint, so art never blocks code.
 
 1. **Foundations.** Add this brief to the project as `DESIGN.md`. Split `lagos.js` into terrain, factions, events, story and objectives files. Add a save version and migration. Rename the game to **Naija Rising — Build your Nigeria** on the title screen, page title and share tags, but keep the internal `eko-rising` ids and storage keys so saves and feedback history carry over. If the web address changes, keep the old one redirecting. Add a headless test that plays 200 game days on a fixed seed for each start and fails on any error.
    - Done when: the game plays exactly as before, old saves load, and the test passes.
-2. **Culture packs and the Kano start.** Create `js/cultures/` with a Yoruba pack (moved from today's data) and a Hausa pack. Move the guided opening into a shared file that takes its words from the pack. Add `kano.js` with savanna terrain, the Katsina and Zazzau kingdoms, the Kwararafa host, hyena packs and the Durbar. Replace the title screen's state cartogram with the province map, and make Èkó and Kano tappable.
+2. **Culture packs and the Kano start.** Create `js/cultures/` with a Yoruba pack (moved from today's data) and a Hausa pack. Move the guided opening into a shared file that takes its words from the pack. Add `kano.js` with savanna terrain, the Katsina and Zazzau kingdoms, the Kwararafa host, hyena packs and the Durbar. Replace the title screen's state cartogram with the province map, and make Èkó and Kano tappable. Add the Yoruba and Hausa advisers beside objectives and hints.
    - Done when: a Kano game runs the guided opening with Hausa names and words, and the Kwararafa host can be beaten.
-3. **Elite units.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied provinces.
-   - Done when: each start trains its elite in the Town era, and the test shows no unit winning every fight.
-4. **Benin, Warri and Northern Igbo starts** (done October 2026, ahead of milestone 3, at Kay's request). Igbo, Edo and Itsekiri packs; `benin.js`, `warri.js` and `nigbo.js` with their story beats, festivals and first great hosts (the Igala army, Benin's war fleet, the Aro war bands); leopard and crocodile packs; soldiers dressed by culture. New starts are built from `js/regions/kit.js` (the guided opening's story pop-ups and the great host). Next: a start in the North East (Kanem-Bornu) and one in North Central (Nupe or Kwararafa).
-   - Done when: all five home kingdoms are playable from the title screen. Done: each runs the guided opening, and its host can be beaten (tests/lands.test.mjs).
-5. **The slave-trade branch.** Add the sell option and its hidden consequences in each culture's version.
+   - Status (October 2026): built and shipped, except the advisers, which joined this milestone afterwards.
+3. **Elite units and wooden towers.** Add the four elite units, the rule that only your own culture trains its elite, and hiring them from allied provinces. Turn the watchtower into a wooden tower that archers man (see Wooden towers).
+   - Done when: each start trains its elite in the Town era, the test shows no unit winning every fight, archers on a tower outshoot the same archers on the ground, and a tower that falls kills those on it.
+4. **Benin, Warri and Northern Igbo starts.** Add Igbo, Edo and Itsekiri packs, their region files, story beats, festivals and advisers.
+   - Done when: all five home kingdoms are playable from the title screen.
+   - Status (October 2026): built ahead of milestone 3, at Kay's request, except the advisers. Each start runs the guided opening and its first great host can be beaten: the Igala army, Benin's war fleet, the Aro war bands (`tests/lands.test.mjs`). New starts are built from `js/regions/kit.js`. Next: a start in the North East (Kanem-Bornu) and one in North Central (Nupe or Kwararafa).
+5. **Love and fear.** Add the Rule dial, the joyful and fearful buildings with their culture skins, the Palm Wine Tapper and the drunkard, the elders' prompts and the three choice events.
+   - Done when: in a test run, joyful buildings speed up workers, fearful ones make soldiers stronger and workers slower, the drunkard can be killed in a raid, and each prompt fires in its situation.
+6. **The slave-trade branch.** Add the sell option and its hidden consequences in each culture's version.
    - Done when: in a test run, selling produces sold-captive riflemen in a later landing with the reveal card, and freeing produces settlers over the cap.
-6. **Live events and the empire card.** Add `live.js` with the hyena season as the first event, the title-screen banner, badges, and the shareable card in both sizes.
+7. **Live events and the empire card.** Add `live.js` with the hyena season as the first event, the title-screen banner, badges, and the shareable card in both sizes.
    - Done when: setting the device date into an event week triggers it, and the card shares on a phone.
-7. **The Nigeria map.** Add the 28 provinces, tribute links, elders' councils for lands without kings, diplomacy, automatic battles, yields, garrisons and era requirements counted in provinces. Split the Ogun chapter into the Ìjẹ̀bú and Ẹ̀gbá provinces.
+8. **The Nigeria map.** Add the 28 provinces, tribute links, elders' councils for lands without kings, diplomacy, automatic battles, yields, garrisons and era requirements counted in provinces. Split the Ogun chapter into the Ìjẹ̀bú and Ẹ̀gbá provinces.
    - Done when: a player can win a neighbouring province by treaty and another by war, and both pay yields.
-8. **The British advance and the liberation war.** Add British expansion across independent provinces, the colonial map, the fight to take them back, winning across the whole map, and the player's choice of the New Nigeria's shape. In the north, the invaders come before the British (decided October 2026): the Moroccan army that crossed the Sahara in 1591, then Rabih az-Zubayr's army in Borno in 1893, then the British in 1903. Name them always as historical armies, never as a people or a faith.
+9. **The British advance and the liberation war.** Add British expansion across independent provinces, the colonial map, the fight to take them back, winning across the whole map, and the player's choice of the New Nigeria's shape. In the north, the invaders come before the British (decided October 2026): the Moroccan army that crossed the Sahara in 1591, then Rabih az-Zubayr's army in Borno in 1893, then the British in 1903. Name them always as historical armies, never as a people or a faith.
    - Done when: a full test campaign can end in the New Nigeria.
-9. **Accounts, cloud saves and leaderboards** on the studio server, with the privacy work from the Bragging section.
+10. **Accounts, cloud saves and leaderboards** on the studio server, with the privacy work from the Bragging section.
    - Done when: a save made on one device continues on another, and impossible scores are rejected.
 
 ## Open decisions
 
 These need Kay's answer before the milestone that depends on them.
 
-- [ ] **Freed captives' reward** (milestone 5): this brief replaces "they eat a third of the food" with loyalty, combat and settler-cap rewards. Confirm, or bring the food rule back.
-- [ ] **The province map** (milestone 7): check the 28 provinces, their borders and tribute links with a historian. The Ogun chapter is settled: it becomes the Ìjẹ̀bú and Ẹ̀gbá provinces.
-- [ ] **How many provinces before the British advance** (milestone 7): the brief starts it at the Port City era with era goals of 1, 4 and 10 provinces out of 28. The original idea was 10 to 15 states first, which is a third to half of the map.
-- [ ] **Where players play** (milestones 6 and 9): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
-- [ ] **Studio server** (milestone 9): hosting, cost, and who moderates display names.
+- [ ] **Freed captives' reward** (milestone 6): this brief replaces "they eat a third of the food" with loyalty, combat and settler-cap rewards. Confirm, or bring the food rule back.
+- [ ] **The province map** (milestone 8): check the 28 provinces, their borders and tribute links with a historian. The Ogun chapter is settled: it becomes the Ìjẹ̀bú and Ẹ̀gbá provinces.
+- [ ] **How many provinces before the British advance** (milestone 8): the brief starts it at the Port City era with era goals of 1, 4 and 10 provinces out of 28. The original idea was 10 to 15 states first, which is a third to half of the map.
+- [ ] **Where players play** (milestones 7 and 10): the studio website, which can host feedback, accounts and leaderboards, or the claude.ai link, which cannot reach the studio server's `/api/game-feedback`.
+- [ ] **Studio server** (milestone 10): hosting, cost, and who moderates display names.
 - [ ] **Reviewers:** who checks the Hausa, Igbo, Edo and Itsekiri names, clothing and stories. The Edo and Itsekiri age names and the Itsekiri greeting are left in English until then.
+- [ ] **Warri's adviser and elite unit** (milestones 3 and 4): the brief names four advisers and four elite units; the Itsekiri start has neither yet. Name and describe them, or leave Warri without until a reviewer suggests them.
 
 ## Later updates
 
@@ -453,7 +611,7 @@ These continue the campaign after the first release and are not part of the curr
 
 - **Crude oil.** Oil is found in the Delta provinces, as at Oloibiri in 1956. It brings huge income, plus pollution and unrest in the provinces that produce it.
 - **Corruption.** As wealth grows, officials skim taxes and tribute. Courts, the Assembly, schools and a free press reduce it. Left unchecked, it feeds unrest and attacks.
-- **More culture packs:** Kanuri (Borno), Ijaw (Bayelsa, Rivers), Tiv (Benue), Nupe (Niger), Efik and Ibibio (Cross River, Akwa Ibom), Urhobo and Itsekiri (Delta), Igala (Kogi), Jukun (Taraba).
+- **More culture packs:** Kanuri (Borno), Ijaw (Bayelsa, Rivers), Tiv (Benue), Nupe (Niger), Efik and Ibibio (Cross River, Akwa Ibom), Urhobo (Delta), Igala (Kogi), Jukun (Taraba).
 - **Second cities** in held provinces, and battles you fight yourself on a generated map.
 - **Sound:** talking drums for war, market and lagoon ambience, a narrator for story events.
 - **"What really happened" cards** after each historical event, and regional building skins.
@@ -487,3 +645,9 @@ For a horse, change the first line to a side view of the horse standing square, 
 | Leopard Guard | a Benin palace guard, leopard-skin tunic over a wrapper, high coral collar, small bronze bells at the waist, iron sword, round decorated hide shield |
 | Ẹ̀ṣọ́ Rider | a Yoruba cavalryman of Ọ̀yọ́, quilted cotton vest, indigo and red aso-oke sash, close cap, spear and short bow |
 | Ẹ̀ṣọ́ horse | a lighter chestnut horse with a simple leather bridle and a woven saddle cloth |
+| Yoruba adviser (Baba Ajayi) | an old Yoruba man in his seventies, short grey beard, plain fila cap, faded indigo buba and wrapper, a string of beads, leaning on a carved walking stick |
+| Hausa adviser (Malam Sule) | an old Hausa man in his seventies, white beard, indigo turban, plain white gown, leather sandals, a tall walking staff |
+| Igbo adviser (Ozo Nwafor) | an old Igbo titled elder in his seventies, grey beard, red cap of a titled man, wrapper at the waist, a carved walking stick and a hand fan |
+| Edo adviser (Pa Osagie) | an old Edo man in his seventies, grey beard, white wrapper, coral bead necklace, plain cap, a walking stick |
+
+For an adviser, change the first line to a head-and-shoulders portrait, use a warm painted look matching the leader portraits, and make calm, pleased and worried versions from the same reference image so the face stays the same.
